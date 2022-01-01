@@ -1,6 +1,6 @@
-package org.jetbrains.plugins.template.services
+package com.github.nggalien.ideaplpgdebugger.services
 
-import org.jetbrains.plugins.template.MyBundle
+import com.github.nggalien.ideaplpgdebugger.MyBundle
 
 class MyApplicationService {
 

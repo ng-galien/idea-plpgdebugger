@@ -1,9 +1,9 @@
-package org.jetbrains.plugins.template.listeners
+package com.github.nggalien.ideaplpgdebugger.listeners
 
 import com.intellij.openapi.components.service
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.project.ProjectManagerListener
-import org.jetbrains.plugins.template.services.MyProjectService
+import com.github.nggalien.ideaplpgdebugger.services.MyProjectService
 
 internal class MyProjectManagerListener : ProjectManagerListener {
 
