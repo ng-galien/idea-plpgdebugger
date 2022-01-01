@@ -1,18 +1,15 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <id>com.github.nggalien.ideaplpgdebugger</id>
-    <name>idea-plpgdebugger</name>
-    <vendor>ng-galien</vendor>
+    <name>Idea-Plpgdebugger</name>
+    <vendor email="nggalien.mail@gmail.com" url="https://github.com/ng-galien">ng-galien</vendor>
 
     <depends>com.intellij.modules.platform</depends>
-
-    <extensions defaultExtensionNs="com.intellij">
-        <applicationService serviceImplementation="com.github.nggalien.ideaplpgdebugger.services.MyApplicationService"/>
-        <projectService serviceImplementation="com.github.nggalien.ideaplpgdebugger.services.MyProjectService"/>
+    <depends>com.intellij.database</depends>
+    <extensions defaultExtensionNs="com.intellij.database">
+        <debuggerFacade dbms="POSTGRES" implementationClass="org.postgres.debugger.PlpgDebugFacade"/>
     </extensions>
-
-    <applicationListeners>
-        <listener class="com.github.nggalien.ideaplpgdebugger.listeners.MyProjectManagerListener"
-                  topic="com.intellij.openapi.project.ProjectManagerListener"/>
-    </applicationListeners>
+    <extensions defaultExtensionNs="com.intellij">
+        <xdebugger.breakpointType implementation="org.postgres.debugger.breakpoint.PlpgLineBreakPointType"/>
+    </extensions>
 </idea-plugin>
