@@ -138,7 +138,6 @@ public class PlpgDebugController extends SqlDebugController {
             if (functionInfo == null) {
                 throw new PlpgCommandException("Start debugging failed");
             }
-            this.listenerId = commandHelper.createListener().getValue();
             long res = commandHelper.oidDebug(functionInfo.getOid()).getValue();
             if (res != 0) {
                 throw new PlpgCommandException("Start debugging failed");
