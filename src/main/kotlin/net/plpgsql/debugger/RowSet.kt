@@ -12,16 +12,16 @@ fun interface Producer<R> {
 }
 
 
-
 interface RowSet<R> {
-    abstract fun next(): Boolean
-    abstract fun bool(): Boolean
-    abstract fun int(): Int
-    abstract fun long(): Long
-    abstract fun string(): String
-    abstract fun date(): Date
-    abstract fun open()
-    abstract fun close()
+    fun next(): Boolean
+    fun bool(): Boolean
+    fun int(): Int
+    fun char(): Char
+    fun long(): Long
+    fun string(): String
+    fun date(): Date
+    fun open()
+    fun close()
     fun execute(args: List<String>)
 }
 
@@ -33,11 +33,14 @@ abstract class AbstractRowSet<R>(private val producer: Producer<R>) : RowSet<R> 
 
     override fun execute(args: List<String>) {
         parameters = args
-        open()
         try {
+            open()
             while (next()) {
-                _items.add(producer.consume(this))
+                val res = producer.consume(this)
+                _items.add(res)
             }
+        } catch (e: Exception) {
+            e.printStackTrace()
         } finally {
             close()
         }

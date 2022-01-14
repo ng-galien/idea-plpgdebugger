@@ -5,10 +5,8 @@ import com.intellij.database.dataSource.LocalDataSource
 import com.intellij.database.datagrid.DataRequest
 import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.debugger.SqlDebuggerFacade
-import com.intellij.database.dialects.postgres.model.PgDatabase
 import com.intellij.database.model.basic.BasicSourceAware
 import com.intellij.database.util.SearchPath
-import com.intellij.database.view.dbModel
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
@@ -16,14 +14,14 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.psi.SqlFunctionCallExpression
 import com.intellij.sql.psi.SqlStatement
 
-class Facade : SqlDebuggerFacade {
+class PlFacade : SqlDebuggerFacade {
 
     private var call: SqlFunctionCallExpression? = null
 
     override fun isApplicableToDebugStatement(statement: SqlStatement): Boolean {
         call = PsiTreeUtil
             .findChildrenOfAnyType(statement, SqlFunctionCallExpression::class.java)
-            .first()
+            .firstOrNull()
         return call != null
     }
 
@@ -43,7 +41,7 @@ class Facade : SqlDebuggerFacade {
         rangeMarker: RangeMarker?,
         searchPath: SearchPath?,
     ): SqlDebugController {
-        return Controller(
+        return PlController(
             project = project,
             connectionPoint = connection,
             ownerEx = owner,

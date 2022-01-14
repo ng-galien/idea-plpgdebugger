@@ -7,9 +7,11 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.database</depends>
     <extensions defaultExtensionNs="com.intellij.database">
-        <debuggerFacade dbms="POSTGRES" implementationClass="net.plpgsql.debugger.Facade"/>
+        <debuggerFacade dbms="POSTGRES" implementationClass="net.plpgsql.debugger.PlFacade"/>
+        <!--debuggerFacade dbms="POSTGRES" implementationClass="com.github.nggalien.pldebugger.PlpgDebugFacade"/-->
     </extensions>
     <extensions defaultExtensionNs="com.intellij">
         <xdebugger.breakpointType implementation="net.plpgsql.debugger.LineBreakpointType"/>
+        <!--xdebugger.breakpointType implementation="com.github.nggalien.pldebugger.breakpoint.PlpgLineBreakPointType"/-->
     </extensions>
 </idea-plugin>
