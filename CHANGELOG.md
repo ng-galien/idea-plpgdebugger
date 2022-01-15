@@ -3,5 +3,9 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+
+## [1.0.0-alpha]
 ### Added
-- Initial scaffold created from [IntelliJ Platform Plugin Template](https://github.com/JetBrains/intellij-platform-plugin-template)
+- Allow direct debug of a PL/pg function
+- View variables
+- Explore arrays and composite type
