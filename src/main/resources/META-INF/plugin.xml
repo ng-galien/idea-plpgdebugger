@@ -2,16 +2,14 @@
 <idea-plugin>
     <id>com.github.nggalien.ideaplpgdebugger</id>
     <name>Idea-Plpgdebugger</name>
-    <vendor email="nggalien.mail@gmail.com" url="https://github.com/ng-galien">ng-galien</vendor>
+    <vendor email="nggalien.mail@gmail.com" url="https://github.com/ng-galien">Alexandre Boyer</vendor>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.database</depends>
     <extensions defaultExtensionNs="com.intellij.database">
-        <debuggerFacade dbms="POSTGRES" implementationClass="net.plpgsql.debugger.PlFacade"/>
-        <!--debuggerFacade dbms="POSTGRES" implementationClass="com.github.nggalien.pldebugger.PlpgDebugFacade"/-->
-    </extensions>
+        <debuggerFacade dbms="POSTGRES" implementationClass="net.plpgsql.ideadebugger.PlFacade"/>
+        </extensions>
     <extensions defaultExtensionNs="com.intellij">
-        <xdebugger.breakpointType implementation="net.plpgsql.debugger.LineBreakpointType"/>
-        <!--xdebugger.breakpointType implementation="com.github.nggalien.pldebugger.breakpoint.PlpgLineBreakPointType"/-->
-    </extensions>
+        <xdebugger.breakpointType implementation="net.plpgsql.ideadebugger.LineBreakpointType"/>
+        </extensions>
 </idea-plugin>

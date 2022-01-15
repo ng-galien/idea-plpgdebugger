@@ -1,11 +1,9 @@
-package net.plpgsql.debugger
+package net.plpgsql.ideadebugger
 
 import com.intellij.database.debugger.SqlLineBreakpointProperties
 import com.intellij.database.debugger.SqlLineBreakpointType
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.xdebugger.breakpoints.XBreakpointHandler
-import com.intellij.xdebugger.breakpoints.XLineBreakpoint
 
 class LineBreakpointProperties : SqlLineBreakpointProperties() {}
 

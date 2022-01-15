@@ -1,4 +1,4 @@
-package net.plpgsql.debugger
+package net.plpgsql.ideadebugger
 
 import com.intellij.database.dataSource.DatabaseConnectionPoint
 import com.intellij.database.dataSource.LocalDataSource
@@ -60,7 +60,8 @@ class PlFacade : SqlDebuggerFacade {
             }.first() as PgDatabase
             return pgDB.extensions.find { it.name == "pldbgapi" } != null
         }*/
-        return ds.dbms.isPostgres;
+        return ds.dbms.isPostgres
+
     }
 
 }
