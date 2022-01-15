@@ -1,78 +1,54 @@
-CREATE type test_type as
-    (
-    int_val  integer,
-    text_vam text
-    );
+create extension pldbgapi;
 
-CREATE table test
+create type custom_type as
 (
-    id       bigserial primary key,
-    str_val  text,
-    int_val  integer,
-    date_val date
+    int_val integer,
+    tex_val text
 );
 
-CREATE table test2
+
+create table debug
 (
-    id       bigserial primary key,
-    type_val test_type
+    id          bigserial
+        primary key,
+    text_val    text,
+    int_val     integer,
+    date_val    date,
+    my_type     custom_type,
+    inner_array integer[]
 );
 
-INSERT INTO test(str_val, int_val, date_val)
-VALUES ('TEST', 1, current_date);
+insert into public.debug (id, text_val, int_val, date_val, my_type, inner_array)
+values  (4, 'TEST 1', 1, '2022-01-03', (2,'TEST 1_type'), '{1,2}'),
+        (3, '"TEST ''1"', 1, '2022-01-03', (2,'"TEST ''1""_type'), '{1,2}'),
+        (5, null, null, null, (1,'test'), '{}');
 
-INSERT INTO test2(type_val)
-VALUES ((1, 'TEST'));
-
-
-CREATE OR REPLACE function test_var() returns void AS
+create or replace function test_debug(p_text text, p_int integer DEFAULT 0) returns text
+    language plpgsql
+as
 $$
-declare
-    v_int integer = 1;
-    v_text text = 'sdsds';
-    --v_test   test;
-    --v_test2  test2;
-    --v_record RECORD;
-    --v_type   test_type;
+DECLARE
+    v_int_array INT[] = ARRAY [6, 7, 8];
+    v_custom custom_type = (434, 'Custom')::custom_type;
+    v_debug_array debug[];
+    v_debug debug;
+    v_text TEXT = '';
+    v_int  INT  = 0;
+    v_date date = NULL;
 BEGIN
-    RAISE NOTICE '%', v_int;
-    RAISE NOTICE '%', v_text;
+    v_text = p_text;
+    v_int_array = array_append(v_int_array, p_int);
+    SELECT * FROM debug limit 1 into v_debug;
+    v_int_array = array_append(v_int_array, 3);
+    SELECT array_agg(d) FROM debug d into v_debug_array;
+    v_int_array = array_append(v_int_array, 5);
+    v_int_array = array_append(v_int_array, 7);
+    v_text = 'TEST';
+    v_int = v_int + 1;
+    v_date = current_date;
+    SELECT array_agg(id) FROM debug into v_int_array;
+    return 'DEBUG END';
+end
+$$;
 
-    --SELECT * FROM test LIMIT 1 into v_test;
-    --SELECT * FROM test2 LIMIT 1 into v_test2;
-    --RAISE NOTICE '%', v_test;
-    --RAISE NOTICE '%', to_json(v_test)::text;
-    --RAISE NOTICE '%', v_test2;
-    --RAISE NOTICE '%', to_json(v_test2)::text;
-    --SELECT str_val, int_val, date_val FROM test LIMIT 1 into v_record;
-    --RAISE NOTICE '%', v_record;
-    --RAISE NOTICE '%', to_json(v_record)::text;
-    --v_type.int_val = 1;
-    --v_type.text_vam = 'TEXT';
-    --RAISE NOTICE '%', v_type;
-    --RAISE NOTICE '%', to_json(v_type)::text;
-
-end;
-$$
-language plpgsql;
-
-SELECT to_json('TEST'::text);
-
-SELECT oid  FROM pg_proc where proname ='test_var';
---82118
-SELECT pldbg_create_listener();
-
-SELECT plpgsql_oid_debug(82118);
-
-SELECT test_var();
-
-SELECT pldbg_attach_to_port(6);
-
-SELECT * FROM pldbg_get_stack(1);
-SELECT * FROM pldbg_get_variables(3);
-SELECT * FROM pldbg_continue(1);
-SELECT * FROM pldbg_step_over(1);
-SELECT * FROM to_json(null);
-
-DROP extension  if exists pldbgapi;
-CREATE extension pldbgapi;
+SELECT test_debug('TEST', 1224312);
