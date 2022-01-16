@@ -77,6 +77,7 @@ class PlController(
             close()
         } else {
             ownerEx.messageBus.addAuditor(queryAuditor)
+            ownerEx.messageBus.addConsumer(queryConsumer)
         }
     }
 
@@ -92,6 +93,9 @@ class PlController(
         logger.info("close")
         windowLister.close()
         busConnection.disconnect()
+        dbgConnection.runCatching {
+            dbgConnection.remoteConnection.close()
+        }
     }
 
 
@@ -128,9 +132,9 @@ class PlController(
     }
 
     inner class ToolListener : ToolWindowManagerListener {
-        var window: ToolWindow? = null
+        private var window: ToolWindow? = null
         private var first: Boolean = false
-        var acutal: Content? = null
+        private var acutal: Content? = null
         override fun toolWindowShown(toolWindow: ToolWindow) {
             if (toolWindow.id == "Debug") {
                 window = toolWindow
@@ -146,7 +150,9 @@ class PlController(
         }
 
         fun close() {
-            windowLister.acutal?.let { window?.contentManager?.removeContent(it, true) }
+            runInEdt {
+                windowLister.acutal?.let { window?.contentManager?.removeContent(it, true) }
+            }
         }
     }
 
