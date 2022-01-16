@@ -100,7 +100,7 @@ fun plGetFunctionArgs(connection: DatabaseConnection, name: String, schema: Stri
         Request.GET_FUNCTION_CALL_ARGS,
         connection
     ) {
-        execute(schema, name)
+        fetch(schema, name)
     }
 
 fun plGetFunctionDef(connection: DatabaseConnection, oid: Long): PlFunctionDef =
@@ -109,7 +109,7 @@ fun plGetFunctionDef(connection: DatabaseConnection, oid: Long): PlFunctionDef =
         Request.GET_FUNCTION_DEF,
         connection
     ) {
-        execute("$oid")
+        fetch("$oid")
     }.first()
 
 fun plCreateListener(connection: DatabaseConnection): Int? = fetchRowSet<PlInt>(
@@ -117,7 +117,7 @@ fun plCreateListener(connection: DatabaseConnection): Int? = fetchRowSet<PlInt>(
     Request.CREATE_LISTENER,
     connection
 ) {
-    execute()
+    fetch()
 }.firstOrNull()?.value
 
 fun plAbort(connection: DatabaseConnection, session: Int): List<PlBoolean> = fetchRowSet<PlBoolean>(
@@ -125,7 +125,7 @@ fun plAbort(connection: DatabaseConnection, session: Int): List<PlBoolean> = fet
     Request.ABORT,
     connection
 ) {
-    execute("$session")
+    fetch("$session")
 }
 
 fun plDebugFunction(connection: DatabaseConnection, oid: Long): Int? = fetchRowSet<PlInt>(
@@ -133,7 +133,7 @@ fun plDebugFunction(connection: DatabaseConnection, oid: Long): Int? = fetchRowS
     Request.DEBUG_OID,
     connection
 ) {
-    execute("$oid")
+    fetch("$oid")
 }.firstOrNull()?.value
 
 fun plGetStack(connection: DatabaseConnection, session: Int): List<PlStackFrame> = fetchRowSet<PlStackFrame>(
@@ -141,7 +141,7 @@ fun plGetStack(connection: DatabaseConnection, session: Int): List<PlStackFrame>
     Request.GET_STACK,
     connection
 ) {
-    execute("$session")
+    fetch("$session")
 }
 
 fun plAttach(connection: DatabaseConnection, port: Int): Int? = fetchRowSet<PlInt>(
@@ -149,7 +149,7 @@ fun plAttach(connection: DatabaseConnection, port: Int): Int? = fetchRowSet<PlIn
     Request.ATTACH_TO_PORT,
     connection
 ) {
-    execute("$port")
+    fetch("$port")
 }.firstOrNull()?.value
 
 fun plRunStep(session: Int, connection: DatabaseConnection, request: Request): PlStep? = fetchRowSet<PlStep>(
@@ -160,7 +160,7 @@ fun plRunStep(session: Int, connection: DatabaseConnection, request: Request): P
     when (request) {
         Request.STEP_INTO,
         Request.STEP_OVER,
-        Request.STEP_CONTINUE -> execute("$session")
+        Request.STEP_CONTINUE -> fetch("$session")
         else -> throw IllegalArgumentException("Invalid Step command: ${request.name}")
     }
 }.firstOrNull()
@@ -171,7 +171,7 @@ private fun plGetBulkStackVariables(connection: DatabaseConnection, session: Int
         Request.GET_VARIABLES,
         connection
     ) {
-        execute("$session")
+        fetch("$session")
     }
 
 fun plGetStackVariables(connection: DatabaseConnection, session: Int): List<PlStackVariable> {
@@ -205,7 +205,7 @@ fun plGetStackVariables(connection: DatabaseConnection, session: Int): List<PlSt
         Request.CUSTOM,
         connection
     ) {
-        execute(query)
+        fetch(query)
     }
 }
 
@@ -219,7 +219,7 @@ fun plExplodeArray(connection: DatabaseConnection, value: PlValue): List<PlValue
         if (!value.isArray && value.kind != 'c') {
             throw IllegalArgumentException("Explode not supported for: $value")
         }
-        execute(
+        fetch(
             if (value.isArray) String.format(
                 Request.EXPLODE_ARRAY.sql,
                 value.name,
@@ -240,7 +240,7 @@ fun plGetJson(connection: DatabaseConnection, composite: PlValue): PlJson = fetc
     Request.T0_JSON,
     connection
 ) {
-    execute(composite.value, composite.type)
+    fetch(composite.value, composite.type)
 }.first()
 
 
