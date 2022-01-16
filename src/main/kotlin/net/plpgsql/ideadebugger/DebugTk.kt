@@ -17,7 +17,6 @@ import com.intellij.sql.psi.SqlExpressionList
 import com.intellij.sql.psi.SqlFunctionCallExpression
 import com.intellij.sql.psi.SqlIdentifier
 import com.jetbrains.rd.util.first
-import org.jaxen.expr.FunctionCallExpr
 
 fun createDebugConnection(project: Project, connectionPoint: DatabaseConnectionPoint): DatabaseConnection {
     return getFacade(
@@ -81,7 +80,7 @@ fun searchFunctionByName(
                     Request.CUSTOM,
                     connection
                 ) {
-                    execute(query)
+                    fetch(query)
                 }.firstOrNull()?.value ?: false
             } catch (e: Exception) {
                 false
