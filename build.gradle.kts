@@ -25,7 +25,7 @@ repositories {
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-reflect:1.6.10")
+
 }
 
 // Configure Gradle IntelliJ Plugin - read more: https://github.com/JetBrains/gradle-intellij-plugin
@@ -105,7 +105,9 @@ tasks {
 
     signPlugin {
         certificateChain.set(System.getenv("CERTIFICATE_CHAIN"))
+        //certificateChain.set(File(System.getenv("CERTIFICATE_CHAIN") ?: "C:\\dev\\cert\\chain.crt").readText(Charsets.UTF_8))
         privateKey.set(System.getenv("PRIVATE_KEY"))
+        //privateKey.set(File(System.getenv("PRIVATE_KEY") ?: "C:\\dev\\cert\\private.pem").readText(Charsets.UTF_8))
         password.set(System.getenv("PRIVATE_KEY_PASSWORD"))
     }
 

@@ -19,6 +19,9 @@ import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
 import org.jetbrains.concurrency.runAsync
 
+private const val STEP_TIMEOUT = 300
+private const val RESUME_TIMEOUT = 1000
+private const val ABORT_TIMEOUT = 100
 
 class PlProcess(
     session: XDebugSession,
@@ -31,8 +34,8 @@ class PlProcess(
     private val context = XContext()
     var sessionId: Int = 0
     private val stack = XStack(session)
-    var step: PlStep? = null
-    var aborted: Boolean = false
+    private var step: PlStep? = null
+    private var aborted: Boolean = false
 
     override fun startStepOver(context: XSuspendContext?) {
         logger.debug("startStepOver")
@@ -47,7 +50,7 @@ class PlProcess(
 
     override fun resume(context: XSuspendContext?) {
         logger.debug("resume")
-        goToStep(Request.STEP_CONTINUE, 500)
+        goToStep(Request.STEP_CONTINUE, RESUME_TIMEOUT)
     }
 
     override fun sessionInitialized() {
@@ -64,24 +67,20 @@ class PlProcess(
     }
 
     override fun stop() {
-        super.stop()
-        try {
+        connection.runCatching {
             if (!connection.remoteConnection.isClosed && !aborted) {
-                abort().blockingGet(100)
+                abort().blockingGet(ABORT_TIMEOUT)
             }
-        } catch (e: Exception) {
-            logger.debug(e)
-        } finally {
-            connection.remoteConnection.close()
         }
+        super.stop()
     }
 
-    private fun goToStep(request: Request, timeOut: Int = 300) {
-        try {
+    private fun goToStep(request: Request, timeOut: Int = STEP_TIMEOUT) {
+        connection.runCatching {
             step = fetchStep(request).blockingGet(timeOut)
             stack.update(step)
             session.positionReached(context)
-        } catch (e: Exception) {
+        }.onFailure {
             aborted = true
             session.stop()
         }

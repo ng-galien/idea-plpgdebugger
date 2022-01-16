@@ -9,3 +9,8 @@
 - Allow direct debug of a PL/pg function
 - View variables
 - Explore arrays and composite type
+
+## [1.0.0-alpha1]
+### Added
+- Fix procedure identification on specific schema
+- Gracefully handle debug connection

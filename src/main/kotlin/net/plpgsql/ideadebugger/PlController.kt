@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2022. Alexandre Boyer
+ */
+
 package net.plpgsql.ideadebugger
 
 import com.intellij.database.connection.throwable.info.WarningInfo
@@ -9,17 +13,13 @@ import com.intellij.database.datagrid.DataRequest
 import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.util.SearchPath
 import com.intellij.openapi.application.runInEdt
-import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
-import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.sql.psi.SqlExpressionList
 import com.intellij.sql.psi.SqlFunctionCallExpression
-import com.intellij.sql.psi.SqlIdentifier
 import com.intellij.ui.content.Content
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugSession
@@ -77,6 +77,7 @@ class PlController(
             close()
         } else {
             ownerEx.messageBus.addAuditor(queryAuditor)
+            ownerEx.messageBus.addConsumer(queryConsumer)
         }
     }
 
@@ -92,20 +93,22 @@ class PlController(
         logger.info("close")
         windowLister.close()
         busConnection.disconnect()
+        dbgConnection.runCatching {
+            dbgConnection.remoteConnection.close()
+        }
     }
 
 
     private fun searchFunction(): Long? {
-        val (name, args) = runReadAction {
-            val identifier = PsiTreeUtil.findChildOfType(callExpression, SqlIdentifier::class.java)
-            val values = PsiTreeUtil.findChildOfType(
-                callExpression,
-                SqlExpressionList::class.java
-            )?.children?.map { it.text.trim() }?.filter { it != "" && it != "," && !it.startsWith("--") }
 
-            Pair(first = identifier?.name ?: "", second = values ?: listOf<String>())
+        if (callExpression != null) {
+            val callDef = parseFunctionCall(callExpression)
+            assert(callDef.first.isNotEmpty() && callDef.first.size <= 2) { "Error while parsing ${callExpression.text}" }
+            return searchFunctionByName(connection = dbgConnection,
+                callFunc = callDef.first,
+                callValues = callDef.second)
         }
-        return searchFunctionByName(connection = dbgConnection, callable = name, callValues = args)
+        return null
     }
 
     inner class QueryAuditor : DataAuditors.Adapter() {
@@ -129,9 +132,9 @@ class PlController(
     }
 
     inner class ToolListener : ToolWindowManagerListener {
-        var window: ToolWindow? = null
+        private var window: ToolWindow? = null
         private var first: Boolean = false
-        var acutal: Content? = null
+        private var acutal: Content? = null
         override fun toolWindowShown(toolWindow: ToolWindow) {
             if (toolWindow.id == "Debug") {
                 window = toolWindow
@@ -147,7 +150,9 @@ class PlController(
         }
 
         fun close() {
-            windowLister.acutal?.let { window?.contentManager?.removeContent(it, true) }
+            runInEdt {
+                windowLister.acutal?.let { window?.contentManager?.removeContent(it, true) }
+            }
         }
     }
 

@@ -73,9 +73,10 @@ class DBRowSet<R>(
         val params = String.format(cmd, *parameters.toTypedArray())
         sql = String.format("SELECT * FROM %s;", params)
         logger.info(sql)
-        stmt = connection?.remoteConnection?.createStatement()
-        rs = stmt?.executeQuery(sql)
-
+        rs = connection?.runCatching {
+            stmt = connection?.remoteConnection?.createStatement()
+            stmt?.executeQuery(sql)
+        }?.getOrNull()
     }
 
     override fun close() {

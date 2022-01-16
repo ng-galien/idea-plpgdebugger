@@ -225,7 +225,7 @@ fun plExplodeArray(connection: DatabaseConnection, value: PlValue): List<PlValue
     }
 
 
-fun plGetJson(connection: DatabaseConnection, session: Int, composite: PlValue): PlJson = fetchRowSet<PlJson>(
+fun plGetJson(connection: DatabaseConnection, composite: PlValue): PlJson = fetchRowSet<PlJson>(
     plJsonProducer(),
     Request.T0_JSON,
 ) {
