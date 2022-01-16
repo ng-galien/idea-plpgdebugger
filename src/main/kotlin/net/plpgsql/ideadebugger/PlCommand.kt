@@ -24,7 +24,7 @@ fun plLongProducer() = Producer<PlLong> { PlLong(it.long()) }
 
 data class PlString(val value: String)
 
-fun plStringProducer() = Producer<PlString> { PlString(it.string()) }
+public fun plStringProducer() = Producer<PlString> { PlString(it.string()) }
 
 data class PlJson(val value: Any)
 
@@ -97,62 +97,70 @@ fun plVFunctionDefProducer() = Producer<PlFunctionDef> {
 fun plGetFunctionArgs(connection: DatabaseConnection, name: String, schema: String): List<PlFunctionArg> =
     fetchRowSet<PlFunctionArg>(
         plFunctionArgProducer(),
-        Request.GET_FUNCTION_CALL_ARGS
+        Request.GET_FUNCTION_CALL_ARGS,
+        connection
     ) {
-        run(connection, schema, name)
+        execute(schema, name)
     }
 
 fun plGetFunctionDef(connection: DatabaseConnection, oid: Long): PlFunctionDef =
     fetchRowSet<PlFunctionDef>(
         plVFunctionDefProducer(),
-        Request.GET_FUNCTION_DEF
+        Request.GET_FUNCTION_DEF,
+        connection
     ) {
-        run(connection, "$oid")
+        execute("$oid")
     }.first()
 
 fun plCreateListener(connection: DatabaseConnection): Int? = fetchRowSet<PlInt>(
     plIntProducer(),
-    Request.CREATE_LISTENER
+    Request.CREATE_LISTENER,
+    connection
 ) {
-    run(connection)
+    execute()
 }.firstOrNull()?.value
 
 fun plAbort(connection: DatabaseConnection, session: Int): List<PlBoolean> = fetchRowSet<PlBoolean>(
     plBooleanProducer(),
-    Request.ABORT
+    Request.ABORT,
+    connection
 ) {
-    run(connection, "$session")
+    execute("$session")
 }
 
 fun plDebugFunction(connection: DatabaseConnection, oid: Long): Int? = fetchRowSet<PlInt>(
     plIntProducer(),
-    Request.DEBUG_OID
+    Request.DEBUG_OID,
+    connection
 ) {
-    run(connection, "$oid")
+    execute("$oid")
 }.firstOrNull()?.value
 
 fun plGetStack(connection: DatabaseConnection, session: Int): List<PlStackFrame> = fetchRowSet<PlStackFrame>(
     plStackProducer(),
-    Request.GET_STACK
+    Request.GET_STACK,
+    connection
 ) {
-    run(connection, "$session")
+    execute("$session")
 }
 
 fun plAttach(connection: DatabaseConnection, port: Int): Int? = fetchRowSet<PlInt>(
     plIntProducer(),
-    Request.ATTACH_TO_PORT
+    Request.ATTACH_TO_PORT,
+    connection
 ) {
-    run(connection, "$port")
+    execute("$port")
 }.firstOrNull()?.value
 
 fun plRunStep(session: Int, connection: DatabaseConnection, request: Request): PlStep? = fetchRowSet<PlStep>(
     plStepProducer(),
-    request
+    request,
+    connection
 ) {
     when (request) {
         Request.STEP_INTO,
         Request.STEP_OVER,
-        Request.STEP_CONTINUE -> run(connection, "$session")
+        Request.STEP_CONTINUE -> execute("$session")
         else -> throw IllegalArgumentException("Invalid Step command: ${request.name}")
     }
 }.firstOrNull()
@@ -160,9 +168,10 @@ fun plRunStep(session: Int, connection: DatabaseConnection, request: Request): P
 private fun plGetBulkStackVariables(connection: DatabaseConnection, session: Int): List<PlStackVariable> =
     fetchRowSet<PlStackVariable>(
         plStackVariableProducer(),
-        Request.GET_VARIABLES
+        Request.GET_VARIABLES,
+        connection
     ) {
-        run(connection, "$session")
+        execute("$session")
     }
 
 fun plGetStackVariables(connection: DatabaseConnection, session: Int): List<PlStackVariable> {
@@ -193,9 +202,10 @@ fun plGetStackVariables(connection: DatabaseConnection, session: Int): List<PlSt
     }
     return fetchRowSet<PlStackVariable>(
         plStackVariableProducer(),
-        Request.CUSTOM
+        Request.CUSTOM,
+        connection
     ) {
-        run(connection, query)
+        execute(query)
     }
 }
 
@@ -204,12 +214,12 @@ fun plExplodeArray(connection: DatabaseConnection, value: PlValue): List<PlValue
     fetchRowSet<PlValue>(
         plValueProducer(),
         Request.EXPLODE,
+        connection
     ) {
         if (!value.isArray && value.kind != 'c') {
             throw IllegalArgumentException("Explode not supported for: $value")
         }
-        run(
-            connection,
+        execute(
             if (value.isArray) String.format(
                 Request.EXPLODE_ARRAY.sql,
                 value.name,
@@ -228,8 +238,9 @@ fun plExplodeArray(connection: DatabaseConnection, value: PlValue): List<PlValue
 fun plGetJson(connection: DatabaseConnection, composite: PlValue): PlJson = fetchRowSet<PlJson>(
     plJsonProducer(),
     Request.T0_JSON,
+    connection
 ) {
-    run(connection, composite.value, composite.type)
+    execute(composite.value, composite.type)
 }.first()
 
 

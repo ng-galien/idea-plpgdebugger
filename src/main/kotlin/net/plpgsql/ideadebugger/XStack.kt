@@ -129,10 +129,6 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
 
     inner class XVal(private val plVar: PlValue) : XNamedValue(plVar.name) {
 
-        override fun hashCode(): Int {
-            return plVar.hashCode()
-        }
-
         override fun computePresentation(node: XValueNode, place: XValuePlace) {
             node.setPresentation(
                 PlatformIcons.FIELD_ICON,

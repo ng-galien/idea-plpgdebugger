@@ -78,9 +78,10 @@ fun searchFunctionByName(
             try {
                 fetchRowSet<PlBoolean>(
                     plBooleanProducer(),
-                    Request.CUSTOM
+                    Request.CUSTOM,
+                    connection
                 ) {
-                    run(connection, query)
+                    execute(query)
                 }.firstOrNull()?.value ?: false
             } catch (e: Exception) {
                 false

@@ -25,27 +25,28 @@ interface RowSet<R> {
     fun date(): Date
     fun open()
     fun close()
-    fun execute(args: List<String>)
+    fun execute(vararg args: String)
 }
 
-abstract class AbstractRowSet<R>(private val producer: Producer<R>) : RowSet<R> {
+abstract class AbstractRowSet<R>(private val producer: Producer<R>, val cmd: String) : RowSet<R> {
     private val _items: MutableList<R> = mutableListOf()
-    lateinit var parameters: List<String>
+    protected lateinit var strRequest: String
     val values: List<R>
         get() = _items
 
-    override fun execute(args: List<String>) {
-        parameters = args
-        try {
+    override fun execute(vararg args: String) {
+        runCatching {
+            strRequest = parseCommand(args.asList())
             open()
             while (next()) {
                 val res = producer.consume(this)
                 _items.add(res)
             }
-        } finally {
-            close()
         }
+        close()
     }
+
+    protected fun parseCommand(args: List<String>): String = String.format(cmd, *args.toTypedArray())
 }
 
 /*
@@ -53,12 +54,12 @@ abstract class AbstractRowSet<R>(private val producer: Producer<R>) : RowSet<R> 
  */
 class DBRowSet<R>(
     producer: Producer<R>,
-    private val cmd: String
+    cmd: String,
+    private val connection: DatabaseConnection,
 ) :
-    AbstractRowSet<R>(producer) {
+    AbstractRowSet<R>(producer, cmd) {
     private val logger = getLogger<DBRowSet<R>>()
 
-    private var connection: DatabaseConnection? = null
     private var stmt: RemoteStatement? = null
     private var rs: RemoteResultSet? = null
     private var pos: Int = 0
@@ -70,13 +71,12 @@ class DBRowSet<R>(
     }
 
     override fun open() {
-        val params = String.format(cmd, *parameters.toTypedArray())
-        sql = String.format("SELECT * FROM %s;", params)
+        sql = String.format("SELECT * FROM %s;", strRequest)
         logger.info(sql)
-        rs = connection?.runCatching {
-            stmt = connection?.remoteConnection?.createStatement()
+        rs = connection.runCatching {
+            stmt = connection.remoteConnection.createStatement()
             stmt?.executeQuery(sql)
-        }?.getOrNull()
+        }.getOrNull()
     }
 
     override fun close() {
@@ -84,10 +84,13 @@ class DBRowSet<R>(
         stmt?.close()
     }
 
+    /*
     fun run(dbc: DatabaseConnection, vararg args: String) {
         connection = dbc
         execute(args.asList())
     }
+
+     */
 
     override fun string(): String {
         pos++
@@ -121,5 +124,5 @@ class DBRowSet<R>(
 
 }
 
-inline fun <T> fetchRowSet(producer: Producer<T>, request: Request, builder: DBRowSet<T>.() -> Unit): List<T> =
-    DBRowSet<T>(producer, request.sql.trimIndent()).apply(builder).values
+inline fun <T> fetchRowSet(producer: Producer<T>, request: Request, connection: DatabaseConnection, builder: RowSet<T>.() -> Unit): List<T> =
+    DBRowSet<T>(producer, request.sql.trimIndent(), connection).apply(builder).values
