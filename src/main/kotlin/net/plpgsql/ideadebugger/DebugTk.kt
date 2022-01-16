@@ -9,9 +9,15 @@ import com.intellij.database.dataSource.DatabaseConnection
 import com.intellij.database.dataSource.DatabaseConnectionPoint
 import com.intellij.database.dataSource.connection.DGDepartment
 import com.intellij.lang.Language
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.project.Project
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.PgDialect
+import com.intellij.sql.psi.SqlExpressionList
+import com.intellij.sql.psi.SqlFunctionCallExpression
+import com.intellij.sql.psi.SqlIdentifier
 import com.jetbrains.rd.util.first
+import org.jaxen.expr.FunctionCallExpr
 
 fun createDebugConnection(project: Project, connectionPoint: DatabaseConnectionPoint): DatabaseConnection {
     return getFacade(
@@ -24,13 +30,30 @@ fun createDebugConnection(project: Project, connectionPoint: DatabaseConnectionP
     ).connect().get()
 }
 
+fun parseFunctionCall(callExpr: SqlFunctionCallExpression): Pair<List<String>, List<String>> {
+    val (func, args) = runReadAction {
+        val func = PsiTreeUtil.findChildrenOfAnyType(callExpr, SqlIdentifier::class.java).map {
+            it.text.trim()
+        }
+        val values = PsiTreeUtil.findChildOfType(
+            callExpr,
+            SqlExpressionList::class.java
+        )?.children?.map { it.text.trim() }?.filter { it != "" && it != "," && !it.startsWith("--") }
+        Pair(first = func, second = values ?: listOf())
+    }
+    return Pair(func, args)
+}
+
+fun getDefaultSchema(): String = "public"
+
 fun searchFunctionByName(
     connection: DatabaseConnection,
-    callable: String,
+    callFunc: List<String>,
     callValues: List<String>
 ): Long? {
-    val funcName = (if (!callable.contains('.')) "public.$callable" else callable).split(".")
-    val plArgs = plGetFunctionArgs(connection = connection, schema = funcName[0], name = funcName[1]).groupBy {
+    val schema = if (callFunc.size > 1) callFunc[0] else getDefaultSchema()
+    val procedure = if (callFunc.size > 1) callFunc[1] else callFunc[0]
+    val plArgs = plGetFunctionArgs(connection = connection, schema = schema, name = procedure).groupBy {
         it.oid
     }
     if (plArgs.size == 1) {
@@ -51,13 +74,18 @@ fun searchFunctionByName(
             val type = args.find { plFunctionArg -> plFunctionArg.name == it.first }?.type
             "(cast(${it.second} as ${type}) = ${it.second})"
         }
-        fetchRowSet<PlBoolean>(
-            plBooleanProducer(),
-            Request.CUSTOM
-        ) {
-            run(connection, query)
-        }.firstOrNull()?.value ?: false
-
+        query.let {
+            try {
+                fetchRowSet<PlBoolean>(
+                    plBooleanProducer(),
+                    Request.CUSTOM
+                ) {
+                    run(connection, query)
+                }.firstOrNull()?.value ?: false
+            } catch (e: Exception) {
+                false
+            }
+        }
     }.map { it.key }.firstOrNull()
 
 }
