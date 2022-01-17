@@ -94,88 +94,88 @@ fun plVFunctionDefProducer() = Producer<PlFunctionDef> {
     )
 }
 
-fun plGetFunctionArgs(connection: DatabaseConnection, name: String, schema: String): List<PlFunctionArg> =
+fun plGetFunctionArgs(proc: PlProcess, name: String, schema: String): List<PlFunctionArg> =
     fetchRowSet<PlFunctionArg>(
         plFunctionArgProducer(),
         Request.GET_FUNCTION_CALL_ARGS,
-        connection
+        proc
     ) {
         fetch(schema, name)
     }
 
-fun plGetFunctionDef(connection: DatabaseConnection, oid: Long): PlFunctionDef =
+fun plGetFunctionDef(proc: PlProcess, oid: Long): PlFunctionDef =
     fetchRowSet<PlFunctionDef>(
         plVFunctionDefProducer(),
         Request.GET_FUNCTION_DEF,
-        connection
+        proc
     ) {
         fetch("$oid")
     }.first()
 
-fun plCreateListener(connection: DatabaseConnection): Int? = fetchRowSet<PlInt>(
+fun plCreateListener(proc: PlProcess): Int? = fetchRowSet<PlInt>(
     plIntProducer(),
     Request.CREATE_LISTENER,
-    connection
+    proc
 ) {
     fetch()
 }.firstOrNull()?.value
 
-fun plAbort(connection: DatabaseConnection, session: Int): List<PlBoolean> = fetchRowSet<PlBoolean>(
+fun plAbort(proc: PlProcess): List<PlBoolean> = fetchRowSet<PlBoolean>(
     plBooleanProducer(),
     Request.ABORT,
-    connection
+    proc
 ) {
-    fetch("$session")
+    fetch("${proc.sessionId}")
 }
 
-fun plDebugFunction(connection: DatabaseConnection, oid: Long): Int? = fetchRowSet<PlInt>(
+fun plDebugFunction(proc: PlProcess): Int? = fetchRowSet<PlInt>(
     plIntProducer(),
     Request.DEBUG_OID,
-    connection
+    proc
 ) {
-    fetch("$oid")
+    fetch("${proc.entryPoint}")
 }.firstOrNull()?.value
 
-fun plGetStack(connection: DatabaseConnection, session: Int): List<PlStackFrame> = fetchRowSet<PlStackFrame>(
+fun plGetStack(proc: PlProcess): List<PlStackFrame> = fetchRowSet<PlStackFrame>(
     plStackProducer(),
     Request.GET_STACK,
-    connection
+    proc
 ) {
-    fetch("$session")
+    fetch("${proc.sessionId}")
 }
 
-fun plAttach(connection: DatabaseConnection, port: Int): Int? = fetchRowSet<PlInt>(
+fun plAttach(proc: PlProcess): Int? = fetchRowSet<PlInt>(
     plIntProducer(),
     Request.ATTACH_TO_PORT,
-    connection
+    proc
 ) {
-    fetch("$port")
+    fetch("${proc.debugPort}")
 }.firstOrNull()?.value
 
-fun plRunStep(session: Int, connection: DatabaseConnection, request: Request): PlStep? = fetchRowSet<PlStep>(
+fun plRunStep(proc: PlProcess, request: Request): PlStep? = fetchRowSet<PlStep>(
     plStepProducer(),
     request,
-    connection
+    proc
 ) {
     when (request) {
         Request.STEP_INTO,
         Request.STEP_OVER,
-        Request.STEP_CONTINUE -> fetch("$session")
+        Request.STEP_CONTINUE -> fetch("${proc.sessionId}")
         else -> throw IllegalArgumentException("Invalid Step command: ${request.name}")
     }
 }.firstOrNull()
 
-private fun plGetBulkStackVariables(connection: DatabaseConnection, session: Int): List<PlStackVariable> =
+private fun plGetBulkStackVariables(proc: PlProcess): List<PlStackVariable> =
     fetchRowSet<PlStackVariable>(
         plStackVariableProducer(),
         Request.GET_VARIABLES,
-        connection
+        proc
     ) {
-        fetch("$session")
+        fetch("${proc.sessionId}")
     }
 
-fun plGetStackVariables(connection: DatabaseConnection, session: Int): List<PlStackVariable> {
-    val vars = plGetBulkStackVariables(connection, session)
+fun plGetStackVariables(proc: PlProcess): List<PlStackVariable> {
+    val vars = plGetBulkStackVariables(proc)
     val query = vars.joinToString(prefix = "(", separator = "\nUNION ALL\n", postfix = ") v") {
         // Fix array type prefixed with underscore and NULL
         val realType = if (it.value.isArray) "${it.value.type.substring(1)}[]" else it.value.type
@@ -203,18 +203,18 @@ fun plGetStackVariables(connection: DatabaseConnection, session: Int): List<PlSt
     return fetchRowSet<PlStackVariable>(
         plStackVariableProducer(),
         Request.CUSTOM,
-        connection
+        proc
     ) {
         fetch(query)
     }
 }
 
 
-fun plExplodeArray(connection: DatabaseConnection, value: PlValue): List<PlValue> =
+fun plExplodeArray(proc: PlProcess, value: PlValue): List<PlValue> =
     fetchRowSet<PlValue>(
         plValueProducer(),
         Request.EXPLODE,
-        connection
+        proc
     ) {
         if (!value.isArray && value.kind != 'c') {
             throw IllegalArgumentException("Explode not supported for: $value")
@@ -235,10 +235,10 @@ fun plExplodeArray(connection: DatabaseConnection, value: PlValue): List<PlValue
     }
 
 
-fun plGetJson(connection: DatabaseConnection, composite: PlValue): PlJson = fetchRowSet<PlJson>(
+fun plGetJson(proc: PlProcess, composite: PlValue): PlJson = fetchRowSet<PlJson>(
     plJsonProducer(),
     Request.T0_JSON,
-    connection
+    proc
 ) {
     fetch(composite.value, composite.type)
 }.first()

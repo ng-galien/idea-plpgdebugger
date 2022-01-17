@@ -14,8 +14,8 @@
     <depends>com.intellij.database</depends>
     <extensions defaultExtensionNs="com.intellij.database">
         <debuggerFacade dbms="POSTGRES" implementationClass="net.plpgsql.ideadebugger.PlFacade"/>
-        </extensions>
+    </extensions>
     <extensions defaultExtensionNs="com.intellij">
         <xdebugger.breakpointType implementation="net.plpgsql.ideadebugger.LineBreakpointType"/>
-        </extensions>
+    </extensions>
 </idea-plugin>

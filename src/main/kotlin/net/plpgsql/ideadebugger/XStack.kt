@@ -25,11 +25,8 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
     private val frames = mutableListOf<XStackFrame>()
     private val psiRegistry = mutableMapOf<Long, Pair<Int, PsiFile?>>()
     private val variableRegistry = mutableMapOf<Long, List<PlStackVariable>>()
-    private val connection: DatabaseConnection by lazy {
-        (session.debugProcess as PlProcess).connection
-    }
-    private val sessionId: Int by lazy {
-        (session.debugProcess as PlProcess).sessionId
+    private val proc: PlProcess by lazy {
+        session.debugProcess as PlProcess
     }
     private var currentStep: PlStep? = null
 
@@ -44,7 +41,7 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
     fun update(step: PlStep?) {
         currentStep = step
         frames.clear()
-        val plStacks = plGetStack(connection, sessionId)
+        val plStacks = plGetStack(proc)
         if (currentStep != null) {
             if (plStacks.find { it.oid == currentStep!!.oid && it.level == 0 } == null) {
                 throw Exception("Invalid stack")
@@ -59,14 +56,14 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
     private fun getFunction(oid: Long): Pair<Int, PsiFile?>? {
 
         if (!psiRegistry.containsKey(oid)) {
-            val function = plGetFunctionDef(connection, oid)
+            val function = plGetFunctionDef(proc, oid)
             var offset = 0
             function.source.split("\n").forEachIndexed { l, line ->
                 if (line.lowercase().startsWith("as \$function\$")) offset = l - 1
             }
             val psi = runReadAction {
                 PsiFileFactory.getInstance(session.project).createFileFromText(
-                    "${function.name}::${function.oid}@${sessionId}",
+                    "${function.name}::${function.oid}@${proc.sessionId}",
                     getPlLanguage(),
                     function.source
                 )
@@ -106,7 +103,7 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
 
         private fun getVariables() = runAsync {
             if (currentStep == null || currentStep?.oid == frame.oid) {
-                val plVars = plGetStackVariables(connection, sessionId)
+                val plVars = plGetStackVariables(proc)
                 variableRegistry[frame.oid] = plVars
             }
             variableRegistry[frame.oid]
@@ -139,8 +136,7 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
         }
 
         override fun computeChildren(node: XCompositeNode) {
-            val connection = connection
-            explode(node, plExplodeArray(connection, plVar))
+            explode(node, plExplodeArray(proc, plVar))
         }
 
         override fun computeSourcePosition(navigatable: XNavigatable) {

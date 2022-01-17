@@ -43,7 +43,6 @@ class PlController(
     private val queryConsumer = QueryConsumer()
     private val windowLister = ToolListener()
 
-    private var entryPoint = 0L
     private var dbgConnection = createDebugConnection(project, connectionPoint)
     private var busConnection = project.messageBus.connect()
 
@@ -56,14 +55,14 @@ class PlController(
         busConnection.subscribe(ToolWindowManagerListener.TOPIC, windowLister)
         xSession = session
         logger.debug("initLocal")
-        entryPoint = searchFunction() ?: 0L
-        plProcess = PlProcess(session, dbgConnection, entryPoint)
+        plProcess = PlProcess(session, dbgConnection)
+        plProcess.entryPoint = searchFunction() ?: 0L
         return plProcess
     }
 
     override fun initRemote(connection: DatabaseConnection) {
         logger.info("initRemote")
-        val ready = if (entryPoint != 0L) plDebugFunction(connection, entryPoint) == 0 else false
+        val ready = if (plProcess.entryPoint != 0L) (plDebugFunction(plProcess) == 0) else false
 
         if (!ready) {
             runInEdt {
@@ -74,7 +73,7 @@ class PlController(
                     Messages.getInformationIcon()
                 )
             }
-            close()
+            xSession.stop()
         } else {
             ownerEx.messageBus.addAuditor(queryAuditor)
             ownerEx.messageBus.addConsumer(queryConsumer)
@@ -91,7 +90,7 @@ class PlController(
 
     override fun close() {
         logger.info("close")
-        windowLister.close()
+        //windowLister.close()
         busConnection.disconnect()
         dbgConnection.runCatching {
             dbgConnection.remoteConnection.close()
@@ -104,7 +103,7 @@ class PlController(
         if (callExpression != null) {
             val callDef = parseFunctionCall(callExpression)
             assert(callDef.first.isNotEmpty() && callDef.first.size <= 2) { "Error while parsing ${callExpression.text}" }
-            return searchFunctionByName(connection = dbgConnection,
+            return searchFunctionByName(proc = plProcess,
                 callFunc = callDef.first,
                 callValues = callDef.second)
         }

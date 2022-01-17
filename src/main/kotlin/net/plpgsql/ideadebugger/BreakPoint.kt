@@ -15,7 +15,7 @@ class LineBreakpointType :
     }
 
     override fun canPutAt(file: VirtualFile, line: Int, project: Project): Boolean {
-        return true
+        return file.extension == "sql"
     }
 }
 

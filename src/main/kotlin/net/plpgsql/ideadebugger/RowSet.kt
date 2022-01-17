@@ -40,10 +40,8 @@ abstract class AbstractRowSet<R>(protected val producer: Producer<R>, private va
 
     override fun fetch(vararg args: String) {
         path = String.format(cmd, *args)
-        runCatching {
-            open().use {
-                it?.forEach { el -> _items.add(el) }
-            }
+        open().use {
+            it?.forEach { el -> _items.add(el) }
         }
     }
 }

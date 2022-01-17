@@ -7,17 +7,25 @@ package net.plpgsql.ideadebugger
 import com.intellij.database.dataSource.DatabaseConnection
 import com.intellij.database.debugger.SqlDebugProcess
 import com.intellij.database.debugger.SqlDebuggerEditorsProvider
+import com.intellij.database.debugger.SqlLineBreakpointProperties
+import com.intellij.database.debugger.SqlLineBreakpointType
+import com.intellij.openapi.components.ComponentManager
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.sql.psi.SqlPsiFacade
+import com.intellij.util.MessageBusUtil
+import com.intellij.util.messages.MessageBus
 import com.intellij.xdebugger.XDebugSession
 import com.intellij.xdebugger.breakpoints.XBreakpointHandler
 import com.intellij.xdebugger.breakpoints.XLineBreakpoint
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
+import com.jetbrains.rd.util.string.PrettyPrinter
+import com.jetbrains.rd.util.string.print
 import org.jetbrains.concurrency.runAsync
+import kotlin.properties.Delegates
 
 private const val STEP_TIMEOUT = 300
 private const val RESUME_TIMEOUT = 1000
@@ -26,7 +34,7 @@ private const val ABORT_TIMEOUT = 100
 class PlProcess(
     session: XDebugSession,
     val connection: DatabaseConnection,
-    private val entryPoint: Long
+
 ) : SqlDebugProcess(session) {
 
     private val logger = getLogger<PlProcess>()
@@ -36,6 +44,9 @@ class PlProcess(
     private val stack = XStack(session)
     private var step: PlStep? = null
     private var aborted: Boolean = false
+    var entryPoint by Delegates.notNull<Long>()
+    var debugPort: Int by Delegates.notNull<Int>()
+
 
     override fun startStepOver(context: XSuspendContext?) {
         logger.debug("startStepOver")
@@ -53,15 +64,9 @@ class PlProcess(
         goToStep(Request.STEP_CONTINUE, RESUME_TIMEOUT)
     }
 
-    override fun sessionInitialized() {
-        super.sessionInitialized()
-        if (entryPoint == 0L) {
-            session.stop()
-        }
-    }
-
     fun startDebug(port: Int) {
-        sessionId = plAttach(connection, port) ?: 0
+        debugPort = port
+        sessionId = plAttach(this) ?: 0
         stack.update(step)
         session.positionReached(context)
     }
@@ -87,11 +92,11 @@ class PlProcess(
     }
 
     private fun fetchStep(request: Request) = runAsync {
-        plRunStep(sessionId, connection, request)
+        plRunStep(this, request)
     }
 
     private fun abort() = runAsync {
-        plAbort(connection, sessionId)
+        plAbort(this)
     }
 
     override fun getEditorsProvider(): XDebuggerEditorsProvider {
@@ -131,8 +136,8 @@ class PlProcess(
         override fun unregisterBreakpoint(breakpoint: XLineBreakpoint<LineBreakpointProperties>, temporary: Boolean) {
 
         }
-
     }
+
 
     inner class XContext : XSuspendContext() {
 
