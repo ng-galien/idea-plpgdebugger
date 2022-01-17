@@ -94,11 +94,11 @@ fun plVFunctionDefProducer() = Producer<PlFunctionDef> {
     )
 }
 
-fun plGetFunctionArgs(proc: PlProcess, name: String, schema: String): List<PlFunctionArg> =
+fun plGetFunctionArgs(connection: DatabaseConnection, name: String, schema: String): List<PlFunctionArg> =
     fetchRowSet<PlFunctionArg>(
         plFunctionArgProducer(),
         Request.GET_FUNCTION_CALL_ARGS,
-        proc
+        connection
     ) {
         fetch(schema, name)
     }
@@ -128,12 +128,12 @@ fun plAbort(proc: PlProcess): List<PlBoolean> = fetchRowSet<PlBoolean>(
     fetch("${proc.sessionId}")
 }
 
-fun plDebugFunction(proc: PlProcess): Int? = fetchRowSet<PlInt>(
+fun plDebugFunction(connection: DatabaseConnection, oid: Long): Int? = fetchRowSet<PlInt>(
     plIntProducer(),
     Request.DEBUG_OID,
-    proc
+    connection
 ) {
-    fetch("${proc.entryPoint}")
+    fetch("$oid")
 }.firstOrNull()?.value
 
 fun plGetStack(proc: PlProcess): List<PlStackFrame> = fetchRowSet<PlStackFrame>(
@@ -187,22 +187,11 @@ fun plGetStackVariables(proc: PlProcess): List<PlStackVariable> {
         if (plNull(it.value.value)) {
             realValue = "'NULL'"
         }
-        """
-        SELECT 
-            ${it.isArg}, 
-            ${it.line},
-            ${it.value.oid},
-            '${it.value.name}',
-            '$realType',
-            '${it.value.kind}',
-            ${it.value.isArray},
-            '${it.value.arrayType}',
-            $realValue
-        """
+        "SELECT ${it.isArg},${it.line},${it.value.oid},'${it.value.name}','$realType','${it.value.kind}',${it.value.isArray},'${it.value.arrayType}',$realValue"
     }
     return fetchRowSet<PlStackVariable>(
         plStackVariableProducer(),
-        Request.CUSTOM,
+        Request.RAW,
         proc
     ) {
         fetch(query)

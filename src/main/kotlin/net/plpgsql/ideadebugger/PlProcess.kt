@@ -34,7 +34,7 @@ private const val ABORT_TIMEOUT = 100
 class PlProcess(
     session: XDebugSession,
     val connection: DatabaseConnection,
-
+    val entryPoint: Long
 ) : SqlDebugProcess(session) {
 
     private val logger = getLogger<PlProcess>()
@@ -44,7 +44,6 @@ class PlProcess(
     private val stack = XStack(session)
     private var step: PlStep? = null
     private var aborted: Boolean = false
-    var entryPoint by Delegates.notNull<Long>()
     var debugPort: Int by Delegates.notNull<Int>()
 
 

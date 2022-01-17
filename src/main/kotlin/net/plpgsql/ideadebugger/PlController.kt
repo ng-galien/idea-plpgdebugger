@@ -55,14 +55,13 @@ class PlController(
         busConnection.subscribe(ToolWindowManagerListener.TOPIC, windowLister)
         xSession = session
         logger.debug("initLocal")
-        plProcess = PlProcess(session, dbgConnection)
-        plProcess.entryPoint = searchFunction() ?: 0L
+        plProcess = PlProcess(session, dbgConnection, searchFunction() ?: 0L)
         return plProcess
     }
 
     override fun initRemote(connection: DatabaseConnection) {
         logger.info("initRemote")
-        val ready = if (plProcess.entryPoint != 0L) (plDebugFunction(plProcess) == 0) else false
+        val ready = if (plProcess.entryPoint != 0L) (plDebugFunction(connection, plProcess.entryPoint) == 0) else false
 
         if (!ready) {
             runInEdt {
@@ -90,7 +89,7 @@ class PlController(
 
     override fun close() {
         logger.info("close")
-        //windowLister.close()
+        windowLister.close()
         busConnection.disconnect()
         dbgConnection.runCatching {
             dbgConnection.remoteConnection.close()
@@ -103,7 +102,7 @@ class PlController(
         if (callExpression != null) {
             val callDef = parseFunctionCall(callExpression)
             assert(callDef.first.isNotEmpty() && callDef.first.size <= 2) { "Error while parsing ${callExpression.text}" }
-            return searchFunctionByName(proc = plProcess,
+            return searchFunctionByName(connection = dbgConnection,
                 callFunc = callDef.first,
                 callValues = callDef.second)
         }

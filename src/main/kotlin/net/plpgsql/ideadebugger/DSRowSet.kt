@@ -5,11 +5,9 @@
 package net.plpgsql.ideadebugger
 
 import com.intellij.database.dataSource.DatabaseConnection
-import com.intellij.database.remote.jdbc.RemoteConnection
-import com.intellij.database.remote.jdbc.RemoteResultSet
-import com.intellij.database.remote.jdbc.RemoteStatement
 import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.application.runInEdt
+import com.intellij.xdebugger.XDebugSession
 import java.util.*
 
 
@@ -66,17 +64,31 @@ class DBIterator<R>(producer: Producer<R>,
 
 class DBRowSet<R>(
     producer: Producer<R>,
-    cmd: String,
-    private val proc: PlProcess
-    ) : AbstractRowSet<R>(producer, cmd) {
+    private var cmd: Request,
+    private var connection: DatabaseConnection,
+    private var xSession: XDebugSession?
+    ) : AbstractRowSet<R>(producer, cmd.sql.trimIndent()) {
+    private var query: String = "";
 
     override fun open(): RowIterator<R>? {
-        val sql = String.format("SELECT * FROM %s;", path)
-        runInEdt { proc.session?.consoleView?.print(sql, ConsoleViewContentType.NORMAL_OUTPUT) }
-        return DBIterator(producer = producer, proc.connection, sql)
+         query = String.format("SELECT * FROM %s;", path)
+        return DBIterator(producer = producer, connection, query)
+    }
+
+    override fun fetch(vararg args: String) {
+        runCatching {
+            super.fetch(*args)
+        }.onFailure {
+            runInEdt { xSession?.consoleView?.print("${cmd.name}:\n$query\n", ConsoleViewContentType.ERROR_OUTPUT) }
+        }.onSuccess {
+            runInEdt { xSession?.consoleView?.print( "${cmd.name}:\n$query\n\n", ConsoleViewContentType.LOG_INFO_OUTPUT) }
+        }
     }
 
 }
 
+inline fun <T> fetchRowSet(producer: Producer<T>, request: Request, connection: DatabaseConnection, builder: RowSet<T>.() -> Unit): List<T> =
+    DBRowSet(producer, request, connection, null).apply(builder).values
+
 inline fun <T> fetchRowSet(producer: Producer<T>, request: Request, proc: PlProcess, builder: RowSet<T>.() -> Unit): List<T> =
-    DBRowSet(producer, request.sql.trimIndent(), proc).apply(builder).values
+    DBRowSet(producer, request, proc.connection, proc.session).apply(builder).values

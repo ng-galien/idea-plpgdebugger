@@ -11,7 +11,7 @@ fun interface Producer<R> {
     fun consume(rs: RowIterator<R>): R
 }
 
-abstract class RowIterator<R>(private val producer: Producer<R>): Iterator<R>, AutoCloseable {
+abstract class RowIterator<R>(private val producer: Producer<R>) : Iterator<R>, AutoCloseable {
 
     abstract fun bool(): Boolean
     abstract fun int(): Int

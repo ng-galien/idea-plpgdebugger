@@ -46,13 +46,13 @@ fun parseFunctionCall(callExpr: SqlFunctionCallExpression): Pair<List<String>, L
 fun getDefaultSchema(): String = "public"
 
 fun searchFunctionByName(
-    proc: PlProcess,
+    connection: DatabaseConnection,
     callFunc: List<String>,
     callValues: List<String>
 ): Long? {
     val schema = if (callFunc.size > 1) callFunc[0] else getDefaultSchema()
     val procedure = if (callFunc.size > 1) callFunc[1] else callFunc[0]
-    val plArgs = plGetFunctionArgs(proc = proc, schema = schema, name = procedure).groupBy {
+    val plArgs = plGetFunctionArgs(connection = connection, schema = schema, name = procedure).groupBy {
         it.oid
     }
     if (plArgs.size == 1) {
@@ -77,8 +77,8 @@ fun searchFunctionByName(
             try {
                 fetchRowSet<PlBoolean>(
                     plBooleanProducer(),
-                    Request.CUSTOM,
-                    proc
+                    Request.RAW,
+                    connection
                 ) {
                     fetch(query)
                 }.firstOrNull()?.value ?: false

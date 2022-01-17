@@ -5,7 +5,7 @@
 package net.plpgsql.ideadebugger
 
 enum class Request(val sql: String) {
-    CUSTOM("%s"),
+    RAW("%s"),
 
     CREATE_LISTENER("pldbg_create_listener()"),
     ABORT("pldbg_abort_target(%s)"),
