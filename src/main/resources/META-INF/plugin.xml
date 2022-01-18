@@ -3,13 +3,6 @@
     <id>net.plpgsql.ideadebugger</id>
     <name>PL SQL Debugger</name>
     <vendor email="nggalien.mail@gmail.com" url="https://github.com/ng-galien">Alexandre Boyer</vendor>
-    <description>
-        <![CDATA[
-        Enable debug with database tools for Postgres database.<br/>
-        Debug query from the console with and open function source code in a new file.<br/>
-        Speed up and improve productivity with PostgreSQL
-        ]]>
-    </description>
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.database</depends>
     <extensions defaultExtensionNs="com.intellij.database">
@@ -17,5 +10,7 @@
     </extensions>
     <extensions defaultExtensionNs="com.intellij">
         <xdebugger.breakpointType implementation="net.plpgsql.ideadebugger.PlLineBreakpointType"/>
+        <virtualFileSystem key="plpgsql" implementationClass="net.plpgsql.ideadebugger.PlVFS"/>
     </extensions>
+
 </idea-plugin>

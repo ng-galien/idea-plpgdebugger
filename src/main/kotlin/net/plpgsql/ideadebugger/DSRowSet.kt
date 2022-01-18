@@ -64,7 +64,7 @@ class DBIterator<R>(producer: Producer<R>,
 
 class DBRowSet<R>(
     producer: Producer<R>,
-    private var cmd: Request,
+    private var cmd: SQLQuery,
     private var connection: DatabaseConnection,
     private var xSession: XDebugSession?
     ) : AbstractRowSet<R>(producer, cmd.sql.trimIndent()) {
@@ -81,14 +81,16 @@ class DBRowSet<R>(
         }.onFailure {
             runInEdt { xSession?.consoleView?.print("${cmd.name}:\n$query\n", ConsoleViewContentType.ERROR_OUTPUT) }
         }.onSuccess {
-            runInEdt { xSession?.consoleView?.print( "${cmd.name}:\n$query\n\n", ConsoleViewContentType.LOG_INFO_OUTPUT) }
+            if (cmd.log) {
+                runInEdt { xSession?.consoleView?.print( "${cmd.name} => $query\n", ConsoleViewContentType.LOG_DEBUG_OUTPUT) }
+            }
         }
     }
 
 }
 
-inline fun <T> fetchRowSet(producer: Producer<T>, request: Request, connection: DatabaseConnection, builder: RowSet<T>.() -> Unit): List<T> =
-    DBRowSet(producer, request, connection, null).apply(builder).values
+inline fun <T> fetchRowSet(producer: Producer<T>, query: SQLQuery, connection: DatabaseConnection, builder: RowSet<T>.() -> Unit): List<T> =
+    DBRowSet(producer, query, connection, null).apply(builder).values
 
-inline fun <T> fetchRowSet(producer: Producer<T>, request: Request, proc: PlProcess, builder: RowSet<T>.() -> Unit): List<T> =
-    DBRowSet(producer, request, proc.connection, proc.session).apply(builder).values
+inline fun <T> fetchRowSet(producer: Producer<T>, query: SQLQuery, proc: PlProcess, builder: RowSet<T>.() -> Unit): List<T> =
+    DBRowSet(producer, query, proc.connection, proc.session).apply(builder).values

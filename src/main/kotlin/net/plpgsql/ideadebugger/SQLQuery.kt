@@ -4,20 +4,20 @@
 
 package net.plpgsql.ideadebugger
 
-enum class Request(val sql: String) {
+enum class SQLQuery(val sql: String, val log: Boolean = false) {
     RAW("%s"),
 
     CREATE_LISTENER("pldbg_create_listener()"),
     ABORT("pldbg_abort_target(%s)"),
-    DEBUG_OID("plpgsql_oid_debug(%s)"),
-    STEP_OVER("pldbg_step_over(%s)"),
-    STEP_INTO("pldbg_step_into(%s)"),
-    STEP_CONTINUE("pldbg_continue(%s)"),
-    GET_STACK("pldbg_get_stack(%s)"),
+    DEBUG_OID("plpgsql_oid_debug(%s)", true),
+    STEP_OVER("pldbg_step_over(%s)", true),
+    STEP_INTO("pldbg_step_into(%s)", true),
+    STEP_CONTINUE("pldbg_continue(%s)", true),
+    GET_STACK("pldbg_get_stack(%s)", true),
     ATTACH_TO_PORT("pldbg_attach_to_port(%s)"),
     LIST_BREAKPOINT("pldbg_get_breakpoints(%s)"),
-    ADD_BREAKPOINT("pldbg_set_breakpoint(%s, %s, %s)"),
-    DROP_BREAKPOINT("pldbg_drop_breakpoint(%s, %s, %s)"),
+    ADD_BREAKPOINT("pldbg_set_breakpoint(%s, %s, %s)", true),
+    DROP_BREAKPOINT("pldbg_drop_breakpoint(%s, %s, %s)", true),
     GET_VARIABLES(
         """
         (SELECT

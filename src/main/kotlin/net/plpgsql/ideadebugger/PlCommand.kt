@@ -7,13 +7,12 @@ package net.plpgsql.ideadebugger
 
 
 import com.intellij.database.dataSource.DatabaseConnection
-import org.json.simple.parser.JSONParser
 
 
 fun plGetFunctionArgs(connection: DatabaseConnection, name: String, schema: String): List<PlFunctionArg> =
     fetchRowSet<PlFunctionArg>(
         plFunctionArgProducer(),
-        Request.GET_FUNCTION_CALL_ARGS,
+        SQLQuery.GET_FUNCTION_CALL_ARGS,
         connection
     ) {
         fetch(schema, name)
@@ -22,7 +21,7 @@ fun plGetFunctionArgs(connection: DatabaseConnection, name: String, schema: Stri
 fun plGetFunctionDef(proc: PlProcess, oid: Long): PlFunctionDef =
     fetchRowSet<PlFunctionDef>(
         plVFunctionDefProducer(),
-        Request.GET_FUNCTION_DEF,
+        SQLQuery.GET_FUNCTION_DEF,
         proc
     ) {
         fetch("$oid")
@@ -30,7 +29,7 @@ fun plGetFunctionDef(proc: PlProcess, oid: Long): PlFunctionDef =
 
 fun plCreateListener(proc: PlProcess): Int? = fetchRowSet<PlInt>(
     plIntProducer(),
-    Request.CREATE_LISTENER,
+    SQLQuery.CREATE_LISTENER,
     proc
 ) {
     fetch()
@@ -38,7 +37,7 @@ fun plCreateListener(proc: PlProcess): Int? = fetchRowSet<PlInt>(
 
 fun plAbort(proc: PlProcess): List<PlBoolean> = fetchRowSet<PlBoolean>(
     plBooleanProducer(),
-    Request.ABORT,
+    SQLQuery.ABORT,
     proc
 ) {
     fetch("${proc.sessionId}")
@@ -46,7 +45,7 @@ fun plAbort(proc: PlProcess): List<PlBoolean> = fetchRowSet<PlBoolean>(
 
 fun plDebugFunction(connection: DatabaseConnection, oid: Long): Int? = fetchRowSet<PlInt>(
     plIntProducer(),
-    Request.DEBUG_OID,
+    SQLQuery.DEBUG_OID,
     connection
 ) {
     fetch("$oid")
@@ -54,7 +53,7 @@ fun plDebugFunction(connection: DatabaseConnection, oid: Long): Int? = fetchRowS
 
 fun plGetStack(proc: PlProcess): List<PlStackFrame> = fetchRowSet<PlStackFrame>(
     plStackProducer(),
-    Request.GET_STACK,
+    SQLQuery.GET_STACK,
     proc
 ) {
     fetch("${proc.sessionId}")
@@ -62,29 +61,29 @@ fun plGetStack(proc: PlProcess): List<PlStackFrame> = fetchRowSet<PlStackFrame>(
 
 fun plAttach(proc: PlProcess): Int? = fetchRowSet<PlInt>(
     plIntProducer(),
-    Request.ATTACH_TO_PORT,
+    SQLQuery.ATTACH_TO_PORT,
     proc
 ) {
     fetch("${proc.debugPort}")
 }.firstOrNull()?.value
 
-fun plRunStep(proc: PlProcess, request: Request): PlStep? = fetchRowSet<PlStep>(
+fun plRunStep(proc: PlProcess, query: SQLQuery): PlStep? = fetchRowSet<PlStep>(
     plStepProducer(),
-    request,
+    query,
     proc
 ) {
-    when (request) {
-        Request.STEP_INTO,
-        Request.STEP_OVER,
-        Request.STEP_CONTINUE -> fetch("${proc.sessionId}")
-        else -> throw IllegalArgumentException("Invalid Step command: ${request.name}")
+    when (query) {
+        SQLQuery.STEP_INTO,
+        SQLQuery.STEP_OVER,
+        SQLQuery.STEP_CONTINUE -> fetch("${proc.sessionId}")
+        else -> throw IllegalArgumentException("Invalid Step command: ${query.name}")
     }
 }.firstOrNull()
 
 private fun plGetBulkStackVariables(proc: PlProcess): List<PlStackVariable> =
     fetchRowSet<PlStackVariable>(
         plStackVariableProducer(),
-        Request.GET_VARIABLES,
+        SQLQuery.GET_VARIABLES,
         proc
     ) {
         fetch("${proc.sessionId}")
@@ -107,18 +106,17 @@ fun plGetStackVariables(proc: PlProcess): List<PlStackVariable> {
     }
     return fetchRowSet<PlStackVariable>(
         plStackVariableProducer(),
-        Request.RAW,
+        SQLQuery.RAW,
         proc
     ) {
         fetch(query)
     }
 }
 
-
-fun plExplodeArray(proc: PlProcess, value: PlValue): List<PlValue> =
+fun plExplodeValue(proc: PlProcess, value: PlValue): List<PlValue> =
     fetchRowSet<PlValue>(
         plValueProducer(),
-        Request.EXPLODE,
+        SQLQuery.EXPLODE,
         proc
     ) {
         if (!value.isArray && value.kind != 'c') {
@@ -126,13 +124,13 @@ fun plExplodeArray(proc: PlProcess, value: PlValue): List<PlValue> =
         }
         fetch(
             if (value.isArray) String.format(
-                Request.EXPLODE_ARRAY.sql,
+                SQLQuery.EXPLODE_ARRAY.sql,
                 value.name,
                 value.value.replace("'", "''"),
                 "${value.oid}"
             )
             else String.format(
-                Request.EXPLODE_COMPOSITE.sql,
+                SQLQuery.EXPLODE_COMPOSITE.sql,
                 value.value.replace("'", "''"),
                 "${value.oid}"
             )
@@ -141,32 +139,28 @@ fun plExplodeArray(proc: PlProcess, value: PlValue): List<PlValue> =
 
 fun plGetPlStackBreakPoint(proc: PlProcess): List<PlStackBreakPoint> = fetchRowSet(
     plStackBreakPointProducer(),
-    Request.LIST_BREAKPOINT,
+    SQLQuery.LIST_BREAKPOINT,
     proc
 ) {
     fetch("${proc.sessionId}")
 }
 
-fun plAddStackBreakPoint(proc: PlProcess, oid: Long, line: Int): Boolean? = fetchRowSet(
+fun plUpdateStackBreakPoint(proc: PlProcess, query: SQLQuery, oid: Long, line: Int): Boolean? = fetchRowSet(
     plBooleanProducer(),
-    Request.ADD_BREAKPOINT,
+    query,
     proc
 ) {
-    fetch("${proc.sessionId}", "$oid", "$line")
-}.firstOrNull()?.value
-
-fun plDropStackBreakPoint(proc: PlProcess, oid: Long, line: Int): Boolean? = fetchRowSet(
-    plBooleanProducer(),
-    Request.DROP_BREAKPOINT,
-    proc
-) {
-    fetch("${proc.sessionId}", "$oid", "$line")
+    when (query) {
+        SQLQuery.ADD_BREAKPOINT,
+        SQLQuery.DROP_BREAKPOINT -> fetch("${proc.sessionId}", "$oid", "$line")
+        else -> throw IllegalArgumentException("Invalid Breakpoint command: ${query.name}")
+    }
 }.firstOrNull()?.value
 
 
 fun plGetJson(proc: PlProcess, composite: PlValue): PlJson = fetchRowSet<PlJson>(
     plJsonProducer(),
-    Request.T0_JSON,
+    SQLQuery.T0_JSON,
     proc
 ) {
     fetch(composite.value, composite.type)

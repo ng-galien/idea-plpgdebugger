@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
  * Copyright (c) 2022. Alexandre Boyer
  */
 
-class RequestTest {
+class SQLQueryTest {
 
 
 

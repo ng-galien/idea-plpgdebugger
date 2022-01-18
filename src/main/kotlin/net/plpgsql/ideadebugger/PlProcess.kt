@@ -6,19 +6,10 @@ package net.plpgsql.ideadebugger
 
 import com.intellij.database.dataSource.DatabaseConnection
 import com.intellij.database.debugger.SqlDebugProcess
-import com.intellij.database.debugger.SqlDebuggerEditorsProvider
-import com.intellij.database.debugger.SqlLineBreakpointProperties
-import com.intellij.database.debugger.SqlLineBreakpointType
-import com.intellij.openapi.application.runReadAction
-import com.intellij.openapi.application.runWriteAction
-import com.intellij.openapi.project.Project
+import com.intellij.database.util.match
+import com.intellij.execution.ui.ConsoleViewContentType
+import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiFile
-import com.intellij.sql.psi.SqlPsiFacade
-import com.intellij.util.PlatformIcons
-import com.intellij.xdebugger.XDebugSession
-import com.intellij.xdebugger.XDebuggerManager
 import com.intellij.xdebugger.breakpoints.*
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
@@ -35,10 +26,10 @@ class PlProcess(
 ) : SqlDebugProcess(ctrl.xSession) {
 
     private val logger = getLogger<PlProcess>()
-    private val breakPointHandler = BreakPointHandler()
+    //private val breakPointHandler = BreakPointHandler()
     private val context = XContext()
     private val stack = XStack(session)
-    private val breakpointManager = XDebuggerManager.getInstance(ctrl.project).breakpointManager
+    //private val breakpointManager = XDebuggerManager.getInstance(ctrl.project).breakpointManager
 
     private var step: PlStep? = null
     private var aborted: Boolean = false
@@ -52,6 +43,8 @@ class PlProcess(
         ctrl.entryPoint
     }
 
+    val breakPointCache = mutableListOf<XLineBreakpoint<PlLineBreakpointProperties>>()
+
     init {
         //breakpointManager.addBreakpointListener(PlLineBreakpointType(), breakPointHandler)
     }
@@ -62,27 +55,36 @@ class PlProcess(
 
     override fun startStepOver(context: XSuspendContext?) {
         logger.debug("startStepOver")
-        goToStep(Request.STEP_OVER)
+        goToStep(SQLQuery.STEP_OVER)
 
     }
 
     override fun startStepInto(context: XSuspendContext?) {
         logger.debug("startStepInto")
-        goToStep(Request.STEP_INTO)
+        goToStep(SQLQuery.STEP_INTO)
     }
 
     override fun resume(context: XSuspendContext?) {
         logger.debug("resume")
-        goToStep(Request.STEP_CONTINUE, RESUME_TIMEOUT)
+        goToStep(SQLQuery.STEP_CONTINUE, RESUME_TIMEOUT)
     }
 
     fun startDebug(port: Int) {
         debugPort = port
         sessionId = plAttach(this) ?: 0
-        stack.update(step)
-        session.positionReached(context)
-        runReadAction {
-            //session.initBreakpoints()
+        assert(sessionId != 0)
+        handleStackStatus(stack.updateRemote(step))
+    }
+
+    private fun handleStackStatus(file: PlFile) {
+        if (file.canContinue()) {
+            goToStep(SQLQuery.STEP_CONTINUE)
+        } else {
+            if (file.isOnBreakpoint()) {
+                session.positionReached(context)
+            } else {
+                session.positionReached(context)
+            }
         }
     }
 
@@ -95,19 +97,18 @@ class PlProcess(
         super.stop()
     }
 
-    private fun goToStep(request: Request, timeOut: Int = STEP_TIMEOUT) {
+    private fun goToStep(SQLQuery: SQLQuery, timeOut: Int = STEP_TIMEOUT) {
         connection.runCatching {
-            step = fetchStep(request).blockingGet(timeOut)
-            stack.update(step)
-            session.positionReached(context)
+            step = fetchStep(SQLQuery).blockingGet(timeOut)
+            handleStackStatus(stack.updateRemote(step))
         }.onFailure {
             aborted = true
             session.stop()
         }
     }
 
-    private fun fetchStep(request: Request) = runAsync {
-        plRunStep(this, request)
+    private fun fetchStep(SQLQuery: SQLQuery) = runAsync {
+        plRunStep(this, SQLQuery)
     }
 
     private fun abort() = runAsync {
@@ -128,7 +129,7 @@ class PlProcess(
 
     override fun getBreakpointHandlers(): Array<XBreakpointHandler<*>> {
         return arrayOf(
-           // SqlHandler()
+           BreakPointHandler()
         )
     }
 
@@ -147,27 +148,34 @@ class PlProcess(
         }
     }
 
-    inner class LBP: SqlLineBreakpointProperties() {}
-    inner class LBT() : SqlLineBreakpointType<SqlLineBreakpointProperties>("test", "test") {
-        override fun createBreakpointProperties(file: VirtualFile, line: Int): SqlLineBreakpointProperties? {
-            return LBP()
-        }
-    }
 
 
     inner class BreakPointHandler :
         XBreakpointHandler<XLineBreakpoint<PlLineBreakpointProperties>>(PlLineBreakpointType::class.java),
         XBreakpointListener<XLineBreakpoint<PlLineBreakpointProperties>> {
 
+        val urlRegex = Regex("^$PL_PROTOCOL_PREFIX(\\d+)")
 
         override fun registerBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
-            //stack.addBreakPoint(breakpoint.shortFilePath, breakpoint.line)
-
+            getFile(breakpoint)?.let {
+                runInEdt { session?.consoleView?.print( "registerBreakpoint: ${it.name} => ${breakpoint.line}\n", ConsoleViewContentType.LOG_INFO_OUTPUT) }
+                it.addSourceBreakpoint(breakpoint.line)
+                session.setBreakpointVerified(breakpoint)
+            }
         }
 
         override fun unregisterBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>, temporary: Boolean) {
-           //stack.deleteBreakPoint(breakpoint.shortFilePath, breakpoint.line)
+            getFile(breakpoint)?.let {
+                runInEdt { session?.consoleView?.print( "unregisterBreakpoint: ${it.name} => ${breakpoint.line}\n", ConsoleViewContentType.LOG_INFO_OUTPUT) }
+                it.removeSourceBreakpoint(breakpoint.line)
+            }
+        }
 
+        private fun getFile(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>): PlFile? {
+            val res: PlFile? = (breakpoint.properties?.file) as PlFile?
+            if (res != null) return res
+            val path = breakpoint.fileUrl.match(urlRegex)?.groups?.last()?.value ?: ""
+            return PlVFS.getInstance().findFileByPath(path) as PlFile?
         }
 
     }

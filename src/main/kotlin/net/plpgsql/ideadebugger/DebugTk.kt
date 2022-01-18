@@ -35,6 +35,7 @@ fun getPlLanguage(): Language = PgDialect.INSTANCE
 
 fun plNull(value: String) = (value.uppercase() == "NULL")
 
+
 fun createDebugConnection(project: Project, connectionPoint: DatabaseConnectionPoint): DatabaseConnection {
     return getFacade(
         project,
@@ -94,7 +95,7 @@ fun searchFunctionByName(
             try {
                 fetchRowSet<PlBoolean>(
                     plBooleanProducer(),
-                    Request.RAW,
+                    SQLQuery.RAW,
                     connection
                 ) {
                     fetch(query)

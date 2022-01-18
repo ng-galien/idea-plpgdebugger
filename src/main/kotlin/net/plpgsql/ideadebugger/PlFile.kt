@@ -4,38 +4,29 @@
 
 package net.plpgsql.ideadebugger
 
-import com.intellij.openapi.application.runReadAction
-import com.intellij.openapi.fileTypes.FileTypeExtension
-import com.intellij.openapi.vfs.LocalFileSystem
-import com.intellij.openapi.vfs.VfsUtil
-import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.VirtualFileSystem
-import com.intellij.psi.PsiFile
-import com.intellij.psi.PsiFileFactory
-import com.intellij.psi.PsiManager
-import com.intellij.psi.search.FilenameIndex
-import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.sql.SqlFileType
 import com.intellij.testFramework.LightVirtualFile
 import com.intellij.xdebugger.XDebuggerUtil
 import com.intellij.xdebugger.XSourcePosition
 import kotlin.properties.Delegates
+import kotlin.test.assertTrue
 
 class PlFile(
-    private val stack: XStack,
     private val def: PlFunctionDef,
-    stackBreakPoint: List<PlStackBreakPoint>
-): LightVirtualFile(
-    "${def.schema}.${def.name}[${def.oid}].sql",
+    private var stack: XStack?
+) : LightVirtualFile(
+    "${def.schema}.${def.name}(${def.oid}).sql",
     SqlFileType.INSTANCE,
     def.source,
 ) {
 
-    val oid: Long = def.oid
-    val breakPoints: MutableList<Int> = mutableListOf()
+    private val breakPoints: MutableMap<Int, Boolean> = mutableMapOf()
+    private var first: Boolean = true
+    var firstPos: Int = 0
+        private set
     var stackPos: Int = 0
-    private val initialBP = stackBreakPoint.filter { it.line != -1 }.map { it.line }.toIntArray()
-    private var globalBreakPoint: Boolean = !stackBreakPoint.none { it.line == -1 }
+        private set
     private var offset: Int by Delegates.notNull()
 
     init {
@@ -46,35 +37,67 @@ class PlFile(
         offset = res;
     }
 
+    fun canContinue(): Boolean = stackPos == firstPos && !breakPoints.contains(firstPos) && breakPoints.isNotEmpty()
+
+    fun isOnBreakpoint(): Boolean = breakPoints[stackPos] ?: false
+
+    fun updateStack(s: XStack, pos: Int): PlFile {
+        stack = s
+        stackPos = pos
+        if (first) {
+            firstPos = stackPos
+            //Remove all breakpoints
+            plGetPlStackBreakPoint(stack!!.proc).forEach {
+                updateBreakPoint(SQLQuery.DROP_BREAKPOINT, it.line)
+            }
+            // Set breakpoints
+            breakPoints.filter {
+                !it.value
+            }.forEach {
+                updateBreakPoint(SQLQuery.ADD_BREAKPOINT, it.key)
+                breakPoints[it.key] = true
+            }
+            first = false
+        }
+        return this
+    }
 
     fun getPosition(): XSourcePosition? {
         return XDebuggerUtil.getInstance().createPosition(this, stackPos + offset)
     }
 
-    fun updateBreakPoint() {
-        stack.remoteBreakPoints.forEach {
-            if (it.line > 0 && !breakPoints.contains(it.line)) {
-                plDropStackBreakPoint(stack.proc, oid, it.line)
-            } else if (it.line < 0) {
-                globalBreakPoint = true
-            }
-        }
-
-        breakPoints.filter { b ->
-            stack.remoteBreakPoints.none { s -> s.line == b }
-        }.forEach {
-            plAddStackBreakPoint(stack.proc, oid, it)
-        }
+    fun unload() {
+        first = true
+        stackPos = 0
+        stack = null
+        breakPoints.clear()
     }
 
-    fun breakPointPosFromFile(sourcePos: Int): Int = sourcePos - offset
 
-    private fun breakPointPosFromStack(sourcePos: Int): Int = sourcePos + offset
+    fun addSourceBreakpoint(sourcePos: Int) {
+        val remotePos = breakpointPosFromSource(sourcePos)
+        updateBreakPoint(SQLQuery.ADD_BREAKPOINT, remotePos)
+        breakPoints[remotePos] = stack != null
+    }
+
+    fun removeSourceBreakpoint(sourcePos: Int) {
+        val remotePos = breakpointPosFromSource(sourcePos)
+        updateBreakPoint(SQLQuery.DROP_BREAKPOINT, remotePos)
+        breakPoints.remove(remotePos)
+    }
+
+    fun updateBreakPoint(query: SQLQuery, line: Int) {
+        stack?.let { plUpdateStackBreakPoint(it.proc, query, def.oid, line) }
+    }
+
+    private fun breakpointPosFromSource(sourcePos: Int): Int = sourcePos - offset
 
     override fun isDirectory(): Boolean = false
 
-    override fun getPath(): String = "remote"
+    override fun getPath(): String = "${def.oid}"
 
-    override fun getFileSystem(): VirtualFileSystem = PlVFS
+    override fun getPresentableName(): String = name
+
+    override fun getFileSystem(): VirtualFileSystem = PlVFS.getInstance()
 
 }

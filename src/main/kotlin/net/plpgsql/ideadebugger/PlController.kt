@@ -13,6 +13,8 @@ import com.intellij.database.datagrid.DataRequest
 import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.util.SearchPath
 import com.intellij.openapi.application.runInEdt
+import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
@@ -99,6 +101,11 @@ class PlController(
         busConnection.disconnect()
         dbgConnection.runCatching {
             dbgConnection.remoteConnection.close()
+        }
+        runReadAction {
+            PlVFS.getInstance().all().forEach {
+                it.unload()
+            }
         }
     }
 

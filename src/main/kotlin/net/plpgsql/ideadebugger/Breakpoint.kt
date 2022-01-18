@@ -6,18 +6,13 @@ import com.intellij.icons.AllIcons
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiElementFilter
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.psi.PgCreateFunctionStatementImpl
 import com.intellij.sql.psi.impl.SqlTokenElement
-import com.intellij.util.PlatformIcons
-import com.intellij.util.xmlb.XmlSerializerUtil
-import com.intellij.xdebugger.breakpoints.XBreakpointProperties
 import com.intellij.xdebugger.breakpoints.XLineBreakpoint
-import com.intellij.xdebugger.breakpoints.XLineBreakpointType
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import javax.swing.Icon
 
@@ -62,6 +57,12 @@ class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>("
     ): XDebuggerEditorsProvider? {
         return null
     }
+
+    override fun getEnabledIcon(): Icon {
+        return AllIcons.Providers.Postgresql
+
+    }
+
 }
 
 

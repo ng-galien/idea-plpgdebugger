@@ -4,12 +4,14 @@
 
 package net.plpgsql.ideadebugger
 
-import com.intellij.util.PlatformIcons
+import com.intellij.icons.AllIcons
 import com.intellij.xdebugger.XDebugSession
 import com.intellij.xdebugger.XSourcePosition
 import com.intellij.xdebugger.evaluation.XDebuggerEvaluator
 import com.intellij.xdebugger.frame.*
+import icons.DatabaseIcons
 import org.jetbrains.concurrency.runAsync
+import javax.swing.Icon
 
 /**
  * During a debugging session the code definition does not change
@@ -17,15 +19,13 @@ import org.jetbrains.concurrency.runAsync
  */
 class XStack(private val session: XDebugSession) : XExecutionStack("") {
 
-    private val frames = mutableListOf<XStackFrame>()
-    private val fileRegistry = mutableListOf<PlFile>()
+    private val frames = mutableListOf<XFrame>()
     private val variableRegistry = mutableMapOf<Long, List<PlStackVariable>>()
-    val remoteBreakPoints = mutableListOf<PlStackBreakPoint>()
 
     val proc: PlProcess by lazy {
         session.debugProcess as PlProcess
     }
-    private var currentStep: PlStep? = null
+    var currentStep: PlStep? = null
 
     override fun getTopFrame(): XStackFrame? {
         return frames.firstOrNull()
@@ -35,14 +35,10 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
         container?.addStackFrames(frames.subList(firstFrameIndex, frames.size), true)
     }
 
-    fun update(step: PlStep?) {
+    fun updateRemote(step: PlStep?): PlFile {
         currentStep = step
-
         frames.clear()
         val plStacks = plGetStack(proc)
-
-        remoteBreakPoints.clear()
-        remoteBreakPoints.addAll(plGetPlStackBreakPoint(proc))
 
         if (currentStep != null) {
             if (plStacks.find { it.oid == currentStep!!.oid && it.level == 0 } == null) {
@@ -50,25 +46,28 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
             }
         }
         plStacks.forEach {
-            val file = getFunction(it.oid)
-
-            file?.stackPos = it.line
-            frames.add(XFrame(it, file))
+            frames.add(XFrame(it, getRemoteFunction(it.oid, it.line)))
         }
+        assert(frames.isNotEmpty())
+        return frames.first().plFile
     }
 
-    private fun getFunction(oid: Long): PlFile? {
-
-        var file = fileRegistry.find { it.oid == oid }
-        if (file == null) {
-            file = PlFile(this, plGetFunctionDef(proc, oid), remoteBreakPoints)
-            fileRegistry.add(file)
-        }
-        return file
+    private fun getRemoteFunction(oid: Long, pos: Int): PlFile {
+        val file = PlVFS.getInstance().findFileByPath("$oid")
+        return if (file is PlFile) {
+            file
+        } else {
+            PlVFS.getInstance().register(PlFile(plGetFunctionDef(proc, oid), this))
+        }.updateStack(this, pos)
     }
 
+    enum class GroupType(val title: String, val icon: Icon) {
+        STACK("Stack", AllIcons.Nodes.Method),
+        PARAMETER("Parameters", AllIcons.Nodes.Parameter),
+        VALUE("Values", DatabaseIcons.Table)
+    }
 
-    inner class XFrame(private val frame: PlStackFrame, private val plFile: PlFile?) :
+    inner class XFrame(private val frame: PlStackFrame, val plFile: PlFile) :
         XStackFrame() {
 
         override fun getEvaluator(): XDebuggerEvaluator? {
@@ -81,15 +80,15 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
 
         override fun computeChildren(node: XCompositeNode) {
             val list = XValueChildrenList()
-            list.addTopGroup(XValGroup("Stack", getFrameInfo()))
+            list.addTopGroup(XValGroup(GroupType.STACK, getFrameInfo()))
             val plVars = getVariables().blockingGet(2000)
             if (plVars != null) {
                 val (args, values) = plVars.partition { it.isArg }
                 if (args.isNotEmpty()) {
-                    list.addTopGroup(XValGroup("Arguments", args))
+                    list.addTopGroup(XValGroup(GroupType.PARAMETER, args))
                 }
                 if (values.isNotEmpty()) {
-                    list.addBottomGroup(XValGroup("Values", values))
+                    list.addBottomGroup(XValGroup(GroupType.VALUE, values))
                 }
             }
             node.addChildren(list, true)
@@ -107,51 +106,75 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
             PlStackVariable(
                 false,
                 0,
-                PlValue(0,
+                PlValue(
+                    0,
                     "Function",
                     "text",
                     'b',
                     false,
                     "",
-                    frame.target)
+                    frame.target
+                )
             ),
             PlStackVariable(
                 false,
                 0,
-                PlValue(0,
-                    "OID",
+                PlValue(
+                    0,
+                    "Oid",
                     "int8",
                     'b',
                     false,
                     "",
-                    "${frame.oid}")
+                    "${frame.oid}"
+                )
             ),
             PlStackVariable(
                 false,
                 0,
-                PlValue(0,
+                PlValue(
+                    0,
                     "Level",
                     "int4",
                     'b',
                     false,
                     "",
-                    "${frame.level}")
+                    "${frame.level}"
+                )
             ),
             PlStackVariable(
                 false,
                 0,
-                PlValue(0,
-                    "Line",
+                PlValue(
+                    0,
+                    "First Position",
                     "int4",
                     'b',
                     false,
                     "",
-                    "${frame.line}")
+                    "${plFile.firstPos}"
+                )
+            ),
+            PlStackVariable(
+                false,
+                0,
+                PlValue(
+                    0,
+                    "Stack Position",
+                    "int4",
+                    'b',
+                    false,
+                    "",
+                    "${plFile.stackPos}"
+                )
             ),
         )
     }
 
-    inner class XValGroup(name: String, var plVars: List<PlStackVariable>) : XValueGroup(name) {
+
+    inner class XValGroup(private val type: GroupType, private val plVars: List<PlStackVariable>) :
+        XValueGroup(type.title) {
+
         override fun computeChildren(node: XCompositeNode) {
             val list = XValueChildrenList()
             plVars.forEach {
@@ -160,16 +183,24 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
             node.addChildren(list, true)
         }
 
-        override fun isAutoExpand(): Boolean = true
+        override fun isAutoExpand(): Boolean = (type != GroupType.STACK)
 
         override fun isRestoreExpansion(): Boolean = true
+
+        override fun getIcon(): Icon? {
+            return type.icon
+        }
     }
 
     inner class XVal(private val plVar: PlValue) : XNamedValue(plVar.name) {
 
+
         override fun computePresentation(node: XValueNode, place: XValuePlace) {
+
             node.setPresentation(
-                PlatformIcons.FIELD_ICON,
+                if (isArray()) AllIcons.Debugger.Db_array
+                else if (isComposite()) AllIcons.Nodes.Type
+                else AllIcons.Nodes.Variable,
                 if (isArray()) "${plVar.arrayType}[]" else plVar.type,
                 plVar.value,
                 canExplode()
@@ -177,7 +208,7 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
         }
 
         override fun computeChildren(node: XCompositeNode) {
-            explode(node, plExplodeArray(proc, plVar))
+            explode(node, plExplodeValue(proc, plVar))
         }
 
         override fun computeSourcePosition(navigatable: XNavigatable) {
@@ -205,6 +236,7 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
      *
      */
     fun addBreakPoint(path: String, line: Int) {
+        /*
         val file: PlFile? = fileRegistry.find {
             it.name == path
         }
@@ -212,17 +244,21 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
             file.breakPoints.add(file.breakPointPosFromFile(line))
             file.updateBreakPoint()
         }
+         */
     }
 
     /**
      *
      */
     fun deleteBreakPoint(path: String, line: Int) {
+        /*
         var file = fileRegistry.find {
             it.name == path
         }
         if (file?.breakPoints?.remove(file.breakPointPosFromFile(line)) == true) {
             file?.updateBreakPoint()
         }
+
+         */
     }
 }
