@@ -4,13 +4,8 @@
 
 package net.plpgsql.ideadebugger
 
-import com.intellij.database.dataSource.DatabaseConnection
-import com.intellij.openapi.application.runReadAction
-import com.intellij.psi.PsiFile
-import com.intellij.psi.PsiFileFactory
 import com.intellij.util.PlatformIcons
 import com.intellij.xdebugger.XDebugSession
-import com.intellij.xdebugger.XDebuggerUtil
 import com.intellij.xdebugger.XSourcePosition
 import com.intellij.xdebugger.evaluation.XDebuggerEvaluator
 import com.intellij.xdebugger.frame.*
@@ -23,9 +18,11 @@ import org.jetbrains.concurrency.runAsync
 class XStack(private val session: XDebugSession) : XExecutionStack("") {
 
     private val frames = mutableListOf<XStackFrame>()
-    private val psiRegistry = mutableMapOf<Long, Pair<Int, PsiFile?>>()
+    private val fileRegistry = mutableListOf<PlFile>()
     private val variableRegistry = mutableMapOf<Long, List<PlStackVariable>>()
-    private val proc: PlProcess by lazy {
+    val remoteBreakPoints = mutableListOf<PlStackBreakPoint>()
+
+    val proc: PlProcess by lazy {
         session.debugProcess as PlProcess
     }
     private var currentStep: PlStep? = null
@@ -40,41 +37,38 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
 
     fun update(step: PlStep?) {
         currentStep = step
+
         frames.clear()
         val plStacks = plGetStack(proc)
+
+        remoteBreakPoints.clear()
+        remoteBreakPoints.addAll(plGetPlStackBreakPoint(proc))
+
         if (currentStep != null) {
             if (plStacks.find { it.oid == currentStep!!.oid && it.level == 0 } == null) {
                 throw Exception("Invalid stack")
             }
         }
         plStacks.forEach {
-            val def = getFunction(it.oid)
-            frames.add(XFrame(it, def?.second, (def?.first ?: 0) + it.line))
+            val file = getFunction(it.oid)
+
+            file?.stackPos = it.line
+            frames.add(XFrame(it, file))
         }
     }
 
-    private fun getFunction(oid: Long): Pair<Int, PsiFile?>? {
+    private fun getFunction(oid: Long): PlFile? {
 
-        if (!psiRegistry.containsKey(oid)) {
-            val function = plGetFunctionDef(proc, oid)
-            var offset = 0
-            function.source.split("\n").forEachIndexed { l, line ->
-                if (line.lowercase().startsWith("as \$function\$")) offset = l - 1
-            }
-            val psi = runReadAction {
-                PsiFileFactory.getInstance(session.project).createFileFromText(
-                    "${function.name}::${function.oid}@${proc.sessionId}",
-                    getPlLanguage(),
-                    function.source
-                )
-            }
-            psiRegistry[oid] = Pair(offset, psi)
+        var file = fileRegistry.find { it.oid == oid }
+        if (file == null) {
+            file = PlFile(this, plGetFunctionDef(proc, oid), remoteBreakPoints)
+            fileRegistry.add(file)
         }
-        return psiRegistry[oid]
+        return file
     }
 
 
-    inner class XFrame(private val frame: PlStackFrame, private val psi: PsiFile?, private val pos: Int) :
+    inner class XFrame(private val frame: PlStackFrame, private val plFile: PlFile?) :
         XStackFrame() {
 
         override fun getEvaluator(): XDebuggerEvaluator? {
@@ -82,12 +76,12 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
         }
 
         override fun getSourcePosition(): XSourcePosition? {
-            return XDebuggerUtil.getInstance().createPosition(psi?.virtualFile, pos)
+            return plFile?.getPosition()
         }
 
         override fun computeChildren(node: XCompositeNode) {
             val list = XValueChildrenList()
-
+            list.addTopGroup(XValGroup("Stack", getFrameInfo()))
             val plVars = getVariables().blockingGet(2000)
             if (plVars != null) {
                 val (args, values) = plVars.partition { it.isArg }
@@ -108,6 +102,53 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
             }
             variableRegistry[frame.oid]
         }
+
+        private fun getFrameInfo(): List<PlStackVariable> = listOf<PlStackVariable>(
+            PlStackVariable(
+                false,
+                0,
+                PlValue(0,
+                    "Function",
+                    "text",
+                    'b',
+                    false,
+                    "",
+                    frame.target)
+            ),
+            PlStackVariable(
+                false,
+                0,
+                PlValue(0,
+                    "OID",
+                    "int8",
+                    'b',
+                    false,
+                    "",
+                    "${frame.oid}")
+            ),
+            PlStackVariable(
+                false,
+                0,
+                PlValue(0,
+                    "Level",
+                    "int4",
+                    'b',
+                    false,
+                    "",
+                    "${frame.level}")
+            ),
+            PlStackVariable(
+                false,
+                0,
+                PlValue(0,
+                    "Line",
+                    "int4",
+                    'b',
+                    false,
+                    "",
+                    "${frame.line}")
+            ),
+        )
     }
 
     inner class XValGroup(name: String, var plVars: List<PlStackVariable>) : XValueGroup(name) {
@@ -158,7 +199,30 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
         private fun isArray() = plVar.isArray
         private fun isComposite() = plVar.kind == 'c'
         private fun canExplode() = !plNull(plVar.value) && (isArray() || isComposite())
+    }
 
+    /**
+     *
+     */
+    fun addBreakPoint(path: String, line: Int) {
+        val file: PlFile? = fileRegistry.find {
+            it.name == path
+        }
+        if (file?.breakPoints?.contains(file.breakPointPosFromFile(line)) == false) {
+            file.breakPoints.add(file.breakPointPosFromFile(line))
+            file.updateBreakPoint()
+        }
+    }
 
+    /**
+     *
+     */
+    fun deleteBreakPoint(path: String, line: Int) {
+        var file = fileRegistry.find {
+            it.name == path
+        }
+        if (file?.breakPoints?.remove(file.breakPointPosFromFile(line)) == true) {
+            file?.updateBreakPoint()
+        }
     }
 }

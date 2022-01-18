@@ -15,6 +15,9 @@ enum class Request(val sql: String) {
     STEP_CONTINUE("pldbg_continue(%s)"),
     GET_STACK("pldbg_get_stack(%s)"),
     ATTACH_TO_PORT("pldbg_attach_to_port(%s)"),
+    LIST_BREAKPOINT("pldbg_get_breakpoints(%s)"),
+    ADD_BREAKPOINT("pldbg_set_breakpoint(%s, %s, %s)"),
+    DROP_BREAKPOINT("pldbg_drop_breakpoint(%s, %s, %s)"),
     GET_VARIABLES(
         """
         (SELECT

@@ -9,21 +9,20 @@ import com.intellij.database.debugger.SqlDebugProcess
 import com.intellij.database.debugger.SqlDebuggerEditorsProvider
 import com.intellij.database.debugger.SqlLineBreakpointProperties
 import com.intellij.database.debugger.SqlLineBreakpointType
-import com.intellij.openapi.components.ComponentManager
+import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.sql.psi.SqlPsiFacade
-import com.intellij.util.MessageBusUtil
-import com.intellij.util.messages.MessageBus
+import com.intellij.util.PlatformIcons
 import com.intellij.xdebugger.XDebugSession
-import com.intellij.xdebugger.breakpoints.XBreakpointHandler
-import com.intellij.xdebugger.breakpoints.XLineBreakpoint
+import com.intellij.xdebugger.XDebuggerManager
+import com.intellij.xdebugger.breakpoints.*
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
-import com.jetbrains.rd.util.string.PrettyPrinter
-import com.jetbrains.rd.util.string.print
 import org.jetbrains.concurrency.runAsync
 import kotlin.properties.Delegates
 
@@ -32,20 +31,34 @@ private const val RESUME_TIMEOUT = 1000
 private const val ABORT_TIMEOUT = 100
 
 class PlProcess(
-    session: XDebugSession,
-    val connection: DatabaseConnection,
-    val entryPoint: Long
-) : SqlDebugProcess(session) {
+    private val ctrl: PlController
+) : SqlDebugProcess(ctrl.xSession) {
 
     private val logger = getLogger<PlProcess>()
-    private val editor = EditorProvider()
+    private val breakPointHandler = BreakPointHandler()
     private val context = XContext()
-    var sessionId: Int = 0
     private val stack = XStack(session)
+    private val breakpointManager = XDebuggerManager.getInstance(ctrl.project).breakpointManager
+
     private var step: PlStep? = null
     private var aborted: Boolean = false
-    var debugPort: Int by Delegates.notNull<Int>()
+    var debugPort: Int by Delegates.notNull()
+    var sessionId: Int by Delegates.notNull()
 
+    val connection: DatabaseConnection by lazy {
+        ctrl.dbgConnection
+    }
+    private val entryPoint: Long by lazy {
+        ctrl.entryPoint
+    }
+
+    init {
+        //breakpointManager.addBreakpointListener(PlLineBreakpointType(), breakPointHandler)
+    }
+
+    override fun sessionInitialized() {
+        super.sessionInitialized()
+    }
 
     override fun startStepOver(context: XSuspendContext?) {
         logger.debug("startStepOver")
@@ -68,6 +81,9 @@ class PlProcess(
         sessionId = plAttach(this) ?: 0
         stack.update(step)
         session.positionReached(context)
+        runReadAction {
+            //session.initBreakpoints()
+        }
     }
 
     override fun stop() {
@@ -99,7 +115,7 @@ class PlProcess(
     }
 
     override fun getEditorsProvider(): XDebuggerEditorsProvider {
-        return editor
+        return PlEditorProvider
     }
 
     override fun checkCanInitBreakpoints(): Boolean {
@@ -111,32 +127,10 @@ class PlProcess(
     }
 
     override fun getBreakpointHandlers(): Array<XBreakpointHandler<*>> {
-        return arrayOf(BreakPointHandler())
+        return arrayOf(
+           // SqlHandler()
+        )
     }
-
-    inner class EditorProvider : SqlDebuggerEditorsProvider() {
-        override fun createExpressionCodeFragment(
-            project: Project,
-            text: String,
-            context: PsiElement?,
-            isPhysical: Boolean
-        ): PsiFile {
-            return SqlPsiFacade.getInstance(project)
-                .createExpressionFragment(getPlLanguage(), null, null, text)
-        }
-    }
-
-    inner class BreakPointHandler :
-        XBreakpointHandler<XLineBreakpoint<LineBreakpointProperties>>(LineBreakpointType::class.java) {
-        override fun registerBreakpoint(breakpoint: XLineBreakpoint<LineBreakpointProperties>) {
-
-        }
-
-        override fun unregisterBreakpoint(breakpoint: XLineBreakpoint<LineBreakpointProperties>, temporary: Boolean) {
-
-        }
-    }
-
 
     inner class XContext : XSuspendContext() {
 
@@ -151,6 +145,31 @@ class PlProcess(
         override fun computeExecutionStacks(container: XExecutionStackContainer?) {
             container?.addExecutionStack(mutableListOf(stack), true)
         }
+    }
+
+    inner class LBP: SqlLineBreakpointProperties() {}
+    inner class LBT() : SqlLineBreakpointType<SqlLineBreakpointProperties>("test", "test") {
+        override fun createBreakpointProperties(file: VirtualFile, line: Int): SqlLineBreakpointProperties? {
+            return LBP()
+        }
+    }
+
+
+    inner class BreakPointHandler :
+        XBreakpointHandler<XLineBreakpoint<PlLineBreakpointProperties>>(PlLineBreakpointType::class.java),
+        XBreakpointListener<XLineBreakpoint<PlLineBreakpointProperties>> {
+
+
+        override fun registerBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
+            //stack.addBreakPoint(breakpoint.shortFilePath, breakpoint.line)
+
+        }
+
+        override fun unregisterBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>, temporary: Boolean) {
+           //stack.deleteBreakPoint(breakpoint.shortFilePath, breakpoint.line)
+
+        }
+
     }
 
 

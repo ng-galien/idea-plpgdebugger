@@ -16,6 +16,6 @@
         <debuggerFacade dbms="POSTGRES" implementationClass="net.plpgsql.ideadebugger.PlFacade"/>
     </extensions>
     <extensions defaultExtensionNs="com.intellij">
-        <xdebugger.breakpointType implementation="net.plpgsql.ideadebugger.LineBreakpointType"/>
+        <xdebugger.breakpointType implementation="net.plpgsql.ideadebugger.PlLineBreakpointType"/>
     </extensions>
 </idea-plugin>
