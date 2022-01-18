@@ -14,3 +14,10 @@
 ### Added
 - Fix procedure identification on specific schema
 - Gracefully handle debug connection
+
+## [1.0.0-beta]
+### Added
+- Support for breakpoint
+- Implements a Virtual File System to store debug files
+### Changed
+- Refactor many parts for future test support
