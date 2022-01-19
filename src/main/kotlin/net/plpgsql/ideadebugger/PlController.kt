@@ -13,6 +13,8 @@ import com.intellij.database.datagrid.DataRequest
 import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.util.SearchPath
 import com.intellij.openapi.application.runInEdt
+import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
@@ -23,7 +25,11 @@ import com.intellij.sql.psi.SqlFunctionCallExpression
 import com.intellij.ui.content.Content
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugSession
+import com.intellij.xdebugger.XDebuggerManager
+import com.intellij.xdebugger.breakpoints.*
+import org.jetbrains.debugger.BreakpointListener
 import java.util.regex.Pattern
+import kotlin.properties.Delegates
 
 class PlController(
     val project: Project,
@@ -38,15 +44,16 @@ class PlController(
     private val logger = getLogger<PlController>()
     private val pattern = Pattern.compile(".*PLDBGBREAK:([0-9]+).*")
     private lateinit var plProcess: PlProcess
-    private lateinit var xSession: XDebugSession
+    lateinit var xSession: XDebugSession
     private val queryAuditor = QueryAuditor()
     private val queryConsumer = QueryConsumer()
     private val windowLister = ToolListener()
 
-    private var entryPoint = 0L
-    private var dbgConnection = createDebugConnection(project, connectionPoint)
+    val dbgConnection = createDebugConnection(project, connectionPoint)
+
     private var busConnection = project.messageBus.connect()
 
+    var entryPoint by Delegates.notNull<Long>()
 
     override fun getReady() {
         logger.debug("getReady")
@@ -54,16 +61,15 @@ class PlController(
 
     override fun initLocal(session: XDebugSession): XDebugProcess {
         busConnection.subscribe(ToolWindowManagerListener.TOPIC, windowLister)
-        xSession = session
-        logger.debug("initLocal")
         entryPoint = searchFunction() ?: 0L
-        plProcess = PlProcess(session, dbgConnection, entryPoint)
+        xSession = session
+        plProcess = PlProcess(this)
         return plProcess
     }
 
     override fun initRemote(connection: DatabaseConnection) {
         logger.info("initRemote")
-        val ready = if (entryPoint != 0L) plDebugFunction(connection, entryPoint) == 0 else false
+        val ready = if (entryPoint != 0L) (plDebugFunction(connection, entryPoint) == 0) else false
 
         if (!ready) {
             runInEdt {
@@ -74,7 +80,7 @@ class PlController(
                     Messages.getInformationIcon()
                 )
             }
-            close()
+            xSession.stop()
         } else {
             ownerEx.messageBus.addAuditor(queryAuditor)
             ownerEx.messageBus.addConsumer(queryConsumer)
@@ -96,6 +102,18 @@ class PlController(
         dbgConnection.runCatching {
             dbgConnection.remoteConnection.close()
         }
+        vfsCleanup()
+    }
+
+    private fun vfsCleanup() {
+        val con = createDebugConnection(project, connectionPoint)
+        val toRemove = plGetShadowList(con, PlVFS.getInstance().all().map { it.oid })
+        runReadAction {
+            val vfs = PlVFS.getInstance()
+            toRemove.forEach { vfs.remove(it) }
+            vfs.all().forEach { it.unload() }
+        }
+        con.remoteConnection.close()
     }
 
 
@@ -121,14 +139,21 @@ class PlController(
                 }
             }
         }
+
+        override fun fetchStarted(context: DataRequest.Context, index: Int) {
+            if (context.request.owner == ownerEx) {
+                close()
+            }
+        }
     }
 
     inner class QueryConsumer : DataConsumer.Adapter() {
         override fun afterLastRowAdded(context: DataRequest.Context, total: Int) {
             if (context.request.owner == ownerEx) {
-                close()
+                println("HI")
             }
         }
+
     }
 
     inner class ToolListener : ToolWindowManagerListener {
@@ -155,6 +180,8 @@ class PlController(
             }
         }
     }
+
+
 
 }
 
