@@ -4,17 +4,20 @@
 
 package net.plpgsql.ideadebugger
 
-enum class Request(val sql: String) {
-    CUSTOM("%s"),
+enum class SQLQuery(val sql: String, val log: Boolean = false) {
+    RAW("%s"),
 
     CREATE_LISTENER("pldbg_create_listener()"),
     ABORT("pldbg_abort_target(%s)"),
-    DEBUG_OID("plpgsql_oid_debug(%s)"),
-    STEP_OVER("pldbg_step_over(%s)"),
-    STEP_INTO("pldbg_step_into(%s)"),
-    STEP_CONTINUE("pldbg_continue(%s)"),
-    GET_STACK("pldbg_get_stack(%s)"),
+    DEBUG_OID("plpgsql_oid_debug(%s)", true),
+    STEP_OVER("pldbg_step_over(%s)", true),
+    STEP_INTO("pldbg_step_into(%s)", true),
+    STEP_CONTINUE("pldbg_continue(%s)", true),
+    GET_STACK("pldbg_get_stack(%s)", true),
     ATTACH_TO_PORT("pldbg_attach_to_port(%s)"),
+    LIST_BREAKPOINT("pldbg_get_breakpoints(%s)"),
+    ADD_BREAKPOINT("pldbg_set_breakpoint(%s, %s, %s)", true),
+    DROP_BREAKPOINT("pldbg_drop_breakpoint(%s, %s, %s)", true),
     GET_VARIABLES(
         """
         (SELECT
@@ -57,7 +60,7 @@ enum class Request(val sql: String) {
         FROM pg_proc t_proc
                  JOIN pg_namespace t_namespace on t_proc.pronamespace = t_namespace.oid
         WHERE t_proc.oid = %s) f
-        """
+        """, true
     ),
 
     EXPLODE("%s"),
@@ -104,6 +107,14 @@ enum class Request(val sql: String) {
     T0_JSON(
         """
         (SELECT to_jsonb(row) FROM (SELECT %s::%s) row) j
+        """
+    ),
+    OLD_FUNCTION(
+        """
+            SELECT func.id 
+            FROM unnest(%s) WITH ORDINALITY func(id)
+            LEFT JOIN pg_proc t_proc ON t_proc.oid = func.id
+            WHERE t_proc IS NULL
         """
     )
 
