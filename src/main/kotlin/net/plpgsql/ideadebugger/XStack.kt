@@ -27,6 +27,8 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
     }
     var currentStep: PlStep? = null
 
+
+
     override fun getTopFrame(): XStackFrame? {
         return frames.firstOrNull()
     }
@@ -232,33 +234,4 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
         private fun canExplode() = !plNull(plVar.value) && (isArray() || isComposite())
     }
 
-    /**
-     *
-     */
-    fun addBreakPoint(path: String, line: Int) {
-        /*
-        val file: PlFile? = fileRegistry.find {
-            it.name == path
-        }
-        if (file?.breakPoints?.contains(file.breakPointPosFromFile(line)) == false) {
-            file.breakPoints.add(file.breakPointPosFromFile(line))
-            file.updateBreakPoint()
-        }
-         */
-    }
-
-    /**
-     *
-     */
-    fun deleteBreakPoint(path: String, line: Int) {
-        /*
-        var file = fileRegistry.find {
-            it.name == path
-        }
-        if (file?.breakPoints?.remove(file.breakPointPosFromFile(line)) == true) {
-            file?.updateBreakPoint()
-        }
-
-         */
-    }
 }

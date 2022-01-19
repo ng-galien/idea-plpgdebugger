@@ -24,7 +24,13 @@ class PlVFS : DeprecatedVirtualFileSystem() {
         return file
     }
 
+    fun remove(oid: Long) {
+        fileRegistry.remove("$oid")
+    }
+
     fun all(): List<PlFile> = fileRegistry.values.toList()
+
+    fun count() = fileRegistry.size
 
     override fun getProtocol(): String = PL_PROTOCOL
 
@@ -40,5 +46,7 @@ class PlVFS : DeprecatedVirtualFileSystem() {
         fun getInstance(): PlVFS =
             Objects.requireNonNull(VirtualFileManager.getInstance().getFileSystem(PL_PROTOCOL)) as PlVFS
     }
+
+
 
 }

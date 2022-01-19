@@ -60,7 +60,7 @@ enum class SQLQuery(val sql: String, val log: Boolean = false) {
         FROM pg_proc t_proc
                  JOIN pg_namespace t_namespace on t_proc.pronamespace = t_namespace.oid
         WHERE t_proc.oid = %s) f
-        """
+        """, true
     ),
 
     EXPLODE("%s"),
@@ -107,6 +107,14 @@ enum class SQLQuery(val sql: String, val log: Boolean = false) {
     T0_JSON(
         """
         (SELECT to_jsonb(row) FROM (SELECT %s::%s) row) j
+        """
+    ),
+    OLD_FUNCTION(
+        """
+            SELECT func.id 
+            FROM unnest(%s) WITH ORDINALITY func(id)
+            LEFT JOIN pg_proc t_proc ON t_proc.oid = func.id
+            WHERE t_proc IS NULL
         """
     )
 

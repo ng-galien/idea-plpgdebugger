@@ -166,5 +166,13 @@ fun plGetJson(proc: PlProcess, composite: PlValue): PlJson = fetchRowSet<PlJson>
     fetch(composite.value, composite.type)
 }.first()
 
+fun plGetShadowList(connection: DatabaseConnection, oids: List<Long>): List<Long> = fetchRowSet<PlLong>(
+    plLongProducer(),
+    SQLQuery.OLD_FUNCTION,
+    connection
+) {
+    fetch(oids.joinToString(prefix = "ARRAY[", separator = ",", postfix = "]") { "$it" })
+}.map { it.value }
+
 
 

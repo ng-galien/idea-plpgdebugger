@@ -6,18 +6,23 @@ package net.plpgsql.ideadebugger
 
 import com.intellij.openapi.vfs.VirtualFileSystem
 import com.intellij.sql.SqlFileType
+import com.intellij.sql.dialects.postgres.PgDialect
 import com.intellij.testFramework.LightVirtualFile
 import com.intellij.xdebugger.XDebuggerUtil
 import com.intellij.xdebugger.XSourcePosition
 import kotlin.properties.Delegates
 import kotlin.test.assertTrue
 
+
+/*
+TODO Range check for adding breakpoint
+ */
 class PlFile(
     private val def: PlFunctionDef,
     private var stack: XStack?
 ) : LightVirtualFile(
-    "${def.schema}.${def.name}(${def.oid}).sql",
-    SqlFileType.INSTANCE,
+    "${def.schema}.${def.name}[${def.oid}].sql",
+    PgDialect.INSTANCE,
     def.source,
 ) {
 
@@ -28,6 +33,9 @@ class PlFile(
     var stackPos: Int = 0
         private set
     private var offset: Int by Delegates.notNull()
+    val oid: Long by lazy {
+        def.oid
+    }
 
     init {
         var res = 0;
@@ -74,10 +82,11 @@ class PlFile(
     }
 
 
-    fun addSourceBreakpoint(sourcePos: Int) {
+    fun addSourceBreakpoint(sourcePos: Int): Boolean {
         val remotePos = breakpointPosFromSource(sourcePos)
         updateBreakPoint(SQLQuery.ADD_BREAKPOINT, remotePos)
         breakPoints[remotePos] = stack != null
+        return true
     }
 
     fun removeSourceBreakpoint(sourcePos: Int) {
@@ -86,8 +95,11 @@ class PlFile(
         breakPoints.remove(remotePos)
     }
 
-    fun updateBreakPoint(query: SQLQuery, line: Int) {
-        stack?.let { plUpdateStackBreakPoint(it.proc, query, def.oid, line) }
+    private fun updateBreakPoint(query: SQLQuery, line: Int): Boolean {
+        if (stack != null) {
+            return plUpdateStackBreakPoint(stack!!.proc, query, def.oid, line) ?: false
+        }
+        return true
     }
 
     private fun breakpointPosFromSource(sourcePos: Int): Int = sourcePos - offset

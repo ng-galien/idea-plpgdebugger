@@ -102,11 +102,18 @@ class PlController(
         dbgConnection.runCatching {
             dbgConnection.remoteConnection.close()
         }
+        vfsCleanup()
+    }
+
+    private fun vfsCleanup() {
+        val con = createDebugConnection(project, connectionPoint)
+        val toRemove = plGetShadowList(con, PlVFS.getInstance().all().map { it.oid })
         runReadAction {
-            PlVFS.getInstance().all().forEach {
-                it.unload()
-            }
+            val vfs = PlVFS.getInstance()
+            toRemove.forEach { vfs.remove(it) }
+            vfs.all().forEach { it.unload() }
         }
+        con.remoteConnection.close()
     }
 
 

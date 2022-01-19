@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2022. Alexandre Boyer
+ */
+
 package net.plpgsql.ideadebugger
 
 import com.intellij.database.debugger.SqlLineBreakpointProperties
@@ -19,17 +23,20 @@ import javax.swing.Icon
 
 class PlLineBreakpointProperties(val file: VirtualFile, val line: Int) : SqlLineBreakpointProperties() {}
 
-class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>("plpg_line_breakpoint", "PLpg/SQL") {
+/*
+TODO All this code must be merge with code analysis of PlFile
+ */
+class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>("plpg_line_breakpoint", "PL/pg SQL") {
 
     private val fileRegex = Regex("^.+\\..+\\[\\d+\\]\\.sql\$")
-    private val fileRegexTest = Regex("^.+\\.sql\$")
+    //private val fileRegexTest = Regex("^.+\\.sql\$")
 
     override fun createBreakpointProperties(file: VirtualFile, line: Int): PlLineBreakpointProperties? {
         return PlLineBreakpointProperties(file, line)
     }
 
     override fun canPutAt(file: VirtualFile, line: Int, project: Project): Boolean {
-        if (!fileRegexTest.matches(file.name)) {
+        if (!fileRegex.matches(file.name)) {
             return false
         }
 

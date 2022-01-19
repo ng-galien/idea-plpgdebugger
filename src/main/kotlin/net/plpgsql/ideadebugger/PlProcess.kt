@@ -9,7 +9,9 @@ import com.intellij.database.debugger.SqlDebugProcess
 import com.intellij.database.util.match
 import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.application.runInEdt
+import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.xdebugger.XDebuggerManager
 import com.intellij.xdebugger.breakpoints.*
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
@@ -26,10 +28,8 @@ class PlProcess(
 ) : SqlDebugProcess(ctrl.xSession) {
 
     private val logger = getLogger<PlProcess>()
-    //private val breakPointHandler = BreakPointHandler()
     private val context = XContext()
     private val stack = XStack(session)
-    //private val breakpointManager = XDebuggerManager.getInstance(ctrl.project).breakpointManager
 
     private var step: PlStep? = null
     private var aborted: Boolean = false
@@ -43,10 +43,17 @@ class PlProcess(
         ctrl.entryPoint
     }
 
-    val breakPointCache = mutableListOf<XLineBreakpoint<PlLineBreakpointProperties>>()
-
     init {
-        //breakpointManager.addBreakpointListener(PlLineBreakpointType(), breakPointHandler)
+        if (PlVFS.getInstance().count() == 0) {
+            runWriteAction {
+                val manager = XDebuggerManager.getInstance(session.project).breakpointManager
+                manager.allBreakpoints.filter {
+                    it.type is PlLineBreakpointType
+                }.forEach {
+                    manager.removeBreakpoint(it)
+                }
+            }
+        }
     }
 
     override fun sessionInitialized() {
@@ -74,6 +81,14 @@ class PlProcess(
         sessionId = plAttach(this) ?: 0
         assert(sessionId != 0)
         handleStackStatus(stack.updateRemote(step))
+    }
+
+    override fun startForceStepInto(context: XSuspendContext?) {
+
+    }
+
+    override fun startStepOut(context: XSuspendContext?) {
+
     }
 
     private fun handleStackStatus(file: PlFile) {
@@ -115,6 +130,7 @@ class PlProcess(
         plAbort(this)
     }
 
+
     override fun getEditorsProvider(): XDebuggerEditorsProvider {
         return PlEditorProvider
     }
@@ -129,7 +145,7 @@ class PlProcess(
 
     override fun getBreakpointHandlers(): Array<XBreakpointHandler<*>> {
         return arrayOf(
-           BreakPointHandler()
+            BreakPointHandler()
         )
     }
 
@@ -149,36 +165,29 @@ class PlProcess(
     }
 
 
-
     inner class BreakPointHandler :
         XBreakpointHandler<XLineBreakpoint<PlLineBreakpointProperties>>(PlLineBreakpointType::class.java),
         XBreakpointListener<XLineBreakpoint<PlLineBreakpointProperties>> {
 
-        val urlRegex = Regex("^$PL_PROTOCOL_PREFIX(\\d+)")
-
         override fun registerBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
-            getFile(breakpoint)?.let {
-                runInEdt { session?.consoleView?.print( "registerBreakpoint: ${it.name} => ${breakpoint.line}\n", ConsoleViewContentType.LOG_INFO_OUTPUT) }
-                it.addSourceBreakpoint(breakpoint.line)
-                session.setBreakpointVerified(breakpoint)
+            breakpoint.properties?.file.let {
+                consoleInfo("registerBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
+                if ((it as PlFile).addSourceBreakpoint(breakpoint.line)) {
+                    session.setBreakpointVerified(breakpoint)
+                }
             }
         }
 
         override fun unregisterBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>, temporary: Boolean) {
-            getFile(breakpoint)?.let {
-                runInEdt { session?.consoleView?.print( "unregisterBreakpoint: ${it.name} => ${breakpoint.line}\n", ConsoleViewContentType.LOG_INFO_OUTPUT) }
-                it.removeSourceBreakpoint(breakpoint.line)
+            breakpoint.properties.file.let {
+                consoleInfo("unregisterBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
+                (it as PlFile).removeSourceBreakpoint(breakpoint.line)
             }
-        }
-
-        private fun getFile(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>): PlFile? {
-            val res: PlFile? = (breakpoint.properties?.file) as PlFile?
-            if (res != null) return res
-            val path = breakpoint.fileUrl.match(urlRegex)?.groups?.last()?.value ?: ""
-            return PlVFS.getInstance().findFileByPath(path) as PlFile?
         }
 
     }
 
+    private fun consoleInfo(msg: String) =
+        runInEdt { session?.consoleView?.print("$msg\n", ConsoleViewContentType.LOG_INFO_OUTPUT) }
 
 }

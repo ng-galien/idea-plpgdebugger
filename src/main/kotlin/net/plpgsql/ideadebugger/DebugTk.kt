@@ -133,6 +133,8 @@ object PlEditorProvider : SqlDebuggerEditorsProvider() {
         return super.createDocument(project, expression, sourcePosition, mode)
     }
 
+
+
     override fun createDocument(
         project: Project,
         expression: XExpression,
