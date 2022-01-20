@@ -24,24 +24,20 @@ private const val RESUME_TIMEOUT = 1000
 private const val ABORT_TIMEOUT = 100
 
 class PlProcess(
-    private val ctrl: PlController
-) : SqlDebugProcess(ctrl.xSession) {
+    private val controller: PlController
+) : SqlDebugProcess(controller.xSession) {
 
     private val logger = getLogger<PlProcess>()
     private val context = XContext()
     private val stack = XStack(session)
+    private val fakeStep = PlStep(0, 0, "")
 
-    private var step: PlStep? = null
+    private var step: PlStep = fakeStep
+
     private var aborted: Boolean = false
-    var debugPort: Int by Delegates.notNull()
-    var sessionId: Int by Delegates.notNull()
 
-    val connection: DatabaseConnection by lazy {
-        ctrl.dbgConnection
-    }
-    private val entryPoint: Long by lazy {
-        ctrl.entryPoint
-    }
+
+    private val entryPoint: Long = 1
 
     init {
         if (PlVFS.getInstance().count() == 0) {
@@ -54,10 +50,6 @@ class PlProcess(
                 }
             }
         }
-    }
-
-    override fun sessionInitialized() {
-        super.sessionInitialized()
     }
 
     override fun startStepOver(context: XSuspendContext?) {
@@ -76,19 +68,16 @@ class PlProcess(
         goToStep(SQLQuery.STEP_CONTINUE, RESUME_TIMEOUT)
     }
 
-    fun startDebug(port: Int) {
-        debugPort = port
-        sessionId = plAttach(this) ?: 0
-        assert(sessionId != 0)
+    fun startDebug() {
         handleStackStatus(stack.updateRemote(step))
     }
 
     override fun startForceStepInto(context: XSuspendContext?) {
-
+        handleStackStatus(stack.updateRemote(step))
     }
 
     override fun startStepOut(context: XSuspendContext?) {
-
+        handleStackStatus(stack.updateRemote(step))
     }
 
     private fun handleStackStatus(file: PlFile) {
@@ -103,31 +92,11 @@ class PlProcess(
         }
     }
 
-    override fun stop() {
-        connection.runCatching {
-            if (!connection.remoteConnection.isClosed && !aborted) {
-                abort().blockingGet(ABORT_TIMEOUT)
-            }
-        }
-        super.stop()
-    }
-
-    private fun goToStep(SQLQuery: SQLQuery, timeOut: Int = STEP_TIMEOUT) {
-        connection.runCatching {
-            step = fetchStep(SQLQuery).blockingGet(timeOut)
+    private fun goToStep(cmd: SQLQuery, timeOut: Int = STEP_TIMEOUT) {
+        step = controller.executor.runStep(cmd) ?: fakeStep
+        if (controller.checkExecutor()) {
             handleStackStatus(stack.updateRemote(step))
-        }.onFailure {
-            aborted = true
-            session.stop()
         }
-    }
-
-    private fun fetchStep(SQLQuery: SQLQuery) = runAsync {
-        plRunStep(this, SQLQuery)
-    }
-
-    private fun abort() = runAsync {
-        plAbort(this)
     }
 
 
@@ -135,13 +104,9 @@ class PlProcess(
         return PlEditorProvider
     }
 
-    override fun checkCanInitBreakpoints(): Boolean {
-        return entryPoint != 0L
-    }
+    override fun checkCanInitBreakpoints(): Boolean = controller.executor.ready()
 
-    override fun checkCanPerformCommands(): Boolean {
-        return entryPoint != 0L
-    }
+    override fun checkCanPerformCommands(): Boolean = controller.executor.ready()
 
     override fun getBreakpointHandlers(): Array<XBreakpointHandler<*>> {
         return arrayOf(

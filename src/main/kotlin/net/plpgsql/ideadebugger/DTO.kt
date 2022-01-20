@@ -103,3 +103,9 @@ fun plStackBreakPointProducer() = Producer<PlStackBreakPoint> {
         it.int()
     )
 }
+
+data class PlExtension(val schema: String, val name: String, val version: String);
+
+fun plExtensionProducer() = Producer<PlExtension> {
+    PlExtension(it.string(), it.string(), it.string())
+}

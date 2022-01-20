@@ -13,8 +13,6 @@ import com.intellij.database.datagrid.DataRequest
 import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.util.SearchPath
 import com.intellij.openapi.application.runInEdt
-import com.intellij.openapi.application.runReadAction
-import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
@@ -25,13 +23,11 @@ import com.intellij.sql.psi.SqlFunctionCallExpression
 import com.intellij.ui.content.Content
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugSession
-import com.intellij.xdebugger.XDebuggerManager
-import com.intellij.xdebugger.breakpoints.*
-import org.jetbrains.debugger.BreakpointListener
 import java.util.regex.Pattern
 import kotlin.properties.Delegates
 
 class PlController(
+    val facade: PlFacade,
     val project: Project,
     val connectionPoint: DatabaseConnectionPoint,
     val ownerEx: DataRequest.OwnerEx,
@@ -49,7 +45,7 @@ class PlController(
     private val queryConsumer = QueryConsumer()
     private val windowLister = ToolListener()
 
-    val dbgConnection = createDebugConnection(project, connectionPoint)
+    val executor = PlExecutor(this)
 
     private var busConnection = project.messageBus.connect()
 
@@ -57,11 +53,22 @@ class PlController(
 
     override fun getReady() {
         logger.debug("getReady")
+        executor.checkExtension()
+        if (!checkExecutor()) {
+            return
+        }
+        if (callExpression != null) {
+            val callDef = parseFunctionCall(callExpression)
+            assert(callDef.first.isNotEmpty() && callDef.first.size <= 2) { "Error while parsing ${callExpression.text}" }
+            executor.searchCallee(callDef.first, callDef.second)
+        } else {
+            executor.setError("Invalid call expression")
+        }
+        checkExecutor()
     }
 
     override fun initLocal(session: XDebugSession): XDebugProcess {
         busConnection.subscribe(ToolWindowManagerListener.TOPIC, windowLister)
-        entryPoint = searchFunction() ?: 0L
         xSession = session
         plProcess = PlProcess(this)
         return plProcess
@@ -69,19 +76,8 @@ class PlController(
 
     override fun initRemote(connection: DatabaseConnection) {
         logger.info("initRemote")
-        val ready = if (entryPoint != 0L) (plDebugFunction(connection, entryPoint) == 0) else false
-
-        if (!ready) {
-            runInEdt {
-                Messages.showMessageDialog(
-                    project,
-                    "Routine not found",
-                    "PL Debugger",
-                    Messages.getInformationIcon()
-                )
-            }
-            xSession.stop()
-        } else {
+        executor.startDebug(connection)
+        if (checkExecutor()) {
             ownerEx.messageBus.addAuditor(queryAuditor)
             ownerEx.messageBus.addConsumer(queryConsumer)
         }
@@ -89,6 +85,23 @@ class PlController(
 
     override fun debugBegin() {
         logger.info("debugBegin")
+    }
+
+    fun checkExecutor(): Boolean {
+        if (executor.hasError()) {
+            facade.disableMe = searchPath
+            runInEdt {
+                Messages.showMessageDialog(
+                    project,
+                    executor.lastMessage.content,
+                    "PL/pg Debugger",
+                    if (executor.hasError()) Messages.getErrorIcon() else Messages.getWarningIcon()
+                )
+            }
+            xSession.stop()
+            return false;
+        }
+        return true
     }
 
     override fun debugEnd() {
@@ -99,34 +112,25 @@ class PlController(
         logger.info("close")
         windowLister.close()
         busConnection.disconnect()
+        /*
         dbgConnection.runCatching {
             dbgConnection.remoteConnection.close()
         }
+         */
         vfsCleanup()
     }
 
     private fun vfsCleanup() {
-        val con = createDebugConnection(project, connectionPoint)
+        /*val con = createDebugConnection(project, connectionPoint)
         val toRemove = plGetShadowList(con, PlVFS.getInstance().all().map { it.oid })
         runReadAction {
             val vfs = PlVFS.getInstance()
             toRemove.forEach { vfs.remove(it) }
             vfs.all().forEach { it.unload() }
         }
-        con.remoteConnection.close()
-    }
+        //con.remoteConnection.close()
 
-
-    private fun searchFunction(): Long? {
-
-        if (callExpression != null) {
-            val callDef = parseFunctionCall(callExpression)
-            assert(callDef.first.isNotEmpty() && callDef.first.size <= 2) { "Error while parsing ${callExpression.text}" }
-            return searchFunctionByName(connection = dbgConnection,
-                callFunc = callDef.first,
-                callValues = callDef.second)
-        }
-        return null
+         */
     }
 
     inner class QueryAuditor : DataAuditors.Adapter() {
@@ -135,7 +139,10 @@ class PlController(
                 val matcher = pattern.matcher(info.message)
                 if (matcher.matches()) {
                     val port = matcher.group(1).toInt()
-                    plProcess.startDebug(port)
+                    executor.attachToPort(port)
+                    if (checkExecutor()) {
+                        plProcess.startDebug()
+                    }
                 }
             }
         }
@@ -180,9 +187,6 @@ class PlController(
             }
         }
     }
-
-
-
 }
 
 

@@ -36,17 +36,6 @@ fun getPlLanguage(): Language = PgDialect.INSTANCE
 fun plNull(value: String) = (value.uppercase() == "NULL")
 
 
-fun createDebugConnection(project: Project, connectionPoint: DatabaseConnectionPoint): DatabaseConnection {
-    return getFacade(
-        project,
-        connectionPoint,
-        null,
-        null,
-        true,
-        null, DGDepartment.DEBUGGER
-    ).connect().get()
-}
-
 fun parseFunctionCall(callExpr: SqlFunctionCallExpression): Pair<List<String>, List<String>> {
     val (func, args) = runReadAction {
         val func = PsiTreeUtil.findChildrenOfAnyType(callExpr, SqlIdentifier::class.java).map {
@@ -62,51 +51,6 @@ fun parseFunctionCall(callExpr: SqlFunctionCallExpression): Pair<List<String>, L
 }
 
 fun getDefaultSchema(): String = "public"
-
-fun searchFunctionByName(
-    connection: DatabaseConnection,
-    callFunc: List<String>,
-    callValues: List<String>
-): Long? {
-    val schema = if (callFunc.size > 1) callFunc[0] else getDefaultSchema()
-    val procedure = if (callFunc.size > 1) callFunc[1] else callFunc[0]
-    val plArgs = plGetFunctionArgs(connection = connection, schema = schema, name = procedure).groupBy {
-        it.oid
-    }
-    if (plArgs.size == 1) {
-        return plArgs.first().key
-    }
-    return plArgs.filter {
-        //Check args length
-        val minimalCount = it.value.count { arg -> !arg.default }
-        callValues.size >= minimalCount && callValues.size <= it.value.size
-    }.filterValues { args ->
-        //Map call values
-        val namedValues = callValues.mapIndexed { index, s ->
-            if (s.contains(":=")) s.split(":=")[1].trim() to s.split(":=")[2].trim()
-            else args[index].name to s.trim()
-        }
-        //Build the test query like SELECT [(cast([value] AS [type]) = [value])] [ AND ...]
-        val query = namedValues.joinToString(prefix = "(SELECT (", separator = " AND ", postfix = ")) t") {
-            val type = args.find { plFunctionArg -> plFunctionArg.name == it.first }?.type
-            "(cast(${it.second} as ${type}) = ${it.second})"
-        }
-        query.let {
-            try {
-                fetchRowSet<PlBoolean>(
-                    plBooleanProducer(),
-                    SQLQuery.RAW,
-                    connection
-                ) {
-                    fetch(query)
-                }.firstOrNull()?.value ?: false
-            } catch (e: Exception) {
-                false
-            }
-        }
-    }.map { it.key }.firstOrNull()
-
-}
 
 
 object PlEditorProvider : SqlDebuggerEditorsProvider() {

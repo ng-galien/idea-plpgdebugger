@@ -4,20 +4,56 @@
 
 package net.plpgsql.ideadebugger
 
-enum class SQLQuery(val sql: String, val log: Boolean = false) {
-    RAW("%s"),
+enum class SQLQuery(val sql: String, val producer: Producer<Any>) {
+    RAW_BOOL(
+        "%s",
+        Producer<Any> { PlBoolean(it.bool()) }),
+    CREATE_LISTENER(
+        "pldbg_create_listener()",
+        Producer<Any> { PlInt(it.int()) }),
+    ATTACH_TO_PORT(
+        "pldbg_attach_to_port(%s)",
+        Producer<Any> { PlInt(it.int()) }),
+    ABORT(
+        "pldbg_abort_target(%s)",
+        Producer<Any> { PlBoolean(it.bool()) }),
+    DEBUG_OID(
+        "plpgsql_oid_debug(%s)",
+        Producer<Any> { PlInt(it.int()) }),
 
-    CREATE_LISTENER("pldbg_create_listener()"),
-    ABORT("pldbg_abort_target(%s)"),
-    DEBUG_OID("plpgsql_oid_debug(%s)", true),
-    STEP_OVER("pldbg_step_over(%s)", true),
-    STEP_INTO("pldbg_step_into(%s)", true),
-    STEP_CONTINUE("pldbg_continue(%s)", true),
-    GET_STACK("pldbg_get_stack(%s)", true),
-    ATTACH_TO_PORT("pldbg_attach_to_port(%s)"),
-    LIST_BREAKPOINT("pldbg_get_breakpoints(%s)"),
-    ADD_BREAKPOINT("pldbg_set_breakpoint(%s, %s, %s)", true),
-    DROP_BREAKPOINT("pldbg_drop_breakpoint(%s, %s, %s)", true),
+    STEP_OVER(
+        "pldbg_step_over(%s)",
+        Producer<Any> { PlStep(it.long(), it.int(), it.string()) }),
+    STEP_INTO(
+        "pldbg_step_into(%s)",
+        Producer<Any> { PlStep(it.long(), it.int(), it.string()) }),
+    STEP_CONTINUE(
+        "pldbg_continue(%s)",
+        Producer<Any> { PlStep(it.long(), it.int(), it.string()) }),
+
+    LIST_BREAKPOINT(
+        "pldbg_get_breakpoints(%s)",
+        Producer<Any> { PlStackBreakPoint(it.long(), it.int()) }),
+    ADD_BREAKPOINT(
+        "pldbg_set_breakpoint(%s, %s, %s)",
+        Producer<Any> { PlBoolean(it.bool()) }),
+    DROP_BREAKPOINT(
+        "pldbg_drop_breakpoint(%s, %s, %s)",
+        Producer<Any> { PlBoolean(it.bool()) }),
+
+    GET_STACK(
+        "pldbg_get_stack(%s)",
+        Producer<Any> {
+            PlStackFrame(
+                it.int(),
+                it.string(),
+                it.long(),
+                it.int(),
+                it.string()
+            )
+        }
+    ),
+
     GET_VARIABLES(
         """
         (SELECT
@@ -33,7 +69,34 @@ enum class SQLQuery(val sql: String, val log: Boolean = false) {
         FROM pldbg_get_variables(%s) t_var
         LEFT JOIN pg_type t_type ON t_var.dtype = t_type.oid
         LEFT JOIN pg_type t_sub ON t_type.typelem = t_sub.oid) v
+        """, Producer<Any> {
+            PlStackVariable(
+                it.bool(),
+                it.int(),
+                PlValue(
+                    it.long(),
+                    it.string(),
+                    it.string(),
+                    it.char(),
+                    it.bool(),
+                    it.string(),
+                    it.string()
+                )
+            )
+        }
+    ),
+
+    GET_EXTENSION(
         """
+            SELECT 
+                t_namespace.nspname,
+                t_extension.extname,
+                t_extension.extversion
+            FROM pg_extension t_extension
+            JOIN pg_namespace t_namespace ON t_extension.extnamespace = t_namespace.oid
+        """, Producer<Any> {
+            PlExtension(it.string(), it.string(), it.string())
+        }
     ),
     GET_FUNCTION_CALL_ARGS(
         """
@@ -49,8 +112,17 @@ enum class SQLQuery(val sql: String, val log: Boolean = false) {
         WHERE t_namespace.nspname LIKE '%s'
           AND t_proc.proname LIKE '%s'
         ORDER BY t_proc.oid, pos) a
-        """
+        """, Producer<Any> {
+            PlFunctionArg(
+                it.long(),
+                it.int(),
+                it.string(),
+                it.string(),
+                it.bool(),
+            )
+        }
     ),
+
     GET_FUNCTION_DEF(
         """
         (SELECT t_proc.oid,
@@ -60,10 +132,27 @@ enum class SQLQuery(val sql: String, val log: Boolean = false) {
         FROM pg_proc t_proc
                  JOIN pg_namespace t_namespace on t_proc.pronamespace = t_namespace.oid
         WHERE t_proc.oid = %s) f
-        """, true
+        """, Producer<Any> {
+            PlFunctionDef(
+                it.long(),
+                it.string(),
+                it.string(),
+                it.string()
+            )
+        }
     ),
 
-    EXPLODE("%s"),
+    EXPLODE("%s", Producer<Any> {
+        PlValue(
+            it.long(),
+            it.string(),
+            it.string(),
+            it.char(),
+            it.bool(),
+            it.string(),
+            it.string()
+        )
+    }),
 
     EXPLODE_ARRAY(
         """
@@ -79,8 +168,19 @@ enum class SQLQuery(val sql: String, val log: Boolean = false) {
                  JOIN pg_type t_type ON t_type.oid = %s
                  JOIN pg_type t_arr_type ON t_type.typelem = t_arr_type.oid
                  LEFT JOIN pg_type t_sub ON t_arr_type.typelem = t_sub.oid) f
-        """
+        """, Producer<Any> {
+            PlValue(
+                it.long(),
+                it.string(),
+                it.string(),
+                it.char(),
+                it.bool(),
+                it.string(),
+                it.string()
+            )
+        }
     ),
+
     EXPLODE_COMPOSITE(
         """
         (SELECT 
@@ -102,20 +202,31 @@ enum class SQLQuery(val sql: String, val log: Boolean = false) {
                  JOIN (SELECT '%s'::jsonb val) AS jsonb
                       ON TRUE
         WHERE t_type.oid = %s) c
-        """
+        """, Producer<Any> {
+            PlValue(
+                it.long(),
+                it.string(),
+                it.string(),
+                it.char(),
+                it.bool(),
+                it.string(),
+                it.string()
+            )
+        }
     ),
+
     T0_JSON(
         """
         (SELECT to_jsonb(row) FROM (SELECT %s::%s) row) j
-        """
+        """, Producer<Any> { PlString(it.string()) }
     ),
+
     OLD_FUNCTION(
         """
             SELECT func.id 
             FROM unnest(%s) WITH ORDINALITY func(id)
             LEFT JOIN pg_proc t_proc ON t_proc.oid = func.id
             WHERE t_proc IS NULL
-        """
+        """, Producer<Any> { PlLong(it.long()) }
     )
-
 }
