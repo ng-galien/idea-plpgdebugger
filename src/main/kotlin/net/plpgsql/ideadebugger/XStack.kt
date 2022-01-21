@@ -22,10 +22,10 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
     private val frames = mutableListOf<XFrame>()
     private val variableRegistry = mutableMapOf<Long, List<PlStackVariable>>()
 
-    val proc: PlProcess by lazy {
-        session.debugProcess as PlProcess
+    val controller: PlController by lazy {
+        (session.debugProcess as PlProcess).controller
     }
-    var currentStep: PlStep? = null
+    lateinit var currentStep: PlStep
 
 
 
@@ -37,13 +37,13 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
         container?.addStackFrames(frames.subList(firstFrameIndex, frames.size), true)
     }
 
-    fun updateRemote(step: PlStep?): PlFile {
+    fun updateRemote(step: PlStep): PlFile {
+
         currentStep = step
         frames.clear()
-        val plStacks = plGetStack(proc)
-
-        if (currentStep != null) {
-            if (plStacks.find { it.oid == currentStep!!.oid && it.level == 0 } == null) {
+        val plStacks = controller.executor.getStack()
+        if (currentStep.oid > 0) {
+            if (plStacks.find { it.oid == currentStep.oid && it.level == 0 } == null) {
                 throw Exception("Invalid stack")
             }
         }
@@ -59,7 +59,8 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
         return if (file is PlFile) {
             file
         } else {
-            PlVFS.getInstance().register(PlFile(plGetFunctionDef(proc, oid), this))
+            val funDef = controller.executor.getFunctionDef(oid)
+            PlVFS.getInstance().register(PlFile(funDef, this))
         }.updateStack(this, pos)
     }
 
@@ -97,8 +98,8 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
         }
 
         private fun getVariables() = runAsync {
-            if (currentStep == null || currentStep?.oid == frame.oid) {
-                val plVars = plGetStackVariables(proc)
+            if (currentStep.oid == frame.oid) {
+                val plVars = controller.executor.getVariables()
                 variableRegistry[frame.oid] = plVars
             }
             variableRegistry[frame.oid]
@@ -210,7 +211,7 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
         }
 
         override fun computeChildren(node: XCompositeNode) {
-            explode(node, plExplodeValue(proc, plVar))
+            explode(node, controller.executor.explode(plVar))
         }
 
         override fun computeSourcePosition(navigatable: XNavigatable) {

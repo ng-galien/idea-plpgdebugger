@@ -8,7 +8,9 @@ import com.intellij.database.dataSource.DatabaseConnection
 import com.intellij.xdebugger.XDebugSession
 import java.util.*
 
-
+/**
+ *
+ */
 class DBIterator<R>(producer: Producer<R>,
                     connection: DatabaseConnection,
                     sql: String): RowIterator<R>(producer) {
@@ -56,10 +58,11 @@ class DBIterator<R>(producer: Producer<R>,
         pos++
         return rs.getString(pos).get(0)
     }
-
 }
 
-
+/**
+ *
+ */
 class DBRowSet<R>(
     producer: Producer<R>,
     cmd: SQLQuery,
@@ -71,10 +74,11 @@ class DBRowSet<R>(
         val query = String.format("SELECT * FROM %s;", path)
         return DBIterator(producer = producer, connection, query)
     }
-
-
 }
 
+/**
+ *
+ */
 fun sanitizeQuery(query: SQLQuery): String {
     var res = query.sql.trimIndent().replace(";", "")
     if (res.lowercase().startsWith("select")) {
@@ -82,9 +86,3 @@ fun sanitizeQuery(query: SQLQuery): String {
     }
     return res;
 }
-
-inline fun <T> fetchRowSet(producer: Producer<T>, query: SQLQuery, connection: DatabaseConnection, builder: RowSet<T>.() -> Unit): List<T> =
-    DBRowSet(producer, query, connection, null).apply(builder).values
-
-inline fun <T> fetchRowSet(producer: Producer<T>, query: SQLQuery, proc: PlProcess, builder: RowSet<T>.() -> Unit): List<T> =
-    DBRowSet(producer, query, proc.connection, proc.session).apply(builder).values

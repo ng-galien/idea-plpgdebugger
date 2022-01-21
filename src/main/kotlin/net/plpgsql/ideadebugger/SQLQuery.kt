@@ -54,7 +54,7 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>) {
         }
     ),
 
-    GET_VARIABLES(
+    GET_RAW_VARIABLES(
         """
         (SELECT
                varclass = 'A' as is_arg,
@@ -85,6 +85,22 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>) {
             )
         }
     ),
+
+    GET_JSON_VARIABLES("%s", Producer<Any> {
+        PlStackVariable(
+            it.bool(),
+            it.int(),
+            PlValue(
+                it.long(),
+                it.string(),
+                it.string(),
+                it.char(),
+                it.bool(),
+                it.string(),
+                it.string()
+            )
+        )
+    }),
 
     GET_EXTENSION(
         """

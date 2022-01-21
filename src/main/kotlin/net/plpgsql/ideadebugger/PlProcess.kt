@@ -4,40 +4,26 @@
 
 package net.plpgsql.ideadebugger
 
-import com.intellij.database.dataSource.DatabaseConnection
 import com.intellij.database.debugger.SqlDebugProcess
-import com.intellij.database.util.match
 import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.application.runWriteAction
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.xdebugger.XDebuggerManager
 import com.intellij.xdebugger.breakpoints.*
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
-import org.jetbrains.concurrency.runAsync
-import kotlin.properties.Delegates
-
-private const val STEP_TIMEOUT = 300
-private const val RESUME_TIMEOUT = 1000
-private const val ABORT_TIMEOUT = 100
 
 class PlProcess(
-    private val controller: PlController
+    val controller: PlController
 ) : SqlDebugProcess(controller.xSession) {
 
     private val logger = getLogger<PlProcess>()
     private val context = XContext()
     private val stack = XStack(session)
-    private val fakeStep = PlStep(0, 0, "")
+    private val fakeStep = PlStep(-1, 0, "")
 
     private var step: PlStep = fakeStep
-
-    private var aborted: Boolean = false
-
-
-    private val entryPoint: Long = 1
 
     init {
         if (PlVFS.getInstance().count() == 0) {
@@ -65,7 +51,7 @@ class PlProcess(
 
     override fun resume(context: XSuspendContext?) {
         logger.debug("resume")
-        goToStep(SQLQuery.STEP_CONTINUE, RESUME_TIMEOUT)
+        goToStep(SQLQuery.STEP_CONTINUE)
     }
 
     fun startDebug() {
@@ -92,7 +78,7 @@ class PlProcess(
         }
     }
 
-    private fun goToStep(cmd: SQLQuery, timeOut: Int = STEP_TIMEOUT) {
+    private fun goToStep(cmd: SQLQuery) {
         step = controller.executor.runStep(cmd) ?: fakeStep
         if (controller.checkExecutor()) {
             handleStackStatus(stack.updateRemote(step))

@@ -17,6 +17,9 @@ import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
+/**
+ *
+ */
 class PlExecutor(private val controller: PlController) {
 
     private val lock: Lock = ReentrantLock()
@@ -109,7 +112,7 @@ class PlExecutor(private val controller: PlController) {
     fun attachToPort(port: Int) {
         session = executeQuery<PlInt>(SQLQuery.ATTACH_TO_PORT, listOf("$port")).firstOrNull()?.value ?: -1
         when {
-            session > 0 -> setError("Connected to session =$session\"")
+            session > 0 -> setInfo("Connected to session =$session\"")
             else -> setError("Failed to attach to port: port=$port")
         }
     }
@@ -129,6 +132,69 @@ class PlExecutor(private val controller: PlController) {
         }
     }
 
+    fun getStack(): List<PlStackFrame> = executeQuery<PlStackFrame>(SQLQuery.GET_STACK, listOf("$session"))
+
+    fun getFunctionDef(oid: Long): PlFunctionDef =
+        executeQuery<PlFunctionDef>(SQLQuery.GET_FUNCTION_DEF, listOf("$oid")).first()
+
+    fun getVariables(): List<PlStackVariable> {
+
+        val vars = executeQuery<PlStackVariable>(SQLQuery.GET_RAW_VARIABLES, listOf("$session"))
+
+        val query = vars.joinToString(prefix = "(", separator = "\nUNION ALL\n", postfix = ") v") {
+            // Fix array type prefixed with underscore and NULL
+            val realType = if (it.value.isArray) "${it.value.type.substring(1)}[]" else it.value.type
+            var realValue = "('${it.value.value.replace("'", "''")}'::${realType})::text"
+            // Transform to jsonb
+            if (it.value.isArray || it.value.kind == 'c') {
+                realValue = "to_json$realValue"
+            }
+            if (plNull(it.value.value)) {
+                realValue = "'NULL'"
+            }
+            "SELECT ${it.isArg},${it.line},${it.value.oid},'${it.value.name}','$realType','${it.value.kind}',${it.value.isArray},'${it.value.arrayType}',$realValue"
+
+        }
+        return executeQuery<PlStackVariable>(SQLQuery.GET_JSON_VARIABLES, listOf(query))
+    }
+
+    fun explode(value: PlValue): List<PlValue> {
+        if (!value.isArray && value.kind != 'c') {
+            throw IllegalArgumentException("Explode not supported for: $value")
+        }
+        val query = if (value.isArray) String.format(
+            SQLQuery.EXPLODE_ARRAY.sql,
+            value.name,
+            value.value.replace("'", "''"),
+            "${value.oid}"
+        ) else String.format(
+            SQLQuery.EXPLODE_COMPOSITE.sql,
+            value.value.replace("'", "''"),
+            "${value.oid}"
+        )
+        return executeQuery<PlValue>(SQLQuery.EXPLODE, listOf(query))
+    }
+
+    fun getBreakPoints(): List<PlStackBreakPoint> = executeQuery<PlStackBreakPoint>(
+        SQLQuery.LIST_BREAKPOINT,
+        listOf("$session")
+    )
+
+    fun updateBreakPoint(cmd: SQLQuery, oid: Long, line: Int): Boolean {
+        //TODO manage failure
+        return when (cmd) {
+            SQLQuery.ADD_BREAKPOINT,
+            SQLQuery.DROP_BREAKPOINT -> executeQuery<PlBoolean>(
+                cmd,
+                listOf("$session", "$oid", "$line")
+            ).firstOrNull()?.value ?: false
+            else -> {
+                setError("Invalid Breakpoint command: $cmd")
+                false
+            }
+        }
+    }
+
     @Suppress("UNCHECKED_CAST")
     fun <T> executeQuery(
         query: SQLQuery,
@@ -138,17 +204,20 @@ class PlExecutor(private val controller: PlController) {
     ): List<T> {
         lock.withLock {
             query.runCatching {
-                if (async > 0) {
-                    runAsync {
+                val res = if (async > 0) {
+                    val async = runAsync {
                         getRowSet(query.producer as Producer<T>, query, dc) {
                             fetch(args)
                         }
                     }.blockingGet(async)
+                    async
                 } else {
-                    getRowSet(query.producer as Producer<T>, query, dc) {
+                    val sync = getRowSet(query.producer as Producer<T>, query, dc) {
                         fetch(args)
                     }
+                    sync
                 }
+                return res?: mutableListOf<T>()
             }.onFailure {
                 setError("Query failed executed: query=${query.name}, args=$args")
             }.onSuccess {
@@ -193,6 +262,5 @@ class PlExecutor(private val controller: PlController) {
     }
 
     data class Message(val severity: Severity, val content: String, val cause: Throwable? = null)
-
 
 }

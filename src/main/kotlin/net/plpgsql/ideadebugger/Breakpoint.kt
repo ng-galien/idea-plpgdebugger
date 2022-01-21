@@ -20,7 +20,6 @@ import com.intellij.xdebugger.breakpoints.XLineBreakpoint
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import javax.swing.Icon
 
-
 class PlLineBreakpointProperties(val file: VirtualFile, val line: Int) : SqlLineBreakpointProperties() {}
 
 /*
