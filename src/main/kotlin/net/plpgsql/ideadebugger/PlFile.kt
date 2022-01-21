@@ -5,13 +5,11 @@
 package net.plpgsql.ideadebugger
 
 import com.intellij.openapi.vfs.VirtualFileSystem
-import com.intellij.sql.SqlFileType
 import com.intellij.sql.dialects.postgres.PgDialect
 import com.intellij.testFramework.LightVirtualFile
 import com.intellij.xdebugger.XDebuggerUtil
 import com.intellij.xdebugger.XSourcePosition
 import kotlin.properties.Delegates
-import kotlin.test.assertTrue
 
 
 /*
