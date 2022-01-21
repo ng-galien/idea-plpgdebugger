@@ -5,25 +5,30 @@
 package net.plpgsql.ideadebugger
 
 import com.intellij.database.debugger.SqlDebugProcess
-import com.intellij.execution.ui.ConsoleViewContentType
-import com.intellij.openapi.application.runInEdt
+import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.runWriteAction
 import com.intellij.xdebugger.XDebuggerManager
 import com.intellij.xdebugger.breakpoints.*
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
+import kotlinx.coroutines.*
 
 class PlProcess(
-    val controller: PlController
+    var controller: PlController
 ) : SqlDebugProcess(controller.xSession) {
 
-    private val logger = getLogger<PlProcess>()
     private val context = XContext()
-    private val stack = XStack(session)
-    private val fakeStep = PlStep(-1, 0, "")
-
+    private val fakeStep = PlStep(-1, 0)
+    private val executor = controller.executor
     private var step: PlStep = fakeStep
+    private var stack: XStack = XStack(this)
+    private var breakPointHandler = BreakPointHandler()
+    private val handler = CoroutineExceptionHandler { _, exception ->
+        println("CoroutineExceptionHandler got $exception")
+    }
+
+    private val scope = CoroutineScope(Dispatchers.EDT+handler)
 
     init {
         if (PlVFS.getInstance().count() == 0) {
@@ -34,41 +39,53 @@ class PlProcess(
                 }.forEach {
                     manager.removeBreakpoint(it)
                 }
+                //manager.addBreakpointListener()
             }
         }
     }
 
     override fun startStepOver(context: XSuspendContext?) {
-        logger.debug("startStepOver")
-        goToStep(SQLQuery.STEP_OVER)
+        executor.setInfo("User request: startStepOver")
+        scope.launch() { goToStep(SQLQuery.STEP_OVER)}
 
     }
 
     override fun startStepInto(context: XSuspendContext?) {
-        logger.debug("startStepInto")
-        goToStep(SQLQuery.STEP_INTO)
+        executor.setInfo("User request: startStepInto")
+        scope.launch()  { goToStep(SQLQuery.STEP_INTO)}
     }
 
     override fun resume(context: XSuspendContext?) {
-        logger.debug("resume")
-        goToStep(SQLQuery.STEP_CONTINUE)
+        executor.setInfo("User request: resume")
+        scope.launch()  { goToStep(SQLQuery.STEP_CONTINUE)}
     }
 
     fun startDebug() {
+        executor.setInfo("From auxiliary request: startDebug")
         handleStackStatus(stack.updateRemote(step))
     }
 
     override fun startForceStepInto(context: XSuspendContext?) {
-        handleStackStatus(stack.updateRemote(step))
+        executor.setInfo("User request mot supported: use startStepInto")
+        scope.launch()  { goToStep(SQLQuery.STEP_INTO) }
+
     }
 
     override fun startStepOut(context: XSuspendContext?) {
-        handleStackStatus(stack.updateRemote(step))
+        executor.setInfo("User request mot supported: use resume")
+        scope.launch()  { goToStep(SQLQuery.STEP_CONTINUE)}
+    }
+
+    override fun stop() {
+        executor.setInfo("User request: stop")
+        if (!executor.interrupted) {
+            executor.abort()
+        }
     }
 
     private fun handleStackStatus(file: PlFile) {
         if (file.canContinue()) {
-            goToStep(SQLQuery.STEP_CONTINUE)
+            scope.launch()  { goToStep(SQLQuery.STEP_CONTINUE)}
         } else {
             if (file.isOnBreakpoint()) {
                 session.positionReached(context)
@@ -78,11 +95,15 @@ class PlProcess(
         }
     }
 
-    private fun goToStep(cmd: SQLQuery) {
-        step = controller.executor.runStep(cmd) ?: fakeStep
-        if (controller.checkExecutor()) {
-            handleStackStatus(stack.updateRemote(step))
+
+    private suspend fun goToStep(cmd: SQLQuery) = coroutineScope {
+        withTimeout(1000) {
+            step = executor.runStep(cmd) ?: fakeStep
+            if (!executor.interrupted) {
+                handleStackStatus(stack.updateRemote(step))
+            }
         }
+
     }
 
 
@@ -90,14 +111,12 @@ class PlProcess(
         return PlEditorProvider
     }
 
-    override fun checkCanInitBreakpoints(): Boolean = controller.executor.ready()
+    override fun checkCanInitBreakpoints(): Boolean = executor.ready()
 
-    override fun checkCanPerformCommands(): Boolean = controller.executor.ready()
+    override fun checkCanPerformCommands(): Boolean = executor.ready()
 
     override fun getBreakpointHandlers(): Array<XBreakpointHandler<*>> {
-        return arrayOf(
-            BreakPointHandler()
-        )
+        return arrayOf(breakPointHandler)
     }
 
     inner class XContext : XSuspendContext() {
@@ -116,13 +135,13 @@ class PlProcess(
     }
 
 
-    inner class BreakPointHandler :
+    inner class BreakPointHandler() :
         XBreakpointHandler<XLineBreakpoint<PlLineBreakpointProperties>>(PlLineBreakpointType::class.java),
         XBreakpointListener<XLineBreakpoint<PlLineBreakpointProperties>> {
 
         override fun registerBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
             breakpoint.properties?.file.let {
-                consoleInfo("registerBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
+                executor.setInfo("registerBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
                 if ((it as PlFile).addSourceBreakpoint(breakpoint.line)) {
                     session.setBreakpointVerified(breakpoint)
                 }
@@ -131,14 +150,13 @@ class PlProcess(
 
         override fun unregisterBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>, temporary: Boolean) {
             breakpoint.properties.file.let {
-                consoleInfo("unregisterBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
+                executor.setInfo("unregisterBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
                 (it as PlFile).removeSourceBreakpoint(breakpoint.line)
             }
         }
 
     }
 
-    private fun consoleInfo(msg: String) =
-        runInEdt { session?.consoleView?.print("$msg\n", ConsoleViewContentType.LOG_INFO_OUTPUT) }
+
 
 }

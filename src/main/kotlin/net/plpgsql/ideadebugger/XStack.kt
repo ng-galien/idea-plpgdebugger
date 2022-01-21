@@ -5,26 +5,22 @@
 package net.plpgsql.ideadebugger
 
 import com.intellij.icons.AllIcons
-import com.intellij.xdebugger.XDebugSession
 import com.intellij.xdebugger.XSourcePosition
 import com.intellij.xdebugger.evaluation.XDebuggerEvaluator
 import com.intellij.xdebugger.frame.*
 import icons.DatabaseIcons
-import org.jetbrains.concurrency.runAsync
 import javax.swing.Icon
 
 /**
  * During a debugging session the code definition does not change
  * The function definition have not to be reevaluated
  */
-class XStack(private val session: XDebugSession) : XExecutionStack("") {
+class XStack(process: PlProcess) : XExecutionStack("") {
 
     private val frames = mutableListOf<XFrame>()
     private val variableRegistry = mutableMapOf<Long, List<PlStackVariable>>()
 
-    val controller: PlController by lazy {
-        (session.debugProcess as PlProcess).controller
-    }
+    val executor: PlExecutor = process.controller.executor
     lateinit var currentStep: PlStep
 
 
@@ -41,16 +37,20 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
 
         currentStep = step
         frames.clear()
-        val plStacks = controller.executor.getStack()
+        val plStacks = executor.getStack()
+        assert(plStacks.isNotEmpty())
         if (currentStep.oid > 0) {
             if (plStacks.find { it.oid == currentStep.oid && it.level == 0 } == null) {
                 throw Exception("Invalid stack")
             }
+        } else {
+            val topFrame = plStacks.first()
+            currentStep = PlStep(topFrame.oid, topFrame.line)
         }
         plStacks.forEach {
             frames.add(XFrame(it, getRemoteFunction(it.oid, it.line)))
         }
-        assert(frames.isNotEmpty())
+
         return frames.first().plFile
     }
 
@@ -59,10 +59,11 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
         return if (file is PlFile) {
             file
         } else {
-            val funDef = controller.executor.getFunctionDef(oid)
+            val funDef = executor.getFunctionDef(oid)
             PlVFS.getInstance().register(PlFile(funDef, this))
         }.updateStack(this, pos)
     }
+
 
     enum class GroupType(val title: String, val icon: Icon) {
         STACK("Stack", AllIcons.Nodes.Method),
@@ -78,31 +79,29 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
         }
 
         override fun getSourcePosition(): XSourcePosition? {
-            return plFile?.getPosition()
+            return plFile.getPosition()
         }
 
         override fun computeChildren(node: XCompositeNode) {
             val list = XValueChildrenList()
             list.addTopGroup(XValGroup(GroupType.STACK, getFrameInfo()))
-            val plVars = getVariables().blockingGet(2000)
-            if (plVars != null) {
-                val (args, values) = plVars.partition { it.isArg }
-                if (args.isNotEmpty()) {
-                    list.addTopGroup(XValGroup(GroupType.PARAMETER, args))
-                }
-                if (values.isNotEmpty()) {
-                    list.addBottomGroup(XValGroup(GroupType.VALUE, values))
-                }
+            val plVars = getVariables()
+            val (args, values) = plVars.partition { it.isArg }
+            if (args.isNotEmpty()) {
+                list.addTopGroup(XValGroup(GroupType.PARAMETER, args))
+            }
+            if (values.isNotEmpty()) {
+                list.addBottomGroup(XValGroup(GroupType.VALUE, values))
             }
             node.addChildren(list, true)
         }
 
-        private fun getVariables() = runAsync {
+        private fun getVariables(): List<PlStackVariable> {
             if (currentStep.oid == frame.oid) {
-                val plVars = controller.executor.getVariables()
+                val plVars = executor.getVariables()
                 variableRegistry[frame.oid] = plVars
             }
-            variableRegistry[frame.oid]
+            return variableRegistry[frame.oid] ?: mutableListOf()
         }
 
         private fun getFrameInfo(): List<PlStackVariable> = listOf<PlStackVariable>(
@@ -190,7 +189,7 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
 
         override fun isRestoreExpansion(): Boolean = true
 
-        override fun getIcon(): Icon? {
+        override fun getIcon(): Icon {
             return type.icon
         }
     }
@@ -211,7 +210,7 @@ class XStack(private val session: XDebugSession) : XExecutionStack("") {
         }
 
         override fun computeChildren(node: XCompositeNode) {
-            explode(node, controller.executor.explode(plVar))
+            explode(node, executor.explode(plVar))
         }
 
         override fun computeSourcePosition(navigatable: XNavigatable) {

@@ -35,7 +35,6 @@ fun getPlLanguage(): Language = PgDialect.INSTANCE
 
 fun plNull(value: String) = (value.uppercase() == "NULL")
 
-
 fun parseFunctionCall(callExpr: SqlFunctionCallExpression): Pair<List<String>, List<String>> {
     val (func, args) = runReadAction {
         val func = PsiTreeUtil.findChildrenOfAnyType(callExpr, SqlIdentifier::class.java).map {

@@ -55,7 +55,7 @@ class PlFile(
         if (first) {
             firstPos = stackPos
             //Remove all breakpoints
-            stack!!.controller.executor.getBreakPoints().forEach {
+            stack!!.executor.getBreakPoints().forEach {
                 updateBreakPoint(SQLQuery.DROP_BREAKPOINT, it.line)
             }
             // Set breakpoints
@@ -97,7 +97,7 @@ class PlFile(
 
     private fun updateBreakPoint(query: SQLQuery, line: Int): Boolean {
         if (stack != null) {
-            return stack!!.controller.executor.updateBreakPoint(query, def.oid, line)
+            return stack!!.executor.updateBreakPoint(query, def.oid, line)
         }
         return true
     }

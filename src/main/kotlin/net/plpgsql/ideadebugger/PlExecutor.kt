@@ -6,12 +6,15 @@ package net.plpgsql.ideadebugger
 
 import com.intellij.database.console.session.DatabaseSessionManager
 import com.intellij.database.dataSource.DatabaseConnection
-import com.intellij.database.dataSource.DatabaseConnectionPoint
 import com.intellij.database.dataSource.connection.DGDepartment
-import com.intellij.database.remote.jdbc.RemoteConnection
-import com.intellij.openapi.project.Project
+import com.intellij.execution.process.mediator.util.blockingGet
+import com.intellij.execution.ui.ConsoleViewContentType
+import com.intellij.openapi.application.runInEdt
+import com.intellij.openapi.ui.Messages
 import com.jetbrains.rd.util.first
-import com.jetbrains.rd.util.measureTimeMillis
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.async
 import org.jetbrains.concurrency.runAsync
 import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReentrantLock
@@ -27,9 +30,18 @@ class PlExecutor(private val controller: PlController) {
     private var entryPoint = 0L
     private var session = 0
     private var stepTimeOut = 300
+    var interrupted = false
+    val handler = CoroutineExceptionHandler { _, exception ->
+        println("CoroutineExceptionHandler got $exception")
+    }
 
-    var lastMessage: Message = Message(Severity.INFO, "Starting")
-    private val message = mutableListOf<Message>(lastMessage)
+    private var lastMessage: Message = Message(
+        severity = Severity.INFO,
+        content = "Starting",
+        type = ConsoleViewContentType.NORMAL_OUTPUT
+    )
+
+    private val messages = mutableListOf<Message>(lastMessage)
 
     private fun createConnection(): DatabaseConnection = DatabaseSessionManager.getFacade(
         controller.project, controller.connectionPoint, null, controller.searchPath, true, null, DGDepartment.DEBUGGER
@@ -54,8 +66,8 @@ class PlExecutor(private val controller: PlController) {
         val procedure = if (callFunc.size > 1) callFunc[1] else callFunc[0]
 
         val functions = executeQuery<PlFunctionArg>(
-            SQLQuery.GET_FUNCTION_CALL_ARGS,
-            listOf(schema, procedure)
+            query = SQLQuery.GET_FUNCTION_CALL_ARGS,
+            args = listOf(schema, procedure),
         )
         val plArgs = functions.groupBy {
             it.oid
@@ -102,7 +114,8 @@ class PlExecutor(private val controller: PlController) {
         when (executeQuery<PlInt>(
             query = SQLQuery.DEBUG_OID,
             args = listOf("$entryPoint"),
-            dc = databaseConnection
+            dc = databaseConnection,
+            interrupt = false
         ).firstOrNull()?.value ?: -1) {
             0 -> setInfo("Entering direct debug: entryPoint=$entryPoint\"")
             else -> setError("Failed to start direct debug: entryPoint=$entryPoint")
@@ -110,20 +123,34 @@ class PlExecutor(private val controller: PlController) {
     }
 
     fun attachToPort(port: Int) {
-        session = executeQuery<PlInt>(SQLQuery.ATTACH_TO_PORT, listOf("$port")).firstOrNull()?.value ?: -1
+        session = executeQuery<PlInt>(
+            query = SQLQuery.ATTACH_TO_PORT,
+            args = listOf("$port"),
+            interrupt = false
+        ).firstOrNull()?.value ?: -1
         when {
             session > 0 -> setInfo("Connected to session =$session\"")
             else -> setError("Failed to attach to port: port=$port")
         }
     }
 
+    fun abort() {
+        executeQuery<Boolean>(
+            query = SQLQuery.ABORT,
+            args = listOf("$session")
+        )
+        terminate()
+    }
+
     fun runStep(cmd: SQLQuery): PlStep? {
         return when (cmd) {
             SQLQuery.STEP_OVER,
             SQLQuery.STEP_INTO,
-            SQLQuery.STEP_CONTINUE -> executeQuery<PlStep>(
-                cmd,
-                listOf("$session"), async = stepTimeOut
+            SQLQuery.STEP_CONTINUE -> runQuery<PlStep>(
+                query = cmd,
+                args = listOf("$session"),
+                async = stepTimeOut,
+                interrupt = true
             ).firstOrNull()
             else -> {
                 setError("Invalid step command: $cmd")
@@ -132,7 +159,9 @@ class PlExecutor(private val controller: PlController) {
         }
     }
 
-    fun getStack(): List<PlStackFrame> = executeQuery<PlStackFrame>(SQLQuery.GET_STACK, listOf("$session"))
+    fun getStack(): List<PlStackFrame> {
+        return executeQuery<PlStackFrame>(SQLQuery.GET_STACK, listOf("$session"))
+    }
 
     fun getFunctionDef(oid: Long): PlFunctionDef =
         executeQuery<PlFunctionDef>(SQLQuery.GET_FUNCTION_DEF, listOf("$oid")).first()
@@ -175,7 +204,7 @@ class PlExecutor(private val controller: PlController) {
         return executeQuery<PlValue>(SQLQuery.EXPLODE, listOf(query))
     }
 
-    fun getBreakPoints(): List<PlStackBreakPoint> = executeQuery<PlStackBreakPoint>(
+    fun getBreakPoints(): List<PlStep> = executeQuery<PlStep>(
         SQLQuery.LIST_BREAKPOINT,
         listOf("$session")
     )
@@ -196,55 +225,185 @@ class PlExecutor(private val controller: PlController) {
     }
 
     @Suppress("UNCHECKED_CAST")
+    fun <T>runQuery(
+        query: SQLQuery,
+        args: List<String> = listOf(),
+        dc: DatabaseConnection = connection,
+        async: Int = 0,
+        interrupt: Boolean = true
+    ): List<T> {
+        lock.withLock {
+            var res: List<T>? = null
+            query.runCatching {
+                res = getRowSet(query.producer as Producer<T>, query, dc) {
+                        fetch(args)
+                }
+            }.onFailure {
+                setError("Query failed executed: query=${query.name}, args=$args")
+                if (!interrupt) {
+                    hasError()
+                } else {
+                    interrupted = true
+                }
+                throw it
+            }.onSuccess {
+                if (query.print) {
+                    setInfo(
+                        "Query executed: query=${query.name}, args=$args",
+                        ConsoleViewContentType.LOG_VERBOSE_OUTPUT
+                    )
+                }
+            }
+            return res ?: listOf<T>()
+        }
+
+    }
+
+    @Suppress("UNCHECKED_CAST")
     fun <T> executeQuery(
         query: SQLQuery,
         args: List<String> = listOf(),
         dc: DatabaseConnection = connection,
         async: Int = 0,
+        interrupt: Boolean = true
     ): List<T> {
+
         lock.withLock {
+            var res: List<T>? = null
+
             query.runCatching {
-                val res = if (async > 0) {
-                    val async = runAsync {
+                res = if (async > 0) {
+                    GlobalScope.async(handler) {
                         getRowSet(query.producer as Producer<T>, query, dc) {
                             fetch(args)
                         }
-                    }.blockingGet(async)
-                    async
+                    }.blockingGet()
                 } else {
-                    val sync = getRowSet(query.producer as Producer<T>, query, dc) {
+                    getRowSet(query.producer as Producer<T>, query, dc) {
                         fetch(args)
                     }
-                    sync
                 }
-                return res?: mutableListOf<T>()
             }.onFailure {
                 setError("Query failed executed: query=${query.name}, args=$args")
+                if (!interrupt) {
+                    hasError()
+                } else {
+                    interrupted = true
+                }
+                throw it
             }.onSuccess {
-                setInfo("Query executed: query=${query.name}, args=$args")
+                if (query.print) {
+                    setInfo(
+                        "Query executed: query=${query.name}, args=$args",
+                        ConsoleViewContentType.LOG_VERBOSE_OUTPUT
+                    )
+                }
             }
-            return mutableListOf<T>()
+            return res ?: listOf<T>()
         }
     }
 
     fun ready(): Boolean = (entryPoint != 0L && session != 0)
 
-    fun setError(msg: String) = addMessage(Message(Severity.ERROR, msg))
+    fun setError(msg: String, thw: Throwable? = null) {
+        addMessage(
+            Message(
+                severity = Severity.ERROR,
+                content = msg,
+                cause = thw?.getRootCause(),
+                type = ConsoleViewContentType.ERROR_OUTPUT
+            )
+        )
+    }
 
-    fun setInfo(msg: String) = addMessage(Message(Severity.INFO, msg))
+    private fun Throwable.getRootCause(): Throwable {
+        var it = cause
+        var res = this
+        while (it != res && it != null) {
+            res = it;
+        }
+        return res;
+    }
+
+    fun setInfo(msg: String, type: ConsoleViewContentType = ConsoleViewContentType.LOG_INFO_OUTPUT) {
+        addMessage(Message(severity = Severity.INFO, content = msg, type = type))
+    }
+
+    private fun displayInfo() {
+        if (controller.windowLister.hasShown
+            && controller.xSession.consoleView != null
+        ) {
+            val copy = ArrayList(messages)
+            runInEdt {
+                copy.forEach {
+                    controller.xSession.consoleView?.print("${it.content}\n", it.type)
+                    if (it.cause != null) {
+                        controller.xSession.consoleView?.print("${it.cause}\n", it.type)
+                    }
+                }
+            }
+            messages.clear()
+        }
+    }
+
+    fun updateInfo() {
+        try {
+            lock.lock()
+            displayInfo()
+        } catch (e: Exception) {
+            throw e
+        } finally {
+            lock.unlock()
+        }
+    }
 
     fun setWarning(msg: String) {
-        addMessage(Message(Severity.WARNING, msg))
+        addMessage(
+            Message(
+                severity = Severity.WARNING,
+                content = msg,
+                type = ConsoleViewContentType.LOG_WARNING_OUTPUT
+            )
+        )
     }
 
     private fun addMessage(msg: Message) {
         lastMessage = msg
-        message.add(0, lastMessage)
+        messages.add(lastMessage)
+        displayInfo()
     }
 
-    fun hasError(): Boolean = (lastMessage.severity == Severity.ERROR)
+    fun hasError(): Boolean = !interrupted && (lastMessage.severity == Severity.ERROR)
 
     fun hasWarning(): Boolean = (lastMessage.severity == Severity.WARNING)
+
+    fun interrupted(): Boolean {
+        if (hasError()) {
+            runInEdt {
+                Messages.showMessageDialog(
+                    controller.project,
+                    lastMessage.content,
+                    "PL/pg Debugger",
+                    if (hasError()) Messages.getErrorIcon() else Messages.getWarningIcon()
+                )
+            }
+            terminate()
+            return true;
+        }
+        return false
+    }
+
+    fun terminate() {
+        runCatching {
+            interrupted = true
+            connection.remoteConnection.close()
+        }.onFailure {
+            setError("Terminates with exception", it)
+        }.onSuccess {
+            setInfo("Terminated without exception")
+        }
+        controller.xSession.stop()
+    }
 
     private inline fun <T> getRowSet(
         producer: Producer<T>,
@@ -261,6 +420,11 @@ class PlExecutor(private val controller: PlController) {
         INFO(""),
     }
 
-    data class Message(val severity: Severity, val content: String, val cause: Throwable? = null)
+    data class Message(
+        val severity: Severity,
+        val content: String,
+        val cause: Throwable? = null,
+        val type: ConsoleViewContentType
+    )
 
 }

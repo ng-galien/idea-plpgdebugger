@@ -76,13 +76,3 @@ class DBRowSet<R>(
     }
 }
 
-/**
- *
- */
-fun sanitizeQuery(query: SQLQuery): String {
-    var res = query.sql.trimIndent().replace(";", "")
-    if (res.lowercase().startsWith("select")) {
-        res = String.format("(%s)q", res)
-    }
-    return res;
-}

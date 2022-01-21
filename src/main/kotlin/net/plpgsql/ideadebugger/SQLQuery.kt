@@ -4,7 +4,7 @@
 
 package net.plpgsql.ideadebugger
 
-enum class SQLQuery(val sql: String, val producer: Producer<Any>) {
+enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boolean = true) {
     RAW_BOOL(
         "%s",
         Producer<Any> { PlBoolean(it.bool()) }),
@@ -22,18 +22,35 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>) {
         Producer<Any> { PlInt(it.int()) }),
 
     STEP_OVER(
-        "pldbg_step_over(%s)",
-        Producer<Any> { PlStep(it.long(), it.int(), it.string()) }),
+        """
+            SELECT step.func,
+                   step.linenumber
+            FROM pldbg_step_over(%s) step;
+        """.trimIndent(),
+        Producer<Any> { PlStep(it.long(), it.int()) }),
     STEP_INTO(
-        "pldbg_step_into(%s)",
-        Producer<Any> { PlStep(it.long(), it.int(), it.string()) }),
+        """
+            SELECT step.func,
+                   step.linenumber
+            FROM pldbg_step_into(%s) step;
+        """.trimIndent(),
+        Producer<Any> { PlStep(it.long(), it.int()) }),
     STEP_CONTINUE(
-        "pldbg_continue(%s)",
-        Producer<Any> { PlStep(it.long(), it.int(), it.string()) }),
+        """
+            SELECT step.func,
+                   step.linenumber
+            FROM pldbg_continue(%s) step;
+        """.trimIndent(),
+        Producer<Any> { PlStep(it.long(), it.int()) }),
 
     LIST_BREAKPOINT(
-        "pldbg_get_breakpoints(%s)",
-        Producer<Any> { PlStackBreakPoint(it.long(), it.int()) }),
+        """
+            SELECT step.func,
+                   step.linenumber
+            FROM pldbg_get_breakpoints(%s) step;
+        """.trimIndent(),
+        Producer<Any> { PlStep(it.long(), it.int()) },
+        false),
     ADD_BREAKPOINT(
         "pldbg_set_breakpoint(%s, %s, %s)",
         Producer<Any> { PlBoolean(it.bool()) }),
@@ -56,20 +73,20 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>) {
 
     GET_RAW_VARIABLES(
         """
-        (SELECT
-               varclass = 'A' as is_arg,
-               linenumber as line,
-               t_type.oid as oid,
-               t_var.name as name,
-               coalesce(t_type.typname, 'unknown') as type,
-               coalesce(t_type.typtype, 'b') as kind,
-               t_type.typarray = 0 as is_array,
-               coalesce(t_sub.typname, 'unknown') as array_type,
-               t_var.value as value
-        FROM pldbg_get_variables(%s) t_var
-        LEFT JOIN pg_type t_type ON t_var.dtype = t_type.oid
-        LEFT JOIN pg_type t_sub ON t_type.typelem = t_sub.oid) v
-        """, Producer<Any> {
+            SELECT
+                   varclass = 'A' as is_arg,
+                   linenumber as line,
+                   t_type.oid as oid,
+                   t_var.name as name,
+                   coalesce(t_type.typname, 'unknown') as type,
+                   coalesce(t_type.typtype, 'b') as kind,
+                   t_type.typarray = 0 as is_array,
+                   coalesce(t_sub.typname, 'unknown') as array_type,
+                   t_var.value as value
+            FROM pldbg_get_variables(%s) t_var
+            LEFT JOIN pg_type t_type ON t_var.dtype = t_type.oid
+            LEFT JOIN pg_type t_sub ON t_type.typelem = t_sub.oid;
+        """.trimIndent(), Producer<Any> {
             PlStackVariable(
                 it.bool(),
                 it.int(),
@@ -83,7 +100,8 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>) {
                     it.string()
                 )
             )
-        }
+        },
+        false
     ),
 
     GET_JSON_VARIABLES("%s", Producer<Any> {
@@ -100,7 +118,7 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>) {
                 it.string()
             )
         )
-    }),
+    }, false),
 
     GET_EXTENSION(
         """
@@ -245,4 +263,16 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>) {
             WHERE t_proc IS NULL
         """, Producer<Any> { PlLong(it.long()) }
     )
+}
+
+
+/**
+ *
+ */
+fun sanitizeQuery(query: SQLQuery): String {
+    var res = query.sql.trimIndent().replace(";", "")
+    if (res.lowercase().startsWith("select")) {
+        res = String.format("(%s)q", res)
+    }
+    return res;
 }
