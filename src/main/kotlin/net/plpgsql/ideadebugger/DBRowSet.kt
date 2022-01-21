@@ -5,12 +5,12 @@
 package net.plpgsql.ideadebugger
 
 import com.intellij.database.dataSource.DatabaseConnection
-import com.intellij.execution.ui.ConsoleViewContentType
-import com.intellij.openapi.application.runInEdt
 import com.intellij.xdebugger.XDebugSession
 import java.util.*
 
-
+/**
+ *
+ */
 class DBIterator<R>(producer: Producer<R>,
                     connection: DatabaseConnection,
                     sql: String): RowIterator<R>(producer) {
@@ -58,39 +58,21 @@ class DBIterator<R>(producer: Producer<R>,
         pos++
         return rs.getString(pos).get(0)
     }
-
 }
 
-
+/**
+ *
+ */
 class DBRowSet<R>(
     producer: Producer<R>,
-    private var cmd: SQLQuery,
+    cmd: SQLQuery,
     private var connection: DatabaseConnection,
     private var xSession: XDebugSession?
-    ) : AbstractRowSet<R>(producer, cmd.sql.trimIndent()) {
-    private var query: String = "";
+    ) : AbstractRowSet<R>(producer, sanitizeQuery(cmd)) {
 
     override fun open(): RowIterator<R>? {
-         query = String.format("SELECT * FROM %s;", path)
+        val query = String.format("SELECT * FROM %s;", path)
         return DBIterator(producer = producer, connection, query)
     }
-
-    override fun fetch(vararg args: String) {
-        runCatching {
-            super.fetch(*args)
-        }.onFailure {
-            runInEdt { xSession?.consoleView?.print("${cmd.name}:\n$query\n", ConsoleViewContentType.ERROR_OUTPUT) }
-        }.onSuccess {
-            if (cmd.log) {
-                runInEdt { xSession?.consoleView?.print( "${cmd.name} => $query\n", ConsoleViewContentType.LOG_DEBUG_OUTPUT) }
-            }
-        }
-    }
-
 }
 
-inline fun <T> fetchRowSet(producer: Producer<T>, query: SQLQuery, connection: DatabaseConnection, builder: RowSet<T>.() -> Unit): List<T> =
-    DBRowSet(producer, query, connection, null).apply(builder).values
-
-inline fun <T> fetchRowSet(producer: Producer<T>, query: SQLQuery, proc: PlProcess, builder: RowSet<T>.() -> Unit): List<T> =
-    DBRowSet(producer, query, proc.connection, proc.session).apply(builder).values

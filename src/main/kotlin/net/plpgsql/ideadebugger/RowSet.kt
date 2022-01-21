@@ -27,7 +27,7 @@ abstract class RowIterator<R>(private val producer: Producer<R>) : Iterator<R>, 
 
 interface RowSet<R> {
     fun open(): RowIterator<R>?
-    fun fetch(vararg args: String)
+    fun fetch(args: List<String>)
 }
 
 abstract class AbstractRowSet<R>(protected val producer: Producer<R>, private val cmd: String) : RowSet<R> {
@@ -38,8 +38,8 @@ abstract class AbstractRowSet<R>(protected val producer: Producer<R>, private va
         get() = _items
 
 
-    override fun fetch(vararg args: String) {
-        path = String.format(cmd, *args)
+    override fun fetch(args: List<String>) {
+        path = String.format(cmd, *args.toTypedArray())
         open().use {
             it?.forEach { el -> _items.add(el) }
         }

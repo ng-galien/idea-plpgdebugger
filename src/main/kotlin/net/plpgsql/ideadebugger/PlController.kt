@@ -14,10 +14,8 @@ import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.util.SearchPath
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.application.runReadAction
-import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
@@ -25,13 +23,10 @@ import com.intellij.sql.psi.SqlFunctionCallExpression
 import com.intellij.ui.content.Content
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugSession
-import com.intellij.xdebugger.XDebuggerManager
-import com.intellij.xdebugger.breakpoints.*
-import org.jetbrains.debugger.BreakpointListener
 import java.util.regex.Pattern
-import kotlin.properties.Delegates
 
 class PlController(
+    val facade: PlFacade,
     val project: Project,
     val connectionPoint: DatabaseConnectionPoint,
     val ownerEx: DataRequest.OwnerEx,
@@ -41,108 +36,94 @@ class PlController(
     val callExpression: SqlFunctionCallExpression?,
 ) : SqlDebugController() {
 
-    private val logger = getLogger<PlController>()
+    private val auditor = QueryAuditor()
+    private val consumer = QueryConsumer()
     private val pattern = Pattern.compile(".*PLDBGBREAK:([0-9]+).*")
     private lateinit var plProcess: PlProcess
     lateinit var xSession: XDebugSession
-    private val queryAuditor = QueryAuditor()
-    private val queryConsumer = QueryConsumer()
-    private val windowLister = ToolListener()
+    internal val windowLister = ToolListener()
 
-    val dbgConnection = createDebugConnection(project, connectionPoint)
-
+    val executor = PlExecutor(this)
     private var busConnection = project.messageBus.connect()
 
-    var entryPoint by Delegates.notNull<Long>()
+    init {
+        println("controller: init")
+        busConnection.subscribe(ToolWindowManagerListener.TOPIC, windowLister)
+    }
 
     override fun getReady() {
-        logger.debug("getReady")
+        println("controller: getReady")
+        executor.checkExtension()
+        if (executor.interrupted()) {
+            return
+        }
+        if (callExpression != null) {
+            val callDef = parseFunctionCall(callExpression)
+            assert(callDef.first.isNotEmpty() && callDef.first.size <= 2) { "Error while parsing ${callExpression.text}" }
+            executor.searchCallee(callDef.first, callDef.second)
+            if (executor.interrupted()) {
+                return
+            }
+        } else {
+            executor.setError("Invalid call expression")
+            executor.interrupted()
+        }
     }
 
     override fun initLocal(session: XDebugSession): XDebugProcess {
-        busConnection.subscribe(ToolWindowManagerListener.TOPIC, windowLister)
-        entryPoint = searchFunction() ?: 0L
         xSession = session
         plProcess = PlProcess(this)
         return plProcess
     }
 
     override fun initRemote(connection: DatabaseConnection) {
-        logger.info("initRemote")
-        val ready = if (entryPoint != 0L) (plDebugFunction(connection, entryPoint) == 0) else false
-
-        if (!ready) {
-            runInEdt {
-                Messages.showMessageDialog(
-                    project,
-                    "Routine not found",
-                    "PL Debugger",
-                    Messages.getInformationIcon()
-                )
-            }
-            xSession.stop()
-        } else {
-            ownerEx.messageBus.addAuditor(queryAuditor)
-            ownerEx.messageBus.addConsumer(queryConsumer)
+        println("controller: initRemote")
+        executor.startDebug(connection)
+        if (!executor.interrupted()) {
+            ownerEx.messageBus.addAuditor(auditor)
+            ownerEx.messageBus.addConsumer(consumer)
         }
     }
 
     override fun debugBegin() {
-        logger.info("debugBegin")
+        println("controller: debugBegin")
     }
 
+
     override fun debugEnd() {
-        logger.info("debugEnd")
+        println("controller: debugEnd")
+        busConnection.disconnect()
+        runReadAction {
+            val vfs = PlVFS.getInstance()
+            vfs.all().forEach { it.unload() }
+        }
     }
 
     override fun close() {
-        logger.info("close")
-        windowLister.close()
-        busConnection.disconnect()
-        dbgConnection.runCatching {
-            dbgConnection.remoteConnection.close()
-        }
-        vfsCleanup()
-    }
+        println("controller: close")
+        //windowLister.close()
 
-    private fun vfsCleanup() {
-        val con = createDebugConnection(project, connectionPoint)
-        val toRemove = plGetShadowList(con, PlVFS.getInstance().all().map { it.oid })
-        runReadAction {
-            val vfs = PlVFS.getInstance()
-            toRemove.forEach { vfs.remove(it) }
-            vfs.all().forEach { it.unload() }
-        }
-        con.remoteConnection.close()
-    }
-
-
-    private fun searchFunction(): Long? {
-
-        if (callExpression != null) {
-            val callDef = parseFunctionCall(callExpression)
-            assert(callDef.first.isNotEmpty() && callDef.first.size <= 2) { "Error while parsing ${callExpression.text}" }
-            return searchFunctionByName(connection = dbgConnection,
-                callFunc = callDef.first,
-                callValues = callDef.second)
-        }
-        return null
     }
 
     inner class QueryAuditor : DataAuditors.Adapter() {
+
         override fun warn(context: DataRequest.Context, info: WarningInfo) {
-            if (context.request.owner == ownerEx) {
+            println("QueryAuditor: warn")
+            if (!executor.hasError() && context.request.owner == ownerEx) {
                 val matcher = pattern.matcher(info.message)
                 if (matcher.matches()) {
                     val port = matcher.group(1).toInt()
-                    plProcess.startDebug(port)
+                    executor.attachToPort(port)
+                    if (!executor.interrupted()) {
+                        plProcess.startDebug()
+                    }
                 }
             }
         }
 
         override fun fetchStarted(context: DataRequest.Context, index: Int) {
             if (context.request.owner == ownerEx) {
-                close()
+                executor.terminate()
             }
         }
     }
@@ -150,16 +131,19 @@ class PlController(
     inner class QueryConsumer : DataConsumer.Adapter() {
         override fun afterLastRowAdded(context: DataRequest.Context, total: Int) {
             if (context.request.owner == ownerEx) {
-                println("HI")
+                //ownerExConnection?.remoteConnection?.close()
             }
         }
 
     }
 
     inner class ToolListener : ToolWindowManagerListener {
+
         private var window: ToolWindow? = null
         private var first: Boolean = false
         private var acutal: Content? = null
+        var hasShown = false
+
         override fun toolWindowShown(toolWindow: ToolWindow) {
             if (toolWindow.id == "Debug") {
                 window = toolWindow
@@ -171,6 +155,8 @@ class PlController(
                     it.tabName == xSession.sessionName
                 }
                 first = false
+                hasShown = true
+                executor.updateInfo()
             }
         }
 
@@ -180,9 +166,6 @@ class PlController(
             }
         }
     }
-
-
-
 }
 
 

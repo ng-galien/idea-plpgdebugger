@@ -5,13 +5,11 @@
 package net.plpgsql.ideadebugger
 
 import com.intellij.openapi.vfs.VirtualFileSystem
-import com.intellij.sql.SqlFileType
 import com.intellij.sql.dialects.postgres.PgDialect
 import com.intellij.testFramework.LightVirtualFile
 import com.intellij.xdebugger.XDebuggerUtil
 import com.intellij.xdebugger.XSourcePosition
 import kotlin.properties.Delegates
-import kotlin.test.assertTrue
 
 
 /*
@@ -55,7 +53,7 @@ class PlFile(
         if (first) {
             firstPos = stackPos
             //Remove all breakpoints
-            plGetPlStackBreakPoint(stack!!.proc).forEach {
+            stack!!.executor.getBreakPoints().forEach {
                 updateBreakPoint(SQLQuery.DROP_BREAKPOINT, it.line)
             }
             // Set breakpoints
@@ -97,7 +95,7 @@ class PlFile(
 
     private fun updateBreakPoint(query: SQLQuery, line: Int): Boolean {
         if (stack != null) {
-            return plUpdateStackBreakPoint(stack!!.proc, query, def.oid, line) ?: false
+            return stack!!.executor.updateBreakPoint(query, def.oid, line)
         }
         return true
     }

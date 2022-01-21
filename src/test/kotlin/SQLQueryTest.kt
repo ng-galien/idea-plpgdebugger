@@ -14,10 +14,6 @@ class SQLQueryTest {
     @Test
     fun testCustomRequest() {
         val uuid: String = "${UUID.randomUUID()}"
-        assertEquals(uuid,
-            fetchCSV(plStringProducer()) {
-                fetch(uuid)
-            }.firstOrNull()?.value)
 
     }
 }

@@ -28,10 +28,14 @@ TODO All this code must be merge with code analysis of PlFile
  */
 class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>("plpg_line_breakpoint", "PL/pg SQL") {
 
-    private val fileRegex = Regex("^.+\\..+\\[\\d+\\]\\.sql\$")
+    companion object {
+        val INSTANCE = PlLineBreakpointType()
+    }
+
+    private val fileRegex = Regex("^.+\\..+\\[\\d+]\\.sql\$")
     //private val fileRegexTest = Regex("^.+\\.sql\$")
 
-    override fun createBreakpointProperties(file: VirtualFile, line: Int): PlLineBreakpointProperties? {
+    override fun createBreakpointProperties(file: VirtualFile, line: Int): PlLineBreakpointProperties {
         return PlLineBreakpointProperties(file, line)
     }
 

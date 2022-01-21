@@ -5,7 +5,7 @@
 
 package net.plpgsql.ideadebugger
 
-
+/*
 import com.intellij.database.dataSource.DatabaseConnection
 
 
@@ -174,5 +174,12 @@ fun plGetShadowList(connection: DatabaseConnection, oids: List<Long>): List<Long
     fetch(oids.joinToString(prefix = "ARRAY[", separator = ",", postfix = "]") { "$it" })
 }.map { it.value }
 
+fun plExtensionList(connection: DatabaseConnection): List<PlExtension> = fetchRowSet<PlExtension>(
+    plExtensionProducer(),
+    SQLQuery.GET_EXTENSION,
+    connection
+) {
+    fetch()
+}
 
-
+*/
