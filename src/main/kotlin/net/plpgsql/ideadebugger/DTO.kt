@@ -32,7 +32,14 @@ data class PlStackVariable(
     val value: PlValue
 )
 
-data class PlFunctionArg(val oid: Long, val pos: Int, val name: String, val type: String, val default: Boolean)
+data class PlFunctionArg(
+    val oid: Long,
+    val nb: Int,
+    val pos: Int,
+    val name: String,
+    val type: String,
+    val default: Boolean
+)
 
 data class PlFunctionDef(
     val oid: Long,
@@ -41,4 +48,8 @@ data class PlFunctionDef(
     val source: String,
 )
 
-data class PlExtension(val schema: String, val name: String, val version: String);
+data class PlExtension(
+    val schema: String,
+    val name: String,
+    val version: String
+)

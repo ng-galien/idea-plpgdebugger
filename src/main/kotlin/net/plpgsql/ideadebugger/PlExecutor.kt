@@ -7,15 +7,10 @@ package net.plpgsql.ideadebugger
 import com.intellij.database.console.session.DatabaseSessionManager
 import com.intellij.database.dataSource.DatabaseConnection
 import com.intellij.database.dataSource.connection.DGDepartment
-import com.intellij.execution.process.mediator.util.blockingGet
 import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.ui.Messages
 import com.jetbrains.rd.util.first
-import kotlinx.coroutines.CoroutineExceptionHandler
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.async
-import org.jetbrains.concurrency.runAsync
 import java.util.concurrent.locks.Lock
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -29,11 +24,8 @@ class PlExecutor(private val controller: PlController) {
     private val connection = createConnection()
     private var entryPoint = 0L
     private var session = 0
-    private var stepTimeOut = 300
     var interrupted = false
-    val handler = CoroutineExceptionHandler { _, exception ->
-        println("CoroutineExceptionHandler got $exception")
-    }
+
 
     private var lastMessage: Message = Message(
         severity = Severity.INFO,
@@ -48,7 +40,6 @@ class PlExecutor(private val controller: PlController) {
     ).connect().get()
 
     fun checkExtension() {
-        //return executeQuery<PlExtension>(SQLQuery.GET_EXTENSION).none { it.name == "pldbgapi" }
         val res = executeQuery<PlExtension>(SQLQuery.GET_EXTENSION)
         return when (val ext = res.find { it.name == "pldbgapi" }) {
             null -> {
@@ -69,6 +60,12 @@ class PlExecutor(private val controller: PlController) {
             query = SQLQuery.GET_FUNCTION_CALL_ARGS,
             args = listOf(schema, procedure),
         )
+
+        if (functions.isEmpty()) {
+            setError("Function not found: schema=$schema, name=$procedure")
+            return
+        }
+
         val plArgs = functions.groupBy {
             it.oid
         }
@@ -146,10 +143,9 @@ class PlExecutor(private val controller: PlController) {
         return when (cmd) {
             SQLQuery.STEP_OVER,
             SQLQuery.STEP_INTO,
-            SQLQuery.STEP_CONTINUE -> runQuery<PlStep>(
+            SQLQuery.STEP_CONTINUE -> executeQuery<PlStep>(
                 query = cmd,
                 args = listOf("$session"),
-                async = stepTimeOut,
                 interrupt = true
             ).firstOrNull()
             else -> {
@@ -225,11 +221,10 @@ class PlExecutor(private val controller: PlController) {
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun <T>runQuery(
+    fun <T>executeQuery(
         query: SQLQuery,
         args: List<String> = listOf(),
         dc: DatabaseConnection = connection,
-        async: Int = 0,
         interrupt: Boolean = true
     ): List<T> {
         lock.withLock {
@@ -239,7 +234,7 @@ class PlExecutor(private val controller: PlController) {
                         fetch(args)
                 }
             }.onFailure {
-                setError("Query failed executed: query=${query.name}, args=$args")
+                setError("Query failed executed: query=${query.name}, args=$args", it)
                 if (!interrupt) {
                     hasError()
                 } else {
@@ -259,51 +254,10 @@ class PlExecutor(private val controller: PlController) {
 
     }
 
-    @Suppress("UNCHECKED_CAST")
-    fun <T> executeQuery(
-        query: SQLQuery,
-        args: List<String> = listOf(),
-        dc: DatabaseConnection = connection,
-        async: Int = 0,
-        interrupt: Boolean = true
-    ): List<T> {
 
-        lock.withLock {
-            var res: List<T>? = null
-
-            query.runCatching {
-                res = if (async > 0) {
-                    GlobalScope.async(handler) {
-                        getRowSet(query.producer as Producer<T>, query, dc) {
-                            fetch(args)
-                        }
-                    }.blockingGet()
-                } else {
-                    getRowSet(query.producer as Producer<T>, query, dc) {
-                        fetch(args)
-                    }
-                }
-            }.onFailure {
-                setError("Query failed executed: query=${query.name}, args=$args")
-                if (!interrupt) {
-                    hasError()
-                } else {
-                    interrupted = true
-                }
-                throw it
-            }.onSuccess {
-                if (query.print) {
-                    setInfo(
-                        "Query executed: query=${query.name}, args=$args",
-                        ConsoleViewContentType.LOG_VERBOSE_OUTPUT
-                    )
-                }
-            }
-            return res ?: listOf<T>()
-        }
+    fun ready(): Boolean{
+        return (entryPoint != 0L && session != 0)
     }
-
-    fun ready(): Boolean = (entryPoint != 0L && session != 0)
 
     fun setError(msg: String, thw: Throwable? = null) {
         addMessage(
@@ -317,12 +271,12 @@ class PlExecutor(private val controller: PlController) {
     }
 
     private fun Throwable.getRootCause(): Throwable {
-        var it = cause
+        val it = cause
         var res = this
         while (it != res && it != null) {
-            res = it;
+            res = it
         }
-        return res;
+        return res
     }
 
     fun setInfo(msg: String, type: ConsoleViewContentType = ConsoleViewContentType.LOG_INFO_OUTPUT) {
@@ -388,7 +342,7 @@ class PlExecutor(private val controller: PlController) {
                 )
             }
             terminate()
-            return true;
+            return true
         }
         return false
     }

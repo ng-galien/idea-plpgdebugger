@@ -4,7 +4,6 @@
 
 package net.plpgsql.ideadebugger
 
-import com.intellij.database.DatabaseTopics
 import com.intellij.database.connection.throwable.info.WarningInfo
 import com.intellij.database.dataSource.DatabaseConnection
 import com.intellij.database.dataSource.DatabaseConnectionPoint
@@ -13,7 +12,6 @@ import com.intellij.database.datagrid.DataConsumer
 import com.intellij.database.datagrid.DataRequest
 import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.util.SearchPath
-import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.editor.RangeMarker
@@ -23,7 +21,6 @@ import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
 import com.intellij.sql.psi.SqlFunctionCallExpression
 import com.intellij.ui.content.Content
-import com.intellij.util.messages.MessageBusConnection
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugSession
 import java.util.regex.Pattern
@@ -41,7 +38,6 @@ class PlController(
 
     private val auditor = QueryAuditor()
     private val consumer = QueryConsumer()
-    private val logger = getLogger<PlController>()
     private val pattern = Pattern.compile(".*PLDBGBREAK:([0-9]+).*")
     private lateinit var plProcess: PlProcess
     lateinit var xSession: XDebugSession
@@ -65,6 +61,9 @@ class PlController(
             val callDef = parseFunctionCall(callExpression)
             assert(callDef.first.isNotEmpty() && callDef.first.size <= 2) { "Error while parsing ${callExpression.text}" }
             executor.searchCallee(callDef.first, callDef.second)
+            if (executor.interrupted()) {
+                return
+            }
         } else {
             executor.setError("Invalid call expression")
             executor.interrupted()

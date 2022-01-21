@@ -31,15 +31,16 @@ class PlProcess(
     private val scope = CoroutineScope(Dispatchers.EDT+handler)
 
     init {
+        val manager = XDebuggerManager.getInstance(session.project).breakpointManager
+        //manager.addBreakpointListener(PlLineBreakpointType.INSTANCE, breakPointHandler)
         if (PlVFS.getInstance().count() == 0) {
             runWriteAction {
-                val manager = XDebuggerManager.getInstance(session.project).breakpointManager
                 manager.allBreakpoints.filter {
                     it.type is PlLineBreakpointType
                 }.forEach {
                     manager.removeBreakpoint(it)
                 }
-                //manager.addBreakpointListener()
+
             }
         }
     }
@@ -108,12 +109,16 @@ class PlProcess(
 
 
     override fun getEditorsProvider(): XDebuggerEditorsProvider {
-        return PlEditorProvider
+        return PlEditorProvider.INSTANCE
     }
 
-    override fun checkCanInitBreakpoints(): Boolean = executor.ready()
+    override fun checkCanInitBreakpoints(): Boolean {
+        return executor.ready()
+    }
 
-    override fun checkCanPerformCommands(): Boolean = executor.ready()
+    override fun checkCanPerformCommands(): Boolean {
+        return executor.ready()
+    }
 
     override fun getBreakpointHandlers(): Array<XBreakpointHandler<*>> {
         return arrayOf(breakPointHandler)
@@ -121,7 +126,7 @@ class PlProcess(
 
     inner class XContext : XSuspendContext() {
 
-        override fun getActiveExecutionStack(): XExecutionStack? {
+        override fun getActiveExecutionStack(): XExecutionStack {
             return stack
         }
 

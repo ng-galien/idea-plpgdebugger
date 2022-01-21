@@ -9,11 +9,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import java.util.*
 
-
 const val PL_PROTOCOL = "plpgsql"
-const val PL_PROTOCOL_PREFIX = "plpgsql://"
-
-
 
 class PlVFS : DeprecatedVirtualFileSystem() {
 
@@ -46,7 +42,4 @@ class PlVFS : DeprecatedVirtualFileSystem() {
         fun getInstance(): PlVFS =
             Objects.requireNonNull(VirtualFileManager.getInstance().getFileSystem(PL_PROTOCOL)) as PlVFS
     }
-
-
-
 }

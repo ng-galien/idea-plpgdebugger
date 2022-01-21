@@ -134,21 +134,38 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
     ),
     GET_FUNCTION_CALL_ARGS(
         """
-        (SELECT t_proc.oid,
-               pos,
-               t_proc.proargnames[pos],
-               t_type.typname,
-               pos > (t_proc.pronargs - t_proc.pronargdefaults)
-        FROM pg_proc t_proc
-                 JOIN pg_namespace t_namespace ON t_proc.pronamespace = t_namespace.oid,
-             unnest(t_proc.proargtypes) WITH ORDINALITY arg(el, pos)
-                 JOIN pg_type t_type ON el = t_type.oid
-        WHERE t_namespace.nspname LIKE '%s'
-          AND t_proc.proname LIKE '%s'
-        ORDER BY t_proc.oid, pos) a
+        SELECT oid,
+        pronargs,
+        idx,
+        proargname,
+        concat(t_type_ns.nspname, '.', t_type.typname),
+        idx > (pronargs-pronargdefaults)
+        FROM (SELECT idx                          ,
+                     pronargs,
+                     pronargdefaults,
+                     t_proc1.oid,
+                     t_proc1.proargtypes[idx - 1] as proargtype,
+                     t_proc1.proargnames[idx]     as proargname
+              FROM (SELECT t_proc.oid,
+                           case when t_proc.pronargs = 0 then '{0}'::oid[] else t_proc.proargtypes::oid[] end as proargtypes,
+                           case when t_proc.pronargs = 0 then '{""}'::text[] else t_proc.proargnames end      as proargnames,
+                           t_proc.pronargs,
+                           t_proc.pronargdefaults,
+                           case when t_proc.pronargs = 0 then 1 else t_proc.pronargs end                      as serial
+                    FROM pg_proc t_proc
+                             JOIN pg_namespace t_namespace
+                                  ON t_proc.pronamespace = t_namespace.oid
+                    WHERE t_namespace.nspname LIKE '%s'
+                      AND t_proc.proname LIKE '%s'
+                    ORDER BY t_proc.oid) t_proc1,
+                   generate_series(1, t_proc1.serial) idx) t_proc2
+                 LEFT JOIN pg_type t_type
+                           ON t_proc2.proargtype = t_type.oid
+                 left join pg_namespace t_type_ns ON t_type.typnamespace = t_type_ns.oid;
         """, Producer<Any> {
             PlFunctionArg(
                 it.long(),
+                it.int(),
                 it.int(),
                 it.string(),
                 it.string(),
