@@ -21,3 +21,12 @@
 - Implements a Virtual File System to store debug files
 ### Changed
 - Refactor many parts for future test support
+
+## [1.0.0-rc1]
+### Changed
+- Commands are within the PlExecutor
+- Better verbosity
+- Better use of coroutines
+- Solve Prevent when extension is not avaible #12 (SQL issue)
+- Progress on A routine with an enum in arg fails #13
+- Fix compatibility with last DatabaseTool implementation
