@@ -5,10 +5,12 @@
 [![Downloads](https://img.shields.io/jetbrains/plugin/d/PLUGIN_ID.svg)](https://plugins.jetbrains.com/plugin/PLUGIN_ID)
 
 <!-- Plugin description -->
-Debug PL/pg SQL in Intellij to speed up and improve productivity with PostgreSQL<br/>
+Debug PL/pg SQL in Intellij with Datbase Tool to speed up and improve productivity with PostgreSQL<br/>
 Allow to debug a query from the console like you run it normally: inspect variables and set breakpoints<br/>
 The pldbgapi extension must be enabled on the target database.<br/>
-This plugin is in early stage of development .
+This plugin is in early stage of development.
+Submit features => [Production ready task list](https://github.com/ng-galien/idea-plpgdebugger/issues/17)  
+Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea-plpgdebugger/issues/new/choose)
 <!-- Plugin description end -->
 
 ## Features
