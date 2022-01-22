@@ -55,11 +55,14 @@ class XStack(process: PlProcess) : XExecutionStack("") {
     }
 
     private fun getRemoteFunction(oid: Long, pos: Int): PlFile {
+        val funDef = executor.getFunctionDef(oid)
         val file = PlVFS.getInstance().findFileByPath("$oid")
         return if (file is PlFile) {
+            if (funDef.hash != file.hash) {
+                file.updateSource(funDef)
+            }
             file
         } else {
-            val funDef = executor.getFunctionDef(oid)
             PlVFS.getInstance().register(PlFile(funDef, this))
         }.updateStack(this, pos)
     }

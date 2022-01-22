@@ -171,26 +171,28 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                 it.string(),
                 it.bool(),
             )
-        }
+        }, false
     ),
 
     GET_FUNCTION_DEF(
         """
-        (SELECT t_proc.oid,
-               t_namespace.nspname,
-               t_proc.proname,
-               pg_catalog.pg_get_functiondef(t_proc.oid)
-        FROM pg_proc t_proc
-                 JOIN pg_namespace t_namespace on t_proc.pronamespace = t_namespace.oid
-        WHERE t_proc.oid = %s) f
+        SELECT t_proc.oid,
+        t_namespace.nspname,
+        t_proc.proname,
+        pg_catalog.pg_get_functiondef(t_proc.oid),
+        sha512(pg_catalog.pg_get_functiondef(t_proc.oid)::bytea)
+            FROM pg_proc t_proc
+                  JOIN pg_namespace t_namespace on t_proc.pronamespace = t_namespace.oid
+            WHERE t_proc.oid = %s;
         """, Producer<Any> {
             PlFunctionDef(
                 it.long(),
                 it.string(),
                 it.string(),
+                it.string(),
                 it.string()
             )
-        }
+        }, false
     ),
 
     EXPLODE("%s", Producer<Any> {
@@ -203,7 +205,7 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
             it.string(),
             it.string()
         )
-    }),
+    }, false),
 
     EXPLODE_ARRAY(
         """
@@ -229,7 +231,7 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                 it.string(),
                 it.string()
             )
-        }
+        }, false
     ),
 
     EXPLODE_COMPOSITE(
@@ -263,7 +265,7 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                 it.string(),
                 it.string()
             )
-        }
+        }, false
     ),
 
     T0_JSON(

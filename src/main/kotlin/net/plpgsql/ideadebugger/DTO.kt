@@ -46,6 +46,7 @@ data class PlFunctionDef(
     val schema: String,
     val name: String,
     val source: String,
+    val hash: String
 )
 
 data class PlExtension(
