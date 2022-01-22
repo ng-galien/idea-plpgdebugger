@@ -1,7 +1,7 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <id>net.plpgsql.ideadebugger</id>
-    <name>PL SQL Debugger</name>
+    <name>PostgreSQL Debugger</name>
     <vendor email="courriel.alexandre.boyer@hotmail.fr" url="https://github.com/ng-galien">Alexandre Boyer</vendor>
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.database</depends>
