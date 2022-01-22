@@ -4,6 +4,8 @@
 
 package net.plpgsql.ideadebugger
 
+import com.intellij.openapi.application.runInEdt
+import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.vfs.VirtualFileSystem
 import com.intellij.sql.dialects.postgres.PgDialect
 import com.intellij.testFramework.LightVirtualFile
@@ -16,14 +18,15 @@ import kotlin.properties.Delegates
 TODO Range check for adding breakpoint
  */
 class PlFile(
-    private val def: PlFunctionDef,
+    def: PlFunctionDef,
     private var stack: XStack?
 ) : LightVirtualFile(
     "${def.schema}.${def.name}[${def.oid}].sql",
     PgDialect.INSTANCE,
     def.source,
 ) {
-
+    private val oid :Long = def.oid
+    var hash :String = def.hash
     private val breakPoints: MutableMap<Int, Boolean> = mutableMapOf()
     private var first: Boolean = true
     var firstPos: Int = 0
@@ -31,13 +34,15 @@ class PlFile(
     var stackPos: Int = 0
         private set
     private var offset: Int by Delegates.notNull()
-    val oid: Long by lazy {
-        def.oid
-    }
+
 
     init {
+        computeOffset(def.source)
+    }
+
+    private fun computeOffset(src: String) {
         var res = 0;
-        def.source.split("\n").forEachIndexed { l, line ->
+        src.split("\n").forEachIndexed { l, line ->
             if (line.lowercase().startsWith("as \$function\$")) res = l - 1
         }
         offset = res;
@@ -95,16 +100,26 @@ class PlFile(
 
     private fun updateBreakPoint(query: SQLQuery, line: Int): Boolean {
         if (stack != null) {
-            return stack!!.executor.updateBreakPoint(query, def.oid, line)
+            return stack!!.executor.updateBreakPoint(query, oid, line)
         }
         return true
+    }
+
+    fun updateSource(def: PlFunctionDef) {
+        hash = def.hash
+        runInEdt {
+            runWriteAction {
+                setContent(null, def.source, false)
+            }
+            computeOffset(def.source)
+        }
     }
 
     private fun breakpointPosFromSource(sourcePos: Int): Int = sourcePos - offset
 
     override fun isDirectory(): Boolean = false
 
-    override fun getPath(): String = "${def.oid}"
+    override fun getPath(): String = "${oid}"
 
     override fun getPresentableName(): String = name
 
