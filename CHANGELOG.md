@@ -30,3 +30,8 @@
 - Solve Prevent when extension is not avaible #12 (SQL issue)
 - Progress on A routine with an enum in arg fails #13
 - Fix compatibility with last DatabaseTool implementation
+
+## [1.0.1]
+### Changed
+- Ignore case when for function detection
+- Avoid JSON transformation error
