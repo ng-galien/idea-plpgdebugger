@@ -4,42 +4,28 @@
 
 package net.plpgsql.ideadebugger
 
-import com.intellij.openapi.vfs.DeprecatedVirtualFileSystem
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.openapi.vfs.ex.dummy.DummyCachingFileSystem
+import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import java.util.*
 
-const val PL_PROTOCOL = "plpgsql"
 
-class PlVFS : DeprecatedVirtualFileSystem() {
-
-    private val fileRegistry = mutableMapOf<String, PlFile>()
-
-    fun register(file: PlFile): PlFile {
-        fileRegistry[file.path] = file
-        return file
-    }
-
-    fun remove(oid: Long) {
-        fileRegistry.remove("$oid")
-    }
-
-    fun all(): List<PlFile> = fileRegistry.values.toList()
-
-    fun count() = fileRegistry.size
-
-    override fun getProtocol(): String = PL_PROTOCOL
-
-    override fun findFileByPath(path: String): VirtualFile? = fileRegistry[path]
-
-    override fun refresh(asynchronous: Boolean) {}
-
-    override fun refreshAndFindFileByPath(path: String): VirtualFile? = findFileByPath(path)
-
-    override fun isReadOnly(): Boolean = false
+class PlVFS : DummyCachingFileSystem<PlFile>(PROTOCOL) {
 
     companion object {
-        fun getInstance(): PlVFS =
-            Objects.requireNonNull(VirtualFileManager.getInstance().getFileSystem(PL_PROTOCOL)) as PlVFS
+        const val PROTOCOL: String = "plpgsql"
+        const val PROTOCOL_PREFIX: String = "$PROTOCOL://"
+        private val INSTANCE = Objects.requireNonNull(VirtualFileManager.getInstance().getFileSystem(PROTOCOL)) as PlVFS
+        fun getInstance(): PlVFS = INSTANCE
     }
+
+    override fun findFileByPathInner(path: String): PlFile? = findFileByPath(path)
+
+    fun refresh(frame: PlStackFrame) {
+        val file = findFileByPath("${frame.oid}")
+        if (file is PlSessionSource) {
+            file.updateFrame(frame)
+        }
+    }
+
 }

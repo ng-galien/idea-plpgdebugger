@@ -7,11 +7,16 @@ package net.plpgsql.ideadebugger
 import com.intellij.database.debugger.SqlDebugProcess
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.runWriteAction
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.xdebugger.XDebuggerManager
+import com.intellij.xdebugger.XDebuggerUtil
 import com.intellij.xdebugger.breakpoints.*
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
+import com.intellij.xdebugger.evaluation.XDebuggerEditorsProviderBase
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
+import com.intellij.xdebugger.impl.XDebuggerUtilImpl
 import kotlinx.coroutines.*
 
 class PlProcess(
@@ -42,6 +47,12 @@ class PlProcess(
                 }
 
             }
+        }
+    }
+
+    fun cleanStack(){
+        stack.frames.forEach {
+            it.plFile.unload()
         }
     }
 
@@ -84,7 +95,11 @@ class PlProcess(
         }
     }
 
-    private fun handleStackStatus(file: PlFile) {
+    private fun handleStackStatus(file: PlSessionSource) {
+        FileEditorManagerEx.getInstanceEx(controller.project).windows.forEach {
+
+        }
+
         if (file.canContinue()) {
             scope.launch()  { goToStep(SQLQuery.STEP_CONTINUE)}
         } else {
@@ -107,17 +122,16 @@ class PlProcess(
 
     }
 
-
     override fun getEditorsProvider(): XDebuggerEditorsProvider {
         return PlEditorProvider.INSTANCE
     }
 
     override fun checkCanInitBreakpoints(): Boolean {
-        return executor.ready()
+        return true
     }
 
     override fun checkCanPerformCommands(): Boolean {
-        return executor.ready()
+        return true
     }
 
     override fun getBreakpointHandlers(): Array<XBreakpointHandler<*>> {
@@ -147,7 +161,7 @@ class PlProcess(
         override fun registerBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
             breakpoint.properties?.file.let {
                 executor.setInfo("registerBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
-                if ((it as PlFile).addSourceBreakpoint(breakpoint.line)) {
+                if ((it as PlSessionSource).addSourceBreakpoint(breakpoint.line)) {
                     session.setBreakpointVerified(breakpoint)
                 }
             }
@@ -156,7 +170,7 @@ class PlProcess(
         override fun unregisterBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>, temporary: Boolean) {
             breakpoint.properties.file.let {
                 executor.setInfo("unregisterBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
-                (it as PlFile).removeSourceBreakpoint(breakpoint.line)
+                (it as PlSessionSource).removeSourceBreakpoint(breakpoint.line)
             }
         }
 

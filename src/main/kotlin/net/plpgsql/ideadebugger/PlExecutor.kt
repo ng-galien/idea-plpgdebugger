@@ -159,12 +159,11 @@ class PlExecutor(private val controller: PlController) {
         return executeQuery<PlStackFrame>(SQLQuery.GET_STACK, listOf("$session"))
     }
 
-    fun getFunctionDef(oid: Long): PlFunctionDef =
-        executeQuery<PlFunctionDef>(SQLQuery.GET_FUNCTION_DEF, listOf("$oid")).first()
-
     fun getVariables(): List<PlStackVariable> {
 
         val vars = executeQuery<PlStackVariable>(SQLQuery.GET_RAW_VARIABLES, listOf("$session"))
+
+        if (vars.isEmpty()) return vars;
 
         val query = vars.joinToString(prefix = "(", separator = "\nUNION ALL\n", postfix = ") v") {
             // Fix array type prefixed with underscore and NULL
@@ -231,7 +230,8 @@ class PlExecutor(private val controller: PlController) {
             var res: List<T>? = null
             query.runCatching {
                 res = getRowSet(query.producer as Producer<T>, query, dc) {
-                        fetch(args)
+                    initializers.add("SET CLIENT_ENCODING TO 'UTF8'")
+                    fetch(args)
                 }
             }.onFailure {
                 setError("Query failed executed: query=${query.name}, args=$args", it)
@@ -283,6 +283,20 @@ class PlExecutor(private val controller: PlController) {
         addMessage(Message(severity = Severity.INFO, content = msg, type = type))
     }
 
+    fun setDebug(msg: String, type: ConsoleViewContentType = ConsoleViewContentType.LOG_DEBUG_OUTPUT) {
+        addMessage(Message(severity = Severity.INFO, content = msg, type = type))
+    }
+
+    fun setWarning(msg: String) {
+        addMessage(
+            Message(
+                severity = Severity.WARNING,
+                content = msg,
+                type = ConsoleViewContentType.LOG_WARNING_OUTPUT
+            )
+        )
+    }
+
     private fun displayInfo() {
         if (controller.windowLister.hasShown
             && controller.xSession.consoleView != null
@@ -311,15 +325,7 @@ class PlExecutor(private val controller: PlController) {
         }
     }
 
-    fun setWarning(msg: String) {
-        addMessage(
-            Message(
-                severity = Severity.WARNING,
-                content = msg,
-                type = ConsoleViewContentType.LOG_WARNING_OUTPUT
-            )
-        )
-    }
+
 
     private fun addMessage(msg: Message) {
         lastMessage = msg
@@ -363,9 +369,9 @@ class PlExecutor(private val controller: PlController) {
         producer: Producer<T>,
         query: SQLQuery,
         connection: DatabaseConnection,
-        builder: RowSet<T>.() -> Unit
+        builder: DBRowSet<T>.() -> Unit
     ): List<T> =
-        DBRowSet(producer, query, connection, null).apply(builder).values
+        DBRowSet(producer, query, connection).apply(builder).values
 
 
     enum class Severity(val display: String) {

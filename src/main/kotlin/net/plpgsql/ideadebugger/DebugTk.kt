@@ -11,9 +11,21 @@ import com.intellij.sql.dialects.postgres.PgDialect
 import com.intellij.sql.psi.SqlExpressionList
 import com.intellij.sql.psi.SqlFunctionCallExpression
 import com.intellij.sql.psi.SqlIdentifier
+import java.nio.charset.Charset
+import java.security.MessageDigest
 
 
 fun getPlLanguage(): Language = PgDialect.INSTANCE
+
+fun md5(data: String): String {
+    val digest = MessageDigest.getInstance("MD5")
+    val encodedHash = digest.digest(data.toByteArray(Charsets.UTF_8))
+    val sb: StringBuilder = StringBuilder(encodedHash.size * 2)
+    encodedHash.forEach {
+        sb.append( String.format("%02x", it) )
+    }
+    return sb.toString()
+}
 
 fun plNull(value: String) = (value.uppercase() == "NULL")
 

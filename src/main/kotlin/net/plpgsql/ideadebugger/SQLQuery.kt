@@ -4,7 +4,11 @@
 
 package net.plpgsql.ideadebugger
 
+/**
+ *
+ */
 enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boolean = true) {
+
     RAW_BOOL(
         "%s",
         Producer<Any> { PlBoolean(it.bool()) }),
@@ -59,14 +63,28 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
         Producer<Any> { PlBoolean(it.bool()) }),
 
     GET_STACK(
-        "pldbg_get_stack(%s)",
+        """
+        SELECT 
+            frame.level,
+             frame.func,
+             frame.linenumber,
+             t_namespace.nspname,
+             t_proc.proname,
+             pg_catalog.pg_get_functiondef(frame.func) as source
+        FROM pldbg_get_stack(%s) frame
+               JOIN pg_proc t_proc
+                    ON t_proc.oid = frame.func
+               JOIN pg_namespace t_namespace 
+                   ON t_proc.pronamespace = t_namespace.oid;
+        """.trimIndent(),
         Producer<Any> {
             PlStackFrame(
-                it.int(),
-                it.string(),
-                it.long(),
-                it.int(),
-                it.string()
+                it.int(), // Level
+                it.long(), // Oid
+                it.int(), // line
+                it.string(), // schema
+                it.string(), // name
+                "${it.string().removeSuffix("\n")};" // source
             )
         }
     ),
@@ -174,27 +192,6 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
         }, false
     ),
 
-    GET_FUNCTION_DEF(
-        """
-        SELECT t_proc.oid,
-        t_namespace.nspname,
-        t_proc.proname,
-        pg_catalog.pg_get_functiondef(t_proc.oid),
-        sha512(pg_catalog.pg_get_functiondef(t_proc.oid)::bytea)
-            FROM pg_proc t_proc
-                  JOIN pg_namespace t_namespace on t_proc.pronamespace = t_namespace.oid
-            WHERE t_proc.oid = %s;
-        """, Producer<Any> {
-            PlFunctionDef(
-                it.long(),
-                it.string(),
-                it.string(),
-                it.string(),
-                it.string()
-            )
-        }, false
-    ),
-
     EXPLODE("%s", Producer<Any> {
         PlValue(
             it.long(),
@@ -287,6 +284,7 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
 
 /**
  *
+ *@param query
  */
 fun sanitizeQuery(query: SQLQuery): String {
     var res = query.sql.trimIndent().replace(";", "")

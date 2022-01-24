@@ -13,7 +13,6 @@ import com.intellij.database.datagrid.DataRequest
 import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.util.SearchPath
 import com.intellij.openapi.application.runInEdt
-import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
@@ -52,7 +51,7 @@ class PlController(
     }
 
     override fun getReady() {
-        println("controller: getReady")
+        executor.setDebug("Controller: getReady")
         executor.checkExtension()
         if (executor.interrupted()) {
             return
@@ -77,7 +76,7 @@ class PlController(
     }
 
     override fun initRemote(connection: DatabaseConnection) {
-        println("controller: initRemote")
+        executor.setDebug("Controller: initRemote")
         executor.startDebug(connection)
         if (!executor.interrupted()) {
             ownerEx.messageBus.addAuditor(auditor)
@@ -86,17 +85,14 @@ class PlController(
     }
 
     override fun debugBegin() {
-        println("controller: debugBegin")
+        executor.setDebug("Controller: debugBegin")
     }
 
 
     override fun debugEnd() {
         println("controller: debugEnd")
+        plProcess.cleanStack()
         busConnection.disconnect()
-        runReadAction {
-            val vfs = PlVFS.getInstance()
-            vfs.all().forEach { it.unload() }
-        }
     }
 
     override fun close() {

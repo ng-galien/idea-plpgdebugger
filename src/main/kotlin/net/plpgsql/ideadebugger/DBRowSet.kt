@@ -67,10 +67,16 @@ class DBRowSet<R>(
     producer: Producer<R>,
     cmd: SQLQuery,
     private var connection: DatabaseConnection,
-    private var xSession: XDebugSession?
     ) : AbstractRowSet<R>(producer, sanitizeQuery(cmd)) {
 
+    var initializers = mutableListOf<String>()
+
     override fun open(): RowIterator<R>? {
+        initializers.forEach {
+            val statement = connection.remoteConnection.createStatement()
+            statement.execute(it)
+            statement.close()
+        }
         val query = String.format("SELECT * FROM %s;", path)
         return DBIterator(producer = producer, connection, query)
     }

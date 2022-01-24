@@ -17,13 +17,14 @@ import javax.swing.Icon
  */
 class XStack(process: PlProcess) : XExecutionStack("") {
 
-    private val frames = mutableListOf<XFrame>()
+    internal val frames = mutableListOf<XFrame>()
     private val variableRegistry = mutableMapOf<Long, List<PlStackVariable>>()
 
     val executor: PlExecutor = process.controller.executor
+    val project = process.controller.project
+    val rootDir = PlVFS.getInstance().createRoot("root");
+
     lateinit var currentStep: PlStep
-
-
 
     override fun getTopFrame(): XStackFrame? {
         return frames.firstOrNull()
@@ -33,7 +34,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
         container?.addStackFrames(frames.subList(firstFrameIndex, frames.size), true)
     }
 
-    fun updateRemote(step: PlStep): PlFile {
+    fun updateRemote(step: PlStep): PlSessionSource {
 
         currentStep = step
         frames.clear()
@@ -47,24 +48,24 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             val topFrame = plStacks.first()
             currentStep = PlStep(topFrame.oid, topFrame.line)
         }
-        plStacks.forEach {
-            frames.add(XFrame(it, getRemoteFunction(it.oid, it.line)))
-        }
+
+
+            plStacks.forEach {
+                frames.add(XFrame(it, getRemoteFunction(it)))
+            }
+
 
         return frames.first().plFile
     }
 
-    private fun getRemoteFunction(oid: Long, pos: Int): PlFile {
-        val funDef = executor.getFunctionDef(oid)
-        val file = PlVFS.getInstance().findFileByPath("$oid")
-        return if (file is PlFile) {
-            if (funDef.hash != file.hash) {
-                file.updateSource(funDef)
-            }
+    private fun getRemoteFunction(frame: PlStackFrame): PlSessionSource {
+        val file = PlVFS.getInstance().findFileByPath("${frame.oid}")
+        return if (file is PlSessionSource) {
+            file.refresh(false, false)
             file
         } else {
-            PlVFS.getInstance().register(PlFile(funDef, this))
-        }.updateStack(this, pos)
+            PlVFS.getInstance().createChildFile(null)
+        }.updateFrame(this, frame)
     }
 
 
@@ -74,7 +75,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
         VALUE("Values", DatabaseIcons.Table)
     }
 
-    inner class XFrame(private val frame: PlStackFrame, val plFile: PlFile) :
+    inner class XFrame(private val frame: PlStackFrame, val plFile: PlSessionSource) :
         XStackFrame() {
 
         override fun getEvaluator(): XDebuggerEvaluator? {
@@ -118,7 +119,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     'b',
                     false,
                     "",
-                    frame.target
+                    "${frame.schema}.${frame.name}"
                 )
             ),
             PlStackVariable(
