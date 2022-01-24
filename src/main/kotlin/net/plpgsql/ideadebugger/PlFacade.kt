@@ -7,11 +7,16 @@ import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.debugger.SqlDebuggerFacade
 import com.intellij.database.model.basic.BasicSourceAware
 import com.intellij.database.util.SearchPath
+import com.intellij.database.vfs.DatabaseElementVirtualFileDataSourceProvider
+import com.intellij.database.vfs.DatabaseElementVirtualFileImpl
+import com.intellij.database.vfs.DatabaseElementVirtualFileUtils
+import com.intellij.database.vfs.DatabaseVirtualFileSystem
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.psi.SqlFunctionCallExpression
+import com.intellij.sql.psi.SqlReferenceExpression
 import com.intellij.sql.psi.SqlSelectStatement
 import com.intellij.sql.psi.SqlStatement
 
@@ -51,6 +56,14 @@ class PlFacade : SqlDebuggerFacade {
         rangeMarker: RangeMarker?,
         searchPath: SearchPath?,
     ): SqlDebugController {
+        val ref = PsiTreeUtil
+            .findChildrenOfAnyType(call, SqlReferenceExpression::class.java)
+            .firstOrNull()
+        if(ref!=null) {
+            val vfs = DatabaseVirtualFileSystem.getDatabaseFileSystem()
+            val file = ref.containingFile as DatabaseElementVirtualFileImpl
+
+        }
         return PlController(
             facade = this,
             project = project,

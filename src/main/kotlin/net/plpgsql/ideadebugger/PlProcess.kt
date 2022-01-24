@@ -38,7 +38,7 @@ class PlProcess(
     init {
         val manager = XDebuggerManager.getInstance(session.project).breakpointManager
         //manager.addBreakpointListener(PlLineBreakpointType.INSTANCE, breakPointHandler)
-        if (PlVFS.getInstance().count() == 0) {
+        /*if (PlVFS.getInstance().count() == 0) {
             runWriteAction {
                 manager.allBreakpoints.filter {
                     it.type is PlLineBreakpointType
@@ -47,7 +47,7 @@ class PlProcess(
                 }
 
             }
-        }
+        }*/
     }
 
     fun cleanStack(){
