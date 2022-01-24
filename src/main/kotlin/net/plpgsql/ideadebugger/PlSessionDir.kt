@@ -13,7 +13,7 @@ class PlSessionDir(private var session: Int):  PlFile() {
 
     override fun getName(): String = "$session"
 
-    override fun getPath(): String = "${PlVFS.PROTOCOL_PREFIX}$name"
+    override fun getPath(): String = "${PlVirtualFileSystem.PROTOCOL_PREFIX}$name"
 
     override fun isWritable(): Boolean = true
 

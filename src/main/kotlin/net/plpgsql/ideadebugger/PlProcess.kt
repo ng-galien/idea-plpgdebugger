@@ -6,17 +6,12 @@ package net.plpgsql.ideadebugger
 
 import com.intellij.database.debugger.SqlDebugProcess
 import com.intellij.openapi.application.EDT
-import com.intellij.openapi.application.runWriteAction
-import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.xdebugger.XDebuggerManager
-import com.intellij.xdebugger.XDebuggerUtil
 import com.intellij.xdebugger.breakpoints.*
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
-import com.intellij.xdebugger.evaluation.XDebuggerEditorsProviderBase
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
-import com.intellij.xdebugger.impl.XDebuggerUtilImpl
 import kotlinx.coroutines.*
 
 class PlProcess(
@@ -24,9 +19,9 @@ class PlProcess(
 ) : SqlDebugProcess(controller.xSession) {
 
     private val context = XContext()
-    private val fakeStep = PlStep(-1, 0)
+    private val fakeStep = PlApiStep(-1, 0, "")
     private val executor = controller.executor
-    private var step: PlStep = fakeStep
+    private var step: PlApiStep = fakeStep
     private var stack: XStack = XStack(this)
     private var breakPointHandler = BreakPointHandler()
     private val handler = CoroutineExceptionHandler { _, exception ->
@@ -50,42 +45,36 @@ class PlProcess(
         }*/
     }
 
-    fun cleanStack(){
-        stack.frames.forEach {
-            it.plFile.unload()
-        }
-    }
-
     override fun startStepOver(context: XSuspendContext?) {
         executor.setInfo("User request: startStepOver")
-        scope.launch() { goToStep(SQLQuery.STEP_OVER)}
+        scope.launch() { goToStep(ApiQuery.STEP_OVER)}
 
     }
 
     override fun startStepInto(context: XSuspendContext?) {
         executor.setInfo("User request: startStepInto")
-        scope.launch()  { goToStep(SQLQuery.STEP_INTO)}
+        scope.launch()  { goToStep(ApiQuery.STEP_INTO)}
     }
 
     override fun resume(context: XSuspendContext?) {
         executor.setInfo("User request: resume")
-        scope.launch()  { goToStep(SQLQuery.STEP_CONTINUE)}
+        scope.launch()  { goToStep(ApiQuery.STEP_CONTINUE)}
     }
 
     fun startDebug() {
         executor.setInfo("From auxiliary request: startDebug")
-        handleStackStatus(stack.updateRemote(step))
+        updateStack()
     }
 
     override fun startForceStepInto(context: XSuspendContext?) {
         executor.setInfo("User request mot supported: use startStepInto")
-        scope.launch()  { goToStep(SQLQuery.STEP_INTO) }
+        scope.launch()  { goToStep(ApiQuery.STEP_INTO) }
 
     }
 
     override fun startStepOut(context: XSuspendContext?) {
         executor.setInfo("User request mot supported: use resume")
-        scope.launch()  { goToStep(SQLQuery.STEP_CONTINUE)}
+        scope.launch()  { goToStep(ApiQuery.STEP_CONTINUE)}
     }
 
     override fun stop() {
@@ -95,31 +84,35 @@ class PlProcess(
         }
     }
 
-    private fun handleStackStatus(file: PlSessionSource) {
-        FileEditorManagerEx.getInstanceEx(controller.project).windows.forEach {
-
-        }
-
-        if (file.canContinue()) {
-            scope.launch()  { goToStep(SQLQuery.STEP_CONTINUE)}
-        } else {
-            if (file.isOnBreakpoint()) {
-                session.positionReached(context)
-            } else {
-                session.positionReached(context)
+    private fun updateStack() {
+        stack.clear()
+        val stacks = executor.getStack()
+        stacks.forEach {
+            var existing = PlVirtualFileSystem.getInstance().findFileByPath("${it.oid}")
+            if (existing == null || existing.md5 != step.md5) {
+                controller.reloadFile(existing)
+                val def = executor.getFunctionDef(step.oid)
+                existing = PlVirtualFileSystem.getInstance().registerNewDefinition(
+                    PlFunctionSource(session.project, def)
+                )
             }
+            stack.append(it, existing)
         }
+        stack.topFrame?.let {
+
+        }
+        session.positionReached(context)
     }
 
 
-    private suspend fun goToStep(cmd: SQLQuery) = coroutineScope {
-        withTimeout(1000) {
-            step = executor.runStep(cmd) ?: fakeStep
-            if (!executor.interrupted) {
-                handleStackStatus(stack.updateRemote(step))
-            }
+    private suspend fun goToStep(cmd: ApiQuery) = coroutineScope {
+        val step = withTimeout(1000) {
+            executor.runStep(cmd) ?: fakeStep
         }
-
+        if (step.oid < 0L) {
+            return@coroutineScope
+        }
+        updateStack()
     }
 
     override fun getEditorsProvider(): XDebuggerEditorsProvider {
@@ -162,7 +155,7 @@ class PlProcess(
             breakpoint.properties?.file.let {
                 executor.setInfo("registerBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
                 if ((it as PlSessionSource).addSourceBreakpoint(breakpoint.line)) {
-                    session.setBreakpointVerified(breakpoint)
+                    //session.setBreakpointVerified(breakpoint)
                 }
             }
         }

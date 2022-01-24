@@ -14,6 +14,7 @@ import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.util.SearchPath
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.editor.RangeMarker
+import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
@@ -50,6 +51,20 @@ class PlController(
         busConnection.subscribe(ToolWindowManagerListener.TOPIC, windowLister)
     }
 
+    fun reloadFile(file: PlFunctionSource?) {
+        if (file == null) {
+            return
+        }
+        runInEdt {
+            val editorManager = FileEditorManagerEx.getInstanceEx(project)
+            editorManager.closeFile(file)
+            val refreshed = PlVirtualFileSystem.getInstance().findFileByPath(file.path)
+            if (refreshed != null) {
+                editorManager.openFile(refreshed, true)
+            }
+        }
+    }
+
     override fun getReady() {
         executor.setDebug("Controller: getReady")
         executor.checkExtension()
@@ -68,6 +83,7 @@ class PlController(
             executor.interrupted()
         }
     }
+
 
     override fun initLocal(session: XDebugSession): XDebugProcess {
         xSession = session
@@ -91,7 +107,6 @@ class PlController(
 
     override fun debugEnd() {
         println("controller: debugEnd")
-        plProcess.cleanStack()
         busConnection.disconnect()
     }
 

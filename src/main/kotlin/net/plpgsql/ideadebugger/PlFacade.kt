@@ -56,14 +56,6 @@ class PlFacade : SqlDebuggerFacade {
         rangeMarker: RangeMarker?,
         searchPath: SearchPath?,
     ): SqlDebugController {
-        val ref = PsiTreeUtil
-            .findChildrenOfAnyType(call, SqlReferenceExpression::class.java)
-            .firstOrNull()
-        if(ref!=null) {
-            val vfs = DatabaseVirtualFileSystem.getDatabaseFileSystem()
-            val file = ref.containingFile as DatabaseElementVirtualFileImpl
-
-        }
         return PlController(
             facade = this,
             project = project,

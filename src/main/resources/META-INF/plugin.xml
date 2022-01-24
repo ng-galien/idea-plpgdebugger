@@ -10,6 +10,6 @@
     </extensions>
     <extensions defaultExtensionNs="com.intellij">
         <xdebugger.breakpointType implementation="net.plpgsql.ideadebugger.PlLineBreakpointType"/>
-        <virtualFileSystem key="plpgsql"  implementationClass="net.plpgsql.ideadebugger.PlVFS"/>
+        <virtualFileSystem key="plpgsql"  implementationClass="net.plpgsql.ideadebugger.PlVirtualFileSystem"/>
     </extensions>
 </idea-plugin>

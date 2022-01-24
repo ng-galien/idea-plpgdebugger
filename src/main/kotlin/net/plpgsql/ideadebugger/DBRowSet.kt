@@ -5,7 +5,6 @@
 package net.plpgsql.ideadebugger
 
 import com.intellij.database.dataSource.DatabaseConnection
-import com.intellij.xdebugger.XDebugSession
 import java.util.*
 
 /**
@@ -65,7 +64,7 @@ class DBIterator<R>(producer: Producer<R>,
  */
 class DBRowSet<R>(
     producer: Producer<R>,
-    cmd: SQLQuery,
+    cmd: ApiQuery,
     private var connection: DatabaseConnection,
     ) : AbstractRowSet<R>(producer, sanitizeQuery(cmd)) {
 

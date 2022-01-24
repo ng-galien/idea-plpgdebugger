@@ -6,7 +6,6 @@ package net.plpgsql.ideadebugger
 
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.openapi.vfs.VirtualFileSystem
 import com.intellij.sql.SqlFileType
 import com.intellij.util.FileContentUtilCore
 import com.intellij.xdebugger.XDebuggerUtil
@@ -27,7 +26,7 @@ A PlFile represents a database procedure
 @properties the stack which owns this definition
  */
 class PlSessionSource(
-    def: PlStackFrame
+    def: PlApiStackFrame
 ) : PlFile() {
 
     private var stack: XStack? = null
@@ -37,10 +36,8 @@ class PlSessionSource(
         private set
     var stackPos: Int = 0
     private var offset: Int by Delegates.notNull()
-    private var source: String = def.source
+
     private var oid: Long = def.oid
-    private var func_schema: String = def.schema
-    private var func_name: String = def.name
 
     init {
         computeOffset()
@@ -52,13 +49,13 @@ class PlSessionSource(
             firstPos = stackPos
             //Remove all breakpoints
             stack!!.executor.getBreakPoints().forEach {
-                updateBreakPoint(SQLQuery.DROP_BREAKPOINT, it.line)
+                updateBreakPoint(ApiQuery.DROP_BREAKPOINT, it.line)
             }
             // Set breakpoints
             breakPoints.filter {
                 !it.value
             }.forEach {
-                updateBreakPoint(SQLQuery.ADD_BREAKPOINT, it.key)
+                updateBreakPoint(ApiQuery.ADD_BREAKPOINT, it.key)
                 breakPoints[it.key] = true
             }
             first = false
@@ -66,8 +63,8 @@ class PlSessionSource(
         return this
     }
 
-    fun updateFrame(frame: PlStackFrame): PlSessionSource {
-        source = frame.source
+    fun updateFrame(frame: PlApiStackFrame): PlSessionSource {
+        //source = frame.source
         stackPos = frame.line
         computeOffset()
         return this
@@ -75,9 +72,10 @@ class PlSessionSource(
 
     private fun computeOffset() {
         var res = 0;
+        /*
         source.split("\n").forEachIndexed { l, line ->
             if (line.lowercase().startsWith("as \$function\$")) res = l - 1
-        }
+        }*/
         offset = res;
     }
 
@@ -111,18 +109,18 @@ class PlSessionSource(
 
     fun addSourceBreakpoint(sourcePos: Int): Boolean {
         val remotePos = breakpointPosFromSource(sourcePos)
-        updateBreakPoint(SQLQuery.ADD_BREAKPOINT, remotePos)
+        updateBreakPoint(ApiQuery.ADD_BREAKPOINT, remotePos)
         breakPoints[remotePos] = stack != null
         return true
     }
 
     fun removeSourceBreakpoint(sourcePos: Int) {
         val remotePos = breakpointPosFromSource(sourcePos)
-        updateBreakPoint(SQLQuery.DROP_BREAKPOINT, remotePos)
+        updateBreakPoint(ApiQuery.DROP_BREAKPOINT, remotePos)
         breakPoints.remove(remotePos)
     }
 
-    private fun updateBreakPoint(query: SQLQuery, line: Int): Boolean {
+    private fun updateBreakPoint(query: ApiQuery, line: Int): Boolean {
         if (stack != null) {
             return stack!!.executor.updateBreakPoint(query, oid, line)
         }
@@ -140,7 +138,7 @@ class PlSessionSource(
     override fun getCharset(): Charset = Charsets.UTF_8
 
     override fun getInputStream(): InputStream {
-        return ByteArrayInputStream(source.toByteArray(charset));
+        return ByteArrayInputStream("source".toByteArray(charset));
     }
 
     override fun getOutputStream(
@@ -148,21 +146,21 @@ class PlSessionSource(
         newModificationStamp: Long,
         newTimeStamp: Long): OutputStream = OutStream()
 
-    override fun contentsToByteArray(): ByteArray = source.toByteArray(charset)
+    override fun contentsToByteArray(): ByteArray = "source".toByteArray(charset)
 
-    override fun getLength(): Long = source.length as Long
+    override fun getLength(): Long = "source".length as Long
 
     override fun refresh(asynchronous: Boolean, recursive: Boolean, postRunnable: Runnable?) {}
 
     override fun getPath(): String = "${oid}"
 
     override fun getUrl(): String {
-        return "${PlVFS.PROTOCOL_PREFIX}$name"
+        return "${PlVirtualFileSystem.PROTOCOL_PREFIX}$name"
     }
 
     override fun getPresentableName(): String = name
 
-    override fun getName(): String = "${func_schema}.${func_name}[${oid}].sql"
+    override fun getName(): String = "[${oid}].sql"
 
     override fun isWritable(): Boolean = true
 
@@ -172,7 +170,7 @@ class PlSessionSource(
 
     inner class OutStream: ByteArrayOutputStream() {
         override fun close() {
-            source = String(buf, 0, count, charset)
+            //source = String(buf, 0, count, charset)
             FileContentUtilCore.reparseFiles(this@PlSessionSource)
         }
     }

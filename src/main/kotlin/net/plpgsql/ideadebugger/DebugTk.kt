@@ -11,6 +11,7 @@ import com.intellij.sql.dialects.postgres.PgDialect
 import com.intellij.sql.psi.SqlExpressionList
 import com.intellij.sql.psi.SqlFunctionCallExpression
 import com.intellij.sql.psi.SqlIdentifier
+import com.intellij.sql.psi.SqlReferenceExpression
 import java.nio.charset.Charset
 import java.security.MessageDigest
 
@@ -31,7 +32,7 @@ fun plNull(value: String) = (value.uppercase() == "NULL")
 
 fun parseFunctionCall(callExpr: SqlFunctionCallExpression): Pair<List<String>, List<String>> {
     val (func, args) = runReadAction {
-        val func = PsiTreeUtil.findChildrenOfAnyType(callExpr, SqlIdentifier::class.java).map {
+        val func = PsiTreeUtil.findChildrenOfAnyType(callExpr, SqlReferenceExpression::class.java).map {
             it.text.trim()
         }
         val values = PsiTreeUtil.findChildOfType(

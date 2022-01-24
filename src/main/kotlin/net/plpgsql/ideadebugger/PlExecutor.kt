@@ -40,7 +40,7 @@ class PlExecutor(private val controller: PlController) {
     ).connect().get()
 
     fun checkExtension() {
-        val res = executeQuery<PlExtension>(SQLQuery.GET_EXTENSION)
+        val res = executeQuery<PlApiExtension>(ApiQuery.GET_EXTENSION)
         return when (val ext = res.find { it.name == "pldbgapi" }) {
             null -> {
                 setError("Extension not found, debugger disabled")
@@ -56,8 +56,8 @@ class PlExecutor(private val controller: PlController) {
         val schema = if (callFunc.size > 1) callFunc[0] else getDefaultSchema()
         val procedure = if (callFunc.size > 1) callFunc[1] else callFunc[0]
 
-        val functions = executeQuery<PlFunctionArg>(
-            query = SQLQuery.GET_FUNCTION_CALL_ARGS,
+        val functions = executeQuery<PlApiFunctionArg>(
+            query = ApiQuery.GET_FUNCTION_CALL_ARGS,
             args = listOf(schema, procedure),
         )
 
@@ -92,8 +92,8 @@ class PlExecutor(private val controller: PlController) {
             }
             query.let {
                 try {
-                    executeQuery<PlBoolean>(
-                        SQLQuery.RAW_BOOL,
+                    executeQuery<PlApiBoolean>(
+                        ApiQuery.RAW_BOOL,
                         listOf(schema, procedure)
                     ).firstOrNull()?.value ?: false
                 } catch (e: Exception) {
@@ -108,8 +108,8 @@ class PlExecutor(private val controller: PlController) {
     }
 
     fun startDebug(databaseConnection: DatabaseConnection) {
-        when (executeQuery<PlInt>(
-            query = SQLQuery.DEBUG_OID,
+        when (executeQuery<PlApiInt>(
+            query = ApiQuery.DEBUG_OID,
             args = listOf("$entryPoint"),
             dc = databaseConnection,
             interrupt = false
@@ -120,8 +120,8 @@ class PlExecutor(private val controller: PlController) {
     }
 
     fun attachToPort(port: Int) {
-        session = executeQuery<PlInt>(
-            query = SQLQuery.ATTACH_TO_PORT,
+        session = executeQuery<PlApiInt>(
+            query = ApiQuery.ATTACH_TO_PORT,
             args = listOf("$port"),
             interrupt = false
         ).firstOrNull()?.value ?: -1
@@ -133,17 +133,17 @@ class PlExecutor(private val controller: PlController) {
 
     fun abort() {
         executeQuery<Boolean>(
-            query = SQLQuery.ABORT,
+            query = ApiQuery.ABORT,
             args = listOf("$session")
         )
         terminate()
     }
 
-    fun runStep(cmd: SQLQuery): PlStep? {
+    fun runStep(cmd: ApiQuery): PlApiStep? {
         return when (cmd) {
-            SQLQuery.STEP_OVER,
-            SQLQuery.STEP_INTO,
-            SQLQuery.STEP_CONTINUE -> executeQuery<PlStep>(
+            ApiQuery.STEP_OVER,
+            ApiQuery.STEP_INTO,
+            ApiQuery.STEP_CONTINUE -> executeQuery<PlApiStep>(
                 query = cmd,
                 args = listOf("$session"),
                 interrupt = true
@@ -155,13 +155,17 @@ class PlExecutor(private val controller: PlController) {
         }
     }
 
-    fun getStack(): List<PlStackFrame> {
-        return executeQuery<PlStackFrame>(SQLQuery.GET_STACK, listOf("$session"))
+    fun getStack(): List<PlApiStackFrame> {
+        return executeQuery<PlApiStackFrame>(ApiQuery.GET_STACK, listOf("$session"))
     }
 
-    fun getVariables(): List<PlStackVariable> {
+    fun getFunctionDef(oid: Long): PlApiFunctionDef =
+        executeQuery<PlApiFunctionDef>(ApiQuery.GET_FUNCTION_DEF, listOf("$oid")).first()
 
-        val vars = executeQuery<PlStackVariable>(SQLQuery.GET_RAW_VARIABLES, listOf("$session"))
+
+    fun getVariables(): List<PlApiStackVariable> {
+
+        val vars = executeQuery<PlApiStackVariable>(ApiQuery.GET_RAW_VARIABLES, listOf("$session"))
 
         if (vars.isEmpty()) return vars;
 
@@ -179,36 +183,36 @@ class PlExecutor(private val controller: PlController) {
             "SELECT ${it.isArg},${it.line},${it.value.oid},'${it.value.name}','$realType','${it.value.kind}',${it.value.isArray},'${it.value.arrayType}',$realValue"
 
         }
-        return executeQuery<PlStackVariable>(SQLQuery.GET_JSON_VARIABLES, listOf(query))
+        return executeQuery<PlApiStackVariable>(ApiQuery.GET_JSON_VARIABLES, listOf(query))
     }
 
-    fun explode(value: PlValue): List<PlValue> {
+    fun explode(value: PlAiValue): List<PlAiValue> {
         if (!value.isArray && value.kind != 'c') {
             throw IllegalArgumentException("Explode not supported for: $value")
         }
         val query = if (value.isArray) String.format(
-            SQLQuery.EXPLODE_ARRAY.sql,
+            ApiQuery.EXPLODE_ARRAY.sql,
             value.name,
             value.value.replace("'", "''"),
             "${value.oid}"
         ) else String.format(
-            SQLQuery.EXPLODE_COMPOSITE.sql,
+            ApiQuery.EXPLODE_COMPOSITE.sql,
             value.value.replace("'", "''"),
             "${value.oid}"
         )
-        return executeQuery<PlValue>(SQLQuery.EXPLODE, listOf(query))
+        return executeQuery<PlAiValue>(ApiQuery.EXPLODE, listOf(query))
     }
 
-    fun getBreakPoints(): List<PlStep> = executeQuery<PlStep>(
-        SQLQuery.LIST_BREAKPOINT,
+    fun getBreakPoints(): List<PlApiStep> = executeQuery<PlApiStep>(
+        ApiQuery.LIST_BREAKPOINT,
         listOf("$session")
     )
 
-    fun updateBreakPoint(cmd: SQLQuery, oid: Long, line: Int): Boolean {
+    fun updateBreakPoint(cmd: ApiQuery, oid: Long, line: Int): Boolean {
         //TODO manage failure
         return when (cmd) {
-            SQLQuery.ADD_BREAKPOINT,
-            SQLQuery.DROP_BREAKPOINT -> executeQuery<PlBoolean>(
+            ApiQuery.ADD_BREAKPOINT,
+            ApiQuery.DROP_BREAKPOINT -> executeQuery<PlApiBoolean>(
                 cmd,
                 listOf("$session", "$oid", "$line")
             ).firstOrNull()?.value ?: false
@@ -221,7 +225,7 @@ class PlExecutor(private val controller: PlController) {
 
     @Suppress("UNCHECKED_CAST")
     fun <T>executeQuery(
-        query: SQLQuery,
+        query: ApiQuery,
         args: List<String> = listOf(),
         dc: DatabaseConnection = connection,
         interrupt: Boolean = true
@@ -367,7 +371,7 @@ class PlExecutor(private val controller: PlController) {
 
     private inline fun <T> getRowSet(
         producer: Producer<T>,
-        query: SQLQuery,
+        query: ApiQuery,
         connection: DatabaseConnection,
         builder: DBRowSet<T>.() -> Unit
     ): List<T> =
