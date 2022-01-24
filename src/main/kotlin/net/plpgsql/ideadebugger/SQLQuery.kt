@@ -155,8 +155,8 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                     FROM pg_proc t_proc
                              JOIN pg_namespace t_namespace
                                   ON t_proc.pronamespace = t_namespace.oid
-                    WHERE t_namespace.nspname LIKE '%s'
-                      AND t_proc.proname LIKE '%s'
+                    WHERE lower(t_namespace.nspname) = lower('%s')
+                      AND lower(t_proc.proname) = lower('%s')
                     ORDER BY t_proc.oid) t_proc1,
                    generate_series(1, t_proc1.serial) idx) t_proc2
                  LEFT JOIN pg_type t_type
@@ -291,5 +291,5 @@ fun sanitizeQuery(query: SQLQuery): String {
     if (res.lowercase().startsWith("select")) {
         res = String.format("(%s)q", res)
     }
-    return res;
+    return res
 }

@@ -165,7 +165,9 @@ class PlExecutor(private val controller: PlController) {
     fun getVariables(): List<PlStackVariable> {
 
         val vars = executeQuery<PlStackVariable>(SQLQuery.GET_RAW_VARIABLES, listOf("$session"))
-
+        if (vars.isEmpty()) {
+            return vars
+        }
         val query = vars.joinToString(prefix = "(", separator = "\nUNION ALL\n", postfix = ") v") {
             // Fix array type prefixed with underscore and NULL
             val realType = if (it.value.isArray) "${it.value.type.substring(1)}[]" else it.value.type
