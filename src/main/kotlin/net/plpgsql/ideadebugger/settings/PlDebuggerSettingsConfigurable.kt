@@ -6,7 +6,6 @@ package net.plpgsql.ideadebugger.settings
 
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.DialogPanel
-import com.intellij.openapi.util.Disposer
 import com.intellij.ui.dsl.builder.bindIntText
 import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.panel
@@ -73,8 +72,6 @@ class PlDebuggerSettingsConfigurable : Configurable {
                     .bindSelected(data::showDebug)
             }
         }
-        val disposable = Disposer.newDisposable()
-        res.registerValidators(disposable)
         return res
     }
 
