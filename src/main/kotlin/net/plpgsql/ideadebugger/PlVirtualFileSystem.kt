@@ -4,9 +4,12 @@
 
 package net.plpgsql.ideadebugger
 
+import com.intellij.openapi.application.runInEdt
+import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.ex.dummy.DummyCachingFileSystem
+import com.intellij.testFramework.runInEdtAndGet
 import java.util.*
 
 
@@ -31,7 +34,11 @@ class PlVirtualFileSystem : DummyCachingFileSystem<PlFunctionSource>(PROTOCOL) {
     }
 
     fun registerNewDefinition(file: PlFunctionSource): PlFunctionSource {
-        fileRenamed(file, null, "", file.name)
+        runInEdt {
+            runWriteAction {
+                fileRenamed(file, null, "", file.name)
+            }
+        }
         return file
     }
 

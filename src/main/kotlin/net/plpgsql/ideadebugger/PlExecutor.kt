@@ -260,7 +260,7 @@ class PlExecutor(private val controller: PlController) {
 
 
     fun ready(): Boolean{
-        return (entryPoint != 0L && session != 0)
+        return (session != 0)
     }
 
     fun setError(msg: String, thw: Throwable? = null) {

@@ -70,8 +70,9 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
         """
         SELECT 
             frame.level,
-             frame.func,
-             frame.linenumber
+            frame.func,
+            frame.linenumber,
+            md5(pg_catalog.pg_get_functiondef(frame.func))
         FROM pldbg_get_stack(%s) frame;
         """.trimIndent(),
         Producer<Any> {
@@ -79,6 +80,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                 it.int(), // Level
                 it.long(), // Oid
                 it.int(),
+                it.string(),
             )
         }
     ),
@@ -188,14 +190,14 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
 
     GET_FUNCTION_DEF(
         """
-        (SELECT t_proc.oid,
+        SELECT t_proc.oid,
                t_namespace.nspname,
                t_proc.proname,
                pg_catalog.pg_get_functiondef(t_proc.oid),
                md5(pg_catalog.pg_get_functiondef(t_proc.oid))
         FROM pg_proc t_proc
                  JOIN pg_namespace t_namespace on t_proc.pronamespace = t_namespace.oid
-        WHERE t_proc.oid = %s) f
+        WHERE t_proc.oid = %s;
         """, Producer<Any> {
             PlApiFunctionDef(
                 it.long(),

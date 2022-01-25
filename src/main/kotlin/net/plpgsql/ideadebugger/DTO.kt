@@ -14,7 +14,7 @@ data class PlApiString(val value: String)
 
 data class PlApiStep(val oid: Long, val line: Int, val md5: String)
 
-data class PlApiStackFrame(val level: Int, val oid: Long, val line: Int)
+data class PlApiStackFrame(val level: Int, val oid: Long, val line: Int, val md5: String)
 
 data class PlAiValue(
     val oid: Long,

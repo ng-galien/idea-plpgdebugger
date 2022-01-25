@@ -13,12 +13,27 @@ import com.intellij.database.datagrid.DataRequest
 import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.util.SearchPath
 import com.intellij.openapi.application.runInEdt
+import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.application.runWriteAction
+import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.RangeMarker
+import com.intellij.openapi.editor.event.DocumentEvent
+import com.intellij.openapi.editor.event.DocumentListener
 import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.openapi.vfs.VirtualFileManager
+import com.intellij.openapi.vfs.newvfs.BulkFileListener
+import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
+import com.intellij.psi.PsiDocumentListener
+import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiManager
+import com.intellij.psi.util.PsiModificationTracker
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.sql.psi.SqlBlockStatement
 import com.intellij.sql.psi.SqlFunctionCallExpression
 import com.intellij.ui.content.Content
 import com.intellij.xdebugger.XDebugProcess
@@ -38,6 +53,7 @@ class PlController(
 
     private val auditor = QueryAuditor()
     private val consumer = QueryConsumer()
+    private val psiListener = PsiListener()
     private val pattern = Pattern.compile(".*PLDBGBREAK:([0-9]+).*")
     private lateinit var plProcess: PlProcess
     lateinit var xSession: XDebugSession
@@ -51,16 +67,30 @@ class PlController(
         busConnection.subscribe(ToolWindowManagerListener.TOPIC, windowLister)
     }
 
-    fun reloadFile(file: PlFunctionSource?) {
+    fun closeFile(file: PlFunctionSource?) {
         if (file == null) {
             return
         }
         runInEdt {
             val editorManager = FileEditorManagerEx.getInstanceEx(project)
             editorManager.closeFile(file)
-            val refreshed = PlVirtualFileSystem.getInstance().findFileByPath(file.path)
-            if (refreshed != null) {
-                editorManager.openFile(refreshed, true)
+        }
+    }
+
+    fun checkFile(file: PlFunctionSource?) {
+        file?.let { source ->
+            runReadAction {
+                PsiManager.getInstance(project).findFile(source)?.let { psi ->
+                    PsiDocumentManager.getInstance(project).getDocument(psi)?.let { doc ->
+                        if (doc.text != source.content) {
+                            runInEdt {
+                                runWriteAction {
+                                    doc.setText(source.content)
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -119,7 +149,7 @@ class PlController(
     inner class QueryAuditor : DataAuditors.Adapter() {
 
         override fun warn(context: DataRequest.Context, info: WarningInfo) {
-            println("QueryAuditor: warn")
+            executor.setWarning("[CALLER]: ${info.message}")
             if (!executor.hasError() && context.request.owner == ownerEx) {
                 val matcher = pattern.matcher(info.message)
                 if (matcher.matches()) {
@@ -146,6 +176,31 @@ class PlController(
             }
         }
 
+    }
+
+    inner class PsiListener: PsiDocumentListener {
+        override fun documentCreated(document: Document, psiFile: PsiFile?, project: Project) {
+            println("documentCreated ${psiFile?.name}")
+        }
+
+        override fun fileCreated(file: PsiFile, document: Document) {
+            println("fileCreated ${file.name}")
+            document.addDocumentListener(DocListener())
+        }
+    }
+
+    inner class DocListener: DocumentListener {
+        override fun documentChanged(event: DocumentEvent) {
+            println("documentChanged $event")
+        }
+
+        override fun bulkUpdateStarting(document: Document) {
+            println("documentChanged $document")
+        }
+
+        override fun bulkUpdateFinished(document: Document) {
+            println("bulkUpdateFinished $document")
+        }
     }
 
     inner class ToolListener : ToolWindowManagerListener {

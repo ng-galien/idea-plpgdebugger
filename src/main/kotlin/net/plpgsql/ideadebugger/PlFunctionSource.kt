@@ -21,18 +21,18 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
     def.source
 ) {
 
-    private val oid: Long = def.oid
+    val oid: Long = def.oid
     val md5 = def.md5
-    private var start = 0
-    private var end = 0
+    var start: Int = 0
+    var end: Int = 0
 
     init {
         runReadAction {
             PsiManager.getInstance(project).findFile(this)?.let { psi ->
                 PsiTreeUtil.findChildOfType(psi, SqlBlockStatement::class.java)?.let { block ->
                     PsiDocumentManager.getInstance(psi.project).getDocument(psi)?.let { doc ->
-                        start = doc.getLineNumber(block.textRangeInParent.startOffset) + 1
-                        end = doc.getLineNumber(block.textRangeInParent.endOffset) + 1
+                        start = doc.getLineNumber(block.textOffset) - 2
+                        end = doc.getLineNumber(block.textOffset + block.textLength) - 2
                     }
                 }
             }

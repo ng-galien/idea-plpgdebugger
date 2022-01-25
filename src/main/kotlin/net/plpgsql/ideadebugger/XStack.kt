@@ -48,7 +48,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
         VALUE("Values", DatabaseIcons.Table)
     }
 
-    inner class XFrame(private val frame: PlApiStackFrame, private val file: PlFunctionSource) :
+    inner class XFrame(val frame: PlApiStackFrame, val file: PlFunctionSource) :
         XStackFrame() {
 
         private val oid: Long
@@ -59,7 +59,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
         }
 
         override fun getSourcePosition(): XSourcePosition? {
-            return XDebuggerUtil.getInstance().createPosition(file, frame.line)
+            return XDebuggerUtil.getInstance().createPosition(file, frame.line + file.start)
         }
 
         override fun computeChildren(node: XCompositeNode) {
