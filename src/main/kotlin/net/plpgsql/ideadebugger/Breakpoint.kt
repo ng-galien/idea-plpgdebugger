@@ -40,10 +40,9 @@ class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>("
     }
 
     override fun canPutAt(file: VirtualFile, line: Int, project: Project): Boolean {
-        if (!fileRegex.matches(file.name)) {
+        if (file !is PlFunctionSource/* !fileRegex.matches(file.name)*/) {
             return false
         }
-
         var goodCandidate = false
         val psi: PsiFile? = PsiManager.getInstance(project).findFile(file)
         val funcEl = psi?.firstChild

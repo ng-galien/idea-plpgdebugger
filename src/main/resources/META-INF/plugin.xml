@@ -1,7 +1,7 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <id>net.plpgsql.ideadebugger</id>
-    <name>PL SQL Debugger</name>
+    <name>PostgreSQL Debugger</name>
     <vendor email="courriel.alexandre.boyer@hotmail.fr" url="https://github.com/ng-galien">Alexandre Boyer</vendor>
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.database</depends>
@@ -10,6 +10,12 @@
     </extensions>
     <extensions defaultExtensionNs="com.intellij">
         <xdebugger.breakpointType implementation="net.plpgsql.ideadebugger.PlLineBreakpointType"/>
-        <virtualFileSystem key="plpgsql"  implementationClass="net.plpgsql.ideadebugger.PlVFS"/>
+        <virtualFileSystem key="plpgsql"  implementationClass="net.plpgsql.ideadebugger.PlVirtualFileSystem"/>
+        <applicationConfigurable parentId="tools"
+                             instance="net.plpgsql.ideadebugger.settings.PlDebuggerSettingsConfigurable"
+                             id="net.plpgsql.ideadebugger.settings.PlSettingsConfigurable"
+                             displayName="PL/pg Debugger"/>
+        <applicationService serviceImplementation="net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState"/>
+
     </extensions>
 </idea-plugin>

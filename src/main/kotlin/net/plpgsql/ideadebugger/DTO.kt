@@ -4,52 +4,53 @@
 
 package net.plpgsql.ideadebugger
 
-data class PlBoolean(val value: Boolean)
+data class PlApiBoolean(val value: Boolean)
 
-data class PlInt(val value: Int)
+data class PlApiInt(val value: Int)
 
-data class PlLong(val value: Long)
+data class PlApiLong(val value: Long)
 
-data class PlString(val value: String)
+data class PlApiString(val value: String)
 
-data class PlStep(val oid: Long, val line: Int)
+data class PlApiStep(val oid: Long, val line: Int, val md5: String)
 
-data class PlStackFrame(val level: Int, val target: String, val oid: Long, val line: Int, val args: String)
+data class PlApiStackFrame(val level: Int, val oid: Long, val line: Int, val md5: String)
 
-data class PlValue(
+data class PlAiValue(
     val oid: Long,
     val name: String,
     val type: String,
     val kind: Char,
     val isArray: Boolean,
     val arrayType: String,
-    val value: String
+    val value: String,
 )
 
-data class PlStackVariable(
+data class PlApiStackVariable(
     val isArg: Boolean,
     val line: Int,
-    val value: PlValue
+    val value: PlAiValue,
 )
 
-data class PlFunctionArg(
+data class PlApiFunctionArg(
     val oid: Long,
     val nb: Int,
     val pos: Int,
     val name: String,
     val type: String,
-    val default: Boolean
+    val default: Boolean,
 )
 
-data class PlFunctionDef(
+data class PlApiFunctionDef(
     val oid: Long,
     val schema: String,
     val name: String,
     val source: String,
+    val md5: String,
 )
 
-data class PlExtension(
+data class PlApiExtension(
     val schema: String,
     val name: String,
-    val version: String
+    val version: String,
 )

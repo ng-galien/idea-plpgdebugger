@@ -11,9 +11,7 @@ import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.sql.psi.SqlFunctionCallExpression
-import com.intellij.sql.psi.SqlSelectStatement
-import com.intellij.sql.psi.SqlStatement
+import com.intellij.sql.psi.*
 
 class PlFacade : SqlDebuggerFacade {
 
@@ -26,12 +24,15 @@ class PlFacade : SqlDebuggerFacade {
     }
 
     override fun isApplicableToDebugStatement(statement: SqlStatement): Boolean {
+        call = null
+        //Procedure is discarded here
         if (statement !is SqlSelectStatement) {
-            return false
+            //return false
         }
-        call = PsiTreeUtil
-            .findChildrenOfAnyType(statement, SqlFunctionCallExpression::class.java)
-            .firstOrNull()
+        val children = PsiTreeUtil.findChildrenOfAnyType(statement, SqlFunctionCallExpression::class.java)
+        if (children.size == 1) {
+            call = children.first()
+        }
         return call != null
     }
 

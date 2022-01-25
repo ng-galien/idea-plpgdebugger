@@ -5,9 +5,7 @@
 package net.plpgsql.ideadebugger
 
 import com.intellij.database.debugger.SqlDebugProcess
-import com.intellij.openapi.application.EDT
-import com.intellij.openapi.application.runWriteAction
-import com.intellij.xdebugger.XDebuggerManager
+import com.intellij.openapi.application.runReadAction
 import com.intellij.xdebugger.breakpoints.*
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
@@ -18,106 +16,155 @@ class PlProcess(
     var controller: PlController
 ) : SqlDebugProcess(controller.xSession) {
 
+    private val breakpoints = mutableMapOf<String, MutableList<XLineBreakpoint<PlLineBreakpointProperties>>>()
     private val context = XContext()
-    private val fakeStep = PlStep(-1, 0)
+    private val fakeStep = PlApiStep(-1, 0, "")
     private val executor = controller.executor
-    private var step: PlStep = fakeStep
     private var stack: XStack = XStack(this)
     private var breakPointHandler = BreakPointHandler()
-    private val handler = CoroutineExceptionHandler { _, exception ->
-        println("CoroutineExceptionHandler got $exception")
-    }
 
-    private val scope = CoroutineScope(Dispatchers.EDT+handler)
 
     init {
-        val manager = XDebuggerManager.getInstance(session.project).breakpointManager
-        //manager.addBreakpointListener(PlLineBreakpointType.INSTANCE, breakPointHandler)
-        if (PlVFS.getInstance().count() == 0) {
-            runWriteAction {
-                manager.allBreakpoints.filter {
-                    it.type is PlLineBreakpointType
-                }.forEach {
-                    manager.removeBreakpoint(it)
-                }
 
-            }
-        }
     }
 
     override fun startStepOver(context: XSuspendContext?) {
         executor.setInfo("User request: startStepOver")
-        scope.launch() { goToStep(SQLQuery.STEP_OVER)}
-
+        controller.scope.launch() { goToStep(ApiQuery.STEP_OVER) }
     }
 
     override fun startStepInto(context: XSuspendContext?) {
         executor.setInfo("User request: startStepInto")
-        scope.launch()  { goToStep(SQLQuery.STEP_INTO)}
+        controller.scope.launch() { goToStep(ApiQuery.STEP_INTO) }
     }
 
     override fun resume(context: XSuspendContext?) {
         executor.setInfo("User request: resume")
-        scope.launch()  { goToStep(SQLQuery.STEP_CONTINUE)}
+        controller.scope.launch() { goToStep(ApiQuery.STEP_CONTINUE) }
     }
 
     fun startDebug() {
         executor.setInfo("From auxiliary request: startDebug")
-        handleStackStatus(stack.updateRemote(step))
+        updateStack(true)
     }
 
     override fun startForceStepInto(context: XSuspendContext?) {
         executor.setInfo("User request mot supported: use startStepInto")
-        scope.launch()  { goToStep(SQLQuery.STEP_INTO) }
+        controller.scope.launch() { goToStep(ApiQuery.STEP_INTO) }
 
     }
 
     override fun startStepOut(context: XSuspendContext?) {
         executor.setInfo("User request mot supported: use resume")
-        scope.launch()  { goToStep(SQLQuery.STEP_CONTINUE)}
+        controller.scope.launch() { goToStep(ApiQuery.STEP_CONTINUE) }
     }
 
     override fun stop() {
         executor.setInfo("User request: stop")
-        if (!executor.interrupted) {
-            executor.abort()
+        runCatching {
+            controller.scope.cancel("Stopped by user")
         }
+        executor.abort()
     }
 
-    private fun handleStackStatus(file: PlFile) {
-        if (file.canContinue()) {
-            scope.launch()  { goToStep(SQLQuery.STEP_CONTINUE)}
-        } else {
-            if (file.isOnBreakpoint()) {
-                session.positionReached(context)
+    private fun updateStack(first: Boolean = false) {
+        stack.clear()
+        val stacks = executor.getStack()
+        stacks.forEach {
+            var existing = PlVirtualFileSystem.getInstance().findFileByPath("${it.oid}")
+            val reload = (existing == null) || (existing.md5 != it.md5)
+            if (reload) {
+                controller.closeFile(existing)
+                val def = executor.getFunctionDef(it.oid)
+                existing = PlVirtualFileSystem.getInstance().registerNewDefinition(
+                    PlFunctionSource(session.project, def)
+                )
+            } else {
+                controller.checkFile(existing)
+            }
+            if (existing != null) {
+                stack.append(it, existing)
+            }
+        }
+        (stack.topFrame as XStack.XFrame)?.let { frame ->
+
+            val next = breakpoints["${frame.frame.oid}"]?.isNotEmpty() ?: false
+
+            if (next) {
+                executor.getBreakPoints().forEach {
+                    executor.updateBreakPoint(ApiQuery.DROP_BREAKPOINT, it.oid, it.line)
+                }
+            }
+
+            breakpoints["${frame.frame.oid}"]?.forEach {
+                addBreakpoint(frame.file, it)
+            }
+            breakpoints.remove("${frame.frame.oid}")
+
+            if (next) {
+                controller.scope.launch() { goToStep(ApiQuery.STEP_CONTINUE) }
             } else {
                 session.positionReached(context)
             }
         }
+
     }
 
-
-    private suspend fun goToStep(cmd: SQLQuery) = coroutineScope {
-        withTimeout(1000) {
-            step = executor.runStep(cmd) ?: fakeStep
-            if (!executor.interrupted) {
-                handleStackStatus(stack.updateRemote(step))
-            }
+    fun addBreakpoint(file: PlFunctionSource, breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
+        if (executor.updateBreakPoint(
+                ApiQuery.ADD_BREAKPOINT,
+                file.oid,
+                breakpoint.line - file.start
+            )
+        ) {
+            session.setBreakpointVerified(breakpoint)
         }
 
     }
 
+    fun dropBreakpoint(file: PlFunctionSource, breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
+        executor.updateBreakPoint(
+            ApiQuery.DROP_BREAKPOINT,
+            file.oid,
+            breakpoint.line - file.start
+        )
+    }
+
+
+    private suspend fun goToStep(cmd: ApiQuery) {
+        kotlin.runCatching {
+            withTimeout(controller.settings.stepTimeOut.toLong()) {
+                executor.runStep(cmd)
+            }
+            updateStack()
+        }.onFailure {
+            executor.setError("Command Timeout ", it)
+            session.stop()
+        }
+        executor.displayInfo()
+    }
+
+    private suspend fun abort()  {
+        kotlin.runCatching {
+            withTimeout(controller.settings.stepTimeOut.toLong()) {
+                executor.abort()
+            }
+        }.onFailure {
+            executor.setError("Command Timeout ", it)
+        }
+        executor.displayInfo()
+    }
 
     override fun getEditorsProvider(): XDebuggerEditorsProvider {
         return PlEditorProvider.INSTANCE
     }
 
     override fun checkCanInitBreakpoints(): Boolean {
-        return executor.ready()
+        return true
     }
 
     override fun checkCanPerformCommands(): Boolean {
-        return executor.ready()
+        return true
     }
 
     override fun getBreakpointHandlers(): Array<XBreakpointHandler<*>> {
@@ -145,23 +192,32 @@ class PlProcess(
         XBreakpointListener<XLineBreakpoint<PlLineBreakpointProperties>> {
 
         override fun registerBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
-            breakpoint.properties?.file.let {
-                executor.setInfo("registerBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
-                if ((it as PlFile).addSourceBreakpoint(breakpoint.line)) {
-                    session.setBreakpointVerified(breakpoint)
+            executor.setInfo("registerBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
+            runReadAction {
+                val path = breakpoint.fileUrl.removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX)
+                val file = PlVirtualFileSystem.getInstance().findFileByPath(path)
+                if (file != null && executor.ready()) {
+                    addBreakpoint(file, breakpoint)
+                } else {
+                    breakpoints[path]?.let {
+                        it.add(breakpoint)
+                    } ?: kotlin.run {
+                        breakpoints[path] = mutableListOf(breakpoint)
+                    }
                 }
             }
         }
 
         override fun unregisterBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>, temporary: Boolean) {
-            breakpoint.properties.file.let {
-                executor.setInfo("unregisterBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
-                (it as PlFile).removeSourceBreakpoint(breakpoint.line)
+            executor.setInfo("unregisterBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
+            runReadAction {
+                val path = breakpoint.fileUrl.removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX)
+                val file = PlVirtualFileSystem.getInstance().findFileByPath(path)
+                if (file != null && executor.ready()) {
+                    dropBreakpoint(file, breakpoint)
+                }
             }
         }
-
     }
-
-
 
 }

@@ -4,69 +4,83 @@
 
 package net.plpgsql.ideadebugger
 
-enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boolean = true) {
+/**
+ *
+ */
+enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boolean = true) {
+
     RAW_BOOL(
         "%s",
-        Producer<Any> { PlBoolean(it.bool()) }),
+        Producer<Any> { PlApiBoolean(it.bool()) }),
     CREATE_LISTENER(
         "pldbg_create_listener()",
-        Producer<Any> { PlInt(it.int()) }),
+        Producer<Any> { PlApiInt(it.int()) }),
     ATTACH_TO_PORT(
         "pldbg_attach_to_port(%s)",
-        Producer<Any> { PlInt(it.int()) }),
+        Producer<Any> { PlApiInt(it.int()) }),
     ABORT(
         "pldbg_abort_target(%s)",
-        Producer<Any> { PlBoolean(it.bool()) }),
+        Producer<Any> { PlApiBoolean(it.bool()) }),
     DEBUG_OID(
         "plpgsql_oid_debug(%s)",
-        Producer<Any> { PlInt(it.int()) }),
+        Producer<Any> { PlApiInt(it.int()) }),
 
     STEP_OVER(
         """
             SELECT step.func,
-                   step.linenumber
+                   step.linenumber,
+                   md5(pg_catalog.pg_get_functiondef(step.func))
             FROM pldbg_step_over(%s) step;
         """.trimIndent(),
-        Producer<Any> { PlStep(it.long(), it.int()) }),
+        Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) }),
     STEP_INTO(
         """
             SELECT step.func,
-                   step.linenumber
+                   step.linenumber,
+                   md5(pg_catalog.pg_get_functiondef(step.func))
             FROM pldbg_step_into(%s) step;
         """.trimIndent(),
-        Producer<Any> { PlStep(it.long(), it.int()) }),
+        Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) }),
     STEP_CONTINUE(
         """
             SELECT step.func,
-                   step.linenumber
+                   step.linenumber,
+                   md5(pg_catalog.pg_get_functiondef(step.func))
             FROM pldbg_continue(%s) step;
         """.trimIndent(),
-        Producer<Any> { PlStep(it.long(), it.int()) }),
+        Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) }),
 
     LIST_BREAKPOINT(
         """
             SELECT step.func,
-                   step.linenumber
+                   step.linenumber,
+                   ''
             FROM pldbg_get_breakpoints(%s) step;
         """.trimIndent(),
-        Producer<Any> { PlStep(it.long(), it.int()) },
+        Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) },
         false),
     ADD_BREAKPOINT(
         "pldbg_set_breakpoint(%s, %s, %s)",
-        Producer<Any> { PlBoolean(it.bool()) }),
+        Producer<Any> { PlApiBoolean(it.bool()) }),
     DROP_BREAKPOINT(
         "pldbg_drop_breakpoint(%s, %s, %s)",
-        Producer<Any> { PlBoolean(it.bool()) }),
+        Producer<Any> { PlApiBoolean(it.bool()) }),
 
     GET_STACK(
-        "pldbg_get_stack(%s)",
+        """
+        SELECT 
+            frame.level,
+            frame.func,
+            frame.linenumber,
+            md5(pg_catalog.pg_get_functiondef(frame.func))
+        FROM pldbg_get_stack(%s) frame;
+        """.trimIndent(),
         Producer<Any> {
-            PlStackFrame(
+            PlApiStackFrame(
+                it.int(), // Level
+                it.long(), // Oid
                 it.int(),
                 it.string(),
-                it.long(),
-                it.int(),
-                it.string()
             )
         }
     ),
@@ -87,10 +101,10 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
             LEFT JOIN pg_type t_type ON t_var.dtype = t_type.oid
             LEFT JOIN pg_type t_sub ON t_type.typelem = t_sub.oid;
         """.trimIndent(), Producer<Any> {
-            PlStackVariable(
+            PlApiStackVariable(
                 it.bool(),
                 it.int(),
-                PlValue(
+                PlAiValue(
                     it.long(),
                     it.string(),
                     it.string(),
@@ -105,10 +119,10 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
     ),
 
     GET_JSON_VARIABLES("%s", Producer<Any> {
-        PlStackVariable(
+        PlApiStackVariable(
             it.bool(),
             it.int(),
-            PlValue(
+            PlAiValue(
                 it.long(),
                 it.string(),
                 it.string(),
@@ -129,7 +143,7 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
             FROM pg_extension t_extension
             JOIN pg_namespace t_namespace ON t_extension.extnamespace = t_namespace.oid
         """, Producer<Any> {
-            PlExtension(it.string(), it.string(), it.string())
+            PlApiExtension(it.string(), it.string(), it.string())
         }
     ),
     GET_FUNCTION_CALL_ARGS(
@@ -163,7 +177,7 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                            ON t_proc2.proargtype = t_type.oid
                  left join pg_namespace t_type_ns ON t_type.typnamespace = t_type_ns.oid;
         """, Producer<Any> {
-            PlFunctionArg(
+            PlApiFunctionArg(
                 it.long(),
                 it.int(),
                 it.int(),
@@ -171,30 +185,32 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                 it.string(),
                 it.bool(),
             )
-        }
+        }, false
     ),
 
     GET_FUNCTION_DEF(
         """
-        (SELECT t_proc.oid,
+        SELECT t_proc.oid,
                t_namespace.nspname,
                t_proc.proname,
-               pg_catalog.pg_get_functiondef(t_proc.oid)
+               pg_catalog.pg_get_functiondef(t_proc.oid),
+               md5(pg_catalog.pg_get_functiondef(t_proc.oid))
         FROM pg_proc t_proc
                  JOIN pg_namespace t_namespace on t_proc.pronamespace = t_namespace.oid
-        WHERE t_proc.oid = %s) f
+        WHERE t_proc.oid = %s;
         """, Producer<Any> {
-            PlFunctionDef(
+            PlApiFunctionDef(
                 it.long(),
                 it.string(),
                 it.string(),
-                it.string()
+                "${it.string().removeSuffix("\n")};",
+            it.string()
             )
         }
     ),
 
     EXPLODE("%s", Producer<Any> {
-        PlValue(
+        PlAiValue(
             it.long(),
             it.string(),
             it.string(),
@@ -203,7 +219,7 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
             it.string(),
             it.string()
         )
-    }),
+    }, false),
 
     EXPLODE_ARRAY(
         """
@@ -220,7 +236,7 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                  JOIN pg_type t_arr_type ON t_type.typelem = t_arr_type.oid
                  LEFT JOIN pg_type t_sub ON t_arr_type.typelem = t_sub.oid) f
         """, Producer<Any> {
-            PlValue(
+            PlAiValue(
                 it.long(),
                 it.string(),
                 it.string(),
@@ -229,7 +245,7 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                 it.string(),
                 it.string()
             )
-        }
+        }, false
     ),
 
     EXPLODE_COMPOSITE(
@@ -254,7 +270,7 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                       ON TRUE
         WHERE t_type.oid = %s) c
         """, Producer<Any> {
-            PlValue(
+            PlAiValue(
                 it.long(),
                 it.string(),
                 it.string(),
@@ -263,13 +279,13 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                 it.string(),
                 it.string()
             )
-        }
+        }, false
     ),
 
     T0_JSON(
         """
         (SELECT to_jsonb(row) FROM (SELECT %s::%s) row) j
-        """, Producer<Any> { PlString(it.string()) }
+        """, Producer<Any> { PlApiString(it.string()) }
     ),
 
     OLD_FUNCTION(
@@ -278,15 +294,16 @@ enum class SQLQuery(val sql: String, val producer: Producer<Any>, val print: Boo
             FROM unnest(%s) WITH ORDINALITY func(id)
             LEFT JOIN pg_proc t_proc ON t_proc.oid = func.id
             WHERE t_proc IS NULL
-        """, Producer<Any> { PlLong(it.long()) }
+        """, Producer<Any> { PlApiLong(it.long()) }
     )
 }
 
 
 /**
  *
+ *@param query
  */
-fun sanitizeQuery(query: SQLQuery): String {
+fun sanitizeQuery(query: ApiQuery): String {
     var res = query.sql.trimIndent().replace(";", "")
     if (res.lowercase().startsWith("select")) {
         res = String.format("(%s)q", res)
