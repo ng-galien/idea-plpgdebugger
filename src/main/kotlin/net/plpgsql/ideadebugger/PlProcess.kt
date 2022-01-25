@@ -5,10 +5,7 @@
 package net.plpgsql.ideadebugger
 
 import com.intellij.database.debugger.SqlDebugProcess
-import com.intellij.openapi.application.EDT
 import com.intellij.openapi.application.runReadAction
-import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
-import com.intellij.xdebugger.XDebuggerManager
 import com.intellij.xdebugger.breakpoints.*
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
@@ -25,31 +22,25 @@ class PlProcess(
     private val executor = controller.executor
     private var stack: XStack = XStack(this)
     private var breakPointHandler = BreakPointHandler()
-    private val handler = CoroutineExceptionHandler { _, exception ->
-        println("CoroutineExceptionHandler got $exception")
-    }
 
-    private val scope = CoroutineScope(Dispatchers.EDT + handler)
 
     init {
-        val manager = XDebuggerManager.getInstance(session.project).breakpointManager
 
     }
 
     override fun startStepOver(context: XSuspendContext?) {
         executor.setInfo("User request: startStepOver")
-        scope.launch() { goToStep(ApiQuery.STEP_OVER) }
-
+        controller.scope.launch() { goToStep(ApiQuery.STEP_OVER) }
     }
 
     override fun startStepInto(context: XSuspendContext?) {
         executor.setInfo("User request: startStepInto")
-        scope.launch() { goToStep(ApiQuery.STEP_INTO) }
+        controller.scope.launch() { goToStep(ApiQuery.STEP_INTO) }
     }
 
     override fun resume(context: XSuspendContext?) {
         executor.setInfo("User request: resume")
-        scope.launch() { goToStep(ApiQuery.STEP_CONTINUE) }
+        controller.scope.launch() { goToStep(ApiQuery.STEP_CONTINUE) }
     }
 
     fun startDebug() {
@@ -59,20 +50,21 @@ class PlProcess(
 
     override fun startForceStepInto(context: XSuspendContext?) {
         executor.setInfo("User request mot supported: use startStepInto")
-        scope.launch() { goToStep(ApiQuery.STEP_INTO) }
+        controller.scope.launch() { goToStep(ApiQuery.STEP_INTO) }
 
     }
 
     override fun startStepOut(context: XSuspendContext?) {
         executor.setInfo("User request mot supported: use resume")
-        scope.launch() { goToStep(ApiQuery.STEP_CONTINUE) }
+        controller.scope.launch() { goToStep(ApiQuery.STEP_CONTINUE) }
     }
 
     override fun stop() {
         executor.setInfo("User request: stop")
-        if (!executor.interrupted) {
-            executor.abort()
+        runCatching {
+            controller.scope.cancel("Stopped by user")
         }
+        executor.abort()
     }
 
     private fun updateStack(first: Boolean = false) {
@@ -107,11 +99,10 @@ class PlProcess(
             breakpoints["${frame.frame.oid}"]?.forEach {
                 addBreakpoint(frame.file, it)
             }
-
             breakpoints.remove("${frame.frame.oid}")
 
             if (next) {
-                scope.launch() { goToStep(ApiQuery.STEP_CONTINUE) }
+                controller.scope.launch() { goToStep(ApiQuery.STEP_CONTINUE) }
             } else {
                 session.positionReached(context)
             }
@@ -140,14 +131,28 @@ class PlProcess(
     }
 
 
-    private suspend fun goToStep(cmd: ApiQuery) = coroutineScope {
-        val step = withTimeout(1000) {
-            executor.runStep(cmd) ?: fakeStep
+    private suspend fun goToStep(cmd: ApiQuery) {
+        kotlin.runCatching {
+            withTimeout(controller.settings.stepTimeOut.toLong()) {
+                executor.runStep(cmd)
+            }
+            updateStack()
+        }.onFailure {
+            executor.setError("Command Timeout ", it)
+            session.stop()
         }
-        if (step.oid < 0L) {
-            return@coroutineScope
+        executor.displayInfo()
+    }
+
+    private suspend fun abort()  {
+        kotlin.runCatching {
+            withTimeout(controller.settings.stepTimeOut.toLong()) {
+                executor.abort()
+            }
+        }.onFailure {
+            executor.setError("Command Timeout ", it)
         }
-        updateStack()
+        executor.displayInfo()
     }
 
     override fun getEditorsProvider(): XDebuggerEditorsProvider {
@@ -187,7 +192,6 @@ class PlProcess(
         XBreakpointListener<XLineBreakpoint<PlLineBreakpointProperties>> {
 
         override fun registerBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
-
             executor.setInfo("registerBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
             runReadAction {
                 val path = breakpoint.fileUrl.removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX)
@@ -205,7 +209,6 @@ class PlProcess(
         }
 
         override fun unregisterBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>, temporary: Boolean) {
-
             executor.setInfo("unregisterBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
             runReadAction {
                 val path = breakpoint.fileUrl.removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX)
@@ -214,10 +217,7 @@ class PlProcess(
                     dropBreakpoint(file, breakpoint)
                 }
             }
-
         }
-
     }
-
 
 }

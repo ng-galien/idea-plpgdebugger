@@ -35,3 +35,10 @@
 ### Changed
 - Ignore case when for function detection
 - Avoid JSON transformation error
+
+## [1.0.2]
+### Added
+- Plugin configuration: timeouts and output verbosity
+### Changed
+- Fix procedure detection
+- Many internal changes

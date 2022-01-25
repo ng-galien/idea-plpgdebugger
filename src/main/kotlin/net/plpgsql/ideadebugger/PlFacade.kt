@@ -7,18 +7,11 @@ import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.debugger.SqlDebuggerFacade
 import com.intellij.database.model.basic.BasicSourceAware
 import com.intellij.database.util.SearchPath
-import com.intellij.database.vfs.DatabaseElementVirtualFileDataSourceProvider
-import com.intellij.database.vfs.DatabaseElementVirtualFileImpl
-import com.intellij.database.vfs.DatabaseElementVirtualFileUtils
-import com.intellij.database.vfs.DatabaseVirtualFileSystem
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.sql.psi.SqlFunctionCallExpression
-import com.intellij.sql.psi.SqlReferenceExpression
-import com.intellij.sql.psi.SqlSelectStatement
-import com.intellij.sql.psi.SqlStatement
+import com.intellij.sql.psi.*
 
 class PlFacade : SqlDebuggerFacade {
 
@@ -31,12 +24,15 @@ class PlFacade : SqlDebuggerFacade {
     }
 
     override fun isApplicableToDebugStatement(statement: SqlStatement): Boolean {
+        call = null
+        //Procedure is discarded here
         if (statement !is SqlSelectStatement) {
-            return false
+            //return false
         }
-        call = PsiTreeUtil
-            .findChildrenOfAnyType(statement, SqlFunctionCallExpression::class.java)
-            .firstOrNull()
+        val children = PsiTreeUtil.findChildrenOfAnyType(statement, SqlFunctionCallExpression::class.java)
+        if (children.size == 1) {
+            call = children.first()
+        }
         return call != null
     }
 

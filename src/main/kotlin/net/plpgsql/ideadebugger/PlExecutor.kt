@@ -4,9 +4,7 @@
 
 package net.plpgsql.ideadebugger
 
-import com.intellij.database.console.session.DatabaseSessionManager
 import com.intellij.database.dataSource.DatabaseConnection
-import com.intellij.database.dataSource.connection.DGDepartment
 import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.ui.Messages
@@ -21,23 +19,19 @@ import kotlin.concurrent.withLock
 class PlExecutor(private val controller: PlController) {
 
     private val lock: Lock = ReentrantLock()
-    private val connection = createConnection()
     private var entryPoint = 0L
     private var session = 0
     var interrupted = false
 
-
     private var lastMessage: Message = Message(
-        severity = Severity.INFO,
-        content = "Starting",
-        type = ConsoleViewContentType.NORMAL_OUTPUT
+        level = Level.INFO,
+        content = "Starting debugger",
     )
 
     private val messages = mutableListOf<Message>(lastMessage)
 
-    private fun createConnection(): DatabaseConnection = DatabaseSessionManager.getFacade(
-        controller.project, controller.connectionPoint, null, controller.searchPath, true, null, DGDepartment.DEBUGGER
-    ).connect().get()
+    private val connection = controller.guardedConnection.get()
+
 
     fun checkExtension() {
         val res = executeQuery<PlApiExtension>(ApiQuery.GET_EXTENSION)
@@ -46,7 +40,7 @@ class PlExecutor(private val controller: PlController) {
                 setError("Extension not found, debugger disabled")
             }
             else -> {
-                setInfo("Extension found, version=${ext.version}")
+                setDebug("Extension found, version=${ext.version}")
             }
         }
     }
@@ -132,6 +126,9 @@ class PlExecutor(private val controller: PlController) {
     }
 
     fun abort() {
+        if (connection.remoteConnection.isClosed) {
+            return
+        }
         executeQuery<Boolean>(
             query = ApiQuery.ABORT,
             args = listOf("$session")
@@ -224,55 +221,39 @@ class PlExecutor(private val controller: PlController) {
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun <T>executeQuery(
+    fun <T> executeQuery(
         query: ApiQuery,
         args: List<String> = listOf(),
         dc: DatabaseConnection = connection,
         interrupt: Boolean = true
     ): List<T> {
+        if (query.print) {
+            setCmd("query=${query.name}, args=$args")
+        }
+        var res: List<T>? = null
+        var error: Throwable? = null
         lock.withLock {
-            var res: List<T>? = null
             query.runCatching {
                 res = getRowSet(query.producer as Producer<T>, query, dc) {
                     initializers.add("SET CLIENT_ENCODING TO 'UTF8'")
                     fetch(args)
                 }
             }.onFailure {
-                setError("Query failed executed: query=${query.name}, args=$args", it)
-                if (!interrupt) {
-                    hasError()
-                } else {
-                    interrupted = true
-                }
-                throw it
-            }.onSuccess {
-                if (query.print) {
-                    setInfo(
-                        "Query executed: query=${query.name}, args=$args",
-                        ConsoleViewContentType.LOG_VERBOSE_OUTPUT
-                    )
-                }
+                error = it
             }
-            return res ?: listOf<T>()
         }
-
+        error?.let {
+            interrupted = interrupted || interrupt
+            setError("Query failed", it)
+        }
+        return res ?: listOf<T>()
     }
 
 
-    fun ready(): Boolean{
+    fun ready(): Boolean {
         return (session != 0)
     }
 
-    fun setError(msg: String, thw: Throwable? = null) {
-        addMessage(
-            Message(
-                severity = Severity.ERROR,
-                content = msg,
-                cause = thw?.getRootCause(),
-                type = ConsoleViewContentType.ERROR_OUTPUT
-            )
-        )
-    }
 
     private fun Throwable.getRootCause(): Throwable {
         val it = cause
@@ -283,34 +264,32 @@ class PlExecutor(private val controller: PlController) {
         return res
     }
 
-    fun setInfo(msg: String, type: ConsoleViewContentType = ConsoleViewContentType.LOG_INFO_OUTPUT) {
-        addMessage(Message(severity = Severity.INFO, content = msg, type = type))
+    fun setInfo(msg: String) = addMessage(Message(level = Level.INFO, content = msg))
+
+    fun setCmd(msg: String) = addMessage(Message(level = Level.CMD, content = msg))
+
+    fun setDebug(msg: String) = addMessage(Message(level = Level.DEBUG, content = msg))
+
+    fun setNotice(msg: String) = addMessage(Message(level = Level.NOTICE, content = msg))
+
+    fun setError(msg: String, thw: Throwable? = null) {
+        if(!interrupted) {
+            addMessage(Message(level = Level.ERROR, content = msg, cause = thw?.getRootCause()))
+        }
     }
 
-    fun setDebug(msg: String, type: ConsoleViewContentType = ConsoleViewContentType.LOG_DEBUG_OUTPUT) {
-        addMessage(Message(severity = Severity.INFO, content = msg, type = type))
-    }
-
-    fun setWarning(msg: String) {
-        addMessage(
-            Message(
-                severity = Severity.WARNING,
-                content = msg,
-                type = ConsoleViewContentType.LOG_WARNING_OUTPUT
-            )
-        )
-    }
-
-    private fun displayInfo() {
-        if (controller.windowLister.hasShown
-            && controller.xSession.consoleView != null
-        ) {
+    fun displayInfo() {
+        controller.xSession.consoleView?.let {
             val copy = ArrayList(messages)
             runInEdt {
                 copy.forEach {
-                    controller.xSession.consoleView?.print("${it.content}\n", it.type)
-                    if (it.cause != null) {
-                        controller.xSession.consoleView?.print("${it.cause}\n", it.type)
+                    if (canPrint(it.level)) {
+                        if (it.cause != null) {
+                            controller.xSession.consoleView?.print("[${it.level.name}] ${it.content} (${it.cause})\n", it.level.ct)
+                        } else {
+                            controller.xSession.consoleView?.print("[${it.level.name}] ${it.content}\n", it.level.ct)
+                        }
+
                     }
                 }
             }
@@ -318,28 +297,26 @@ class PlExecutor(private val controller: PlController) {
         }
     }
 
-    fun updateInfo() {
-        try {
-            lock.lock()
-            displayInfo()
-        } catch (e: Exception) {
-            throw e
-        } finally {
-            lock.unlock()
-        }
+    private fun canPrint(level: Level): Boolean = when (level) {
+        Level.CMD -> controller.settings.showCmd
+        Level.DEBUG -> controller.settings.showDebug
+        Level.NOTICE -> controller.settings.showNotice
+        Level.INFO -> controller.settings.showInfo
+        else -> true
     }
-
 
 
     private fun addMessage(msg: Message) {
+        if (!canPrint(msg.level)) {
+            return
+        }
         lastMessage = msg
         messages.add(lastMessage)
-        displayInfo()
     }
 
-    fun hasError(): Boolean = !interrupted && (lastMessage.severity == Severity.ERROR)
+    fun hasError(): Boolean = !interrupted && (lastMessage.level == Level.ERROR)
 
-    fun hasWarning(): Boolean = (lastMessage.severity == Severity.WARNING)
+    fun hasWarning(): Boolean = (lastMessage.level == Level.NOTICE)
 
     fun interrupted(): Boolean {
         if (hasError()) {
@@ -360,13 +337,14 @@ class PlExecutor(private val controller: PlController) {
     fun terminate() {
         runCatching {
             interrupted = true
-            connection.remoteConnection.close()
+            if (!connection.remoteConnection.isClosed) {
+                connection.remoteConnection.close()
+            }
         }.onFailure {
-            setError("Terminates with exception", it)
+            //setError("Terminates with exception", it)
         }.onSuccess {
             setInfo("Terminated without exception")
         }
-        controller.xSession.stop()
     }
 
     private inline fun <T> getRowSet(
@@ -378,17 +356,18 @@ class PlExecutor(private val controller: PlController) {
         DBRowSet(producer, query, connection).apply(builder).values
 
 
-    enum class Severity(val display: String) {
-        ERROR(""),
-        WARNING(""),
-        INFO(""),
+    enum class Level(val ct: ConsoleViewContentType) {
+        ERROR(ConsoleViewContentType.ERROR_OUTPUT),
+        NOTICE(ConsoleViewContentType.NORMAL_OUTPUT),
+        INFO(ConsoleViewContentType.LOG_INFO_OUTPUT),
+        CMD(ConsoleViewContentType.LOG_VERBOSE_OUTPUT),
+        DEBUG(ConsoleViewContentType.LOG_DEBUG_OUTPUT),
     }
 
     data class Message(
-        val severity: Severity,
+        val level: Level,
         val content: String,
-        val cause: Throwable? = null,
-        val type: ConsoleViewContentType
+        val cause: Throwable? = null
     )
 
 }

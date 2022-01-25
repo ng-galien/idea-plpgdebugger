@@ -5,8 +5,10 @@
 package net.plpgsql.ideadebugger
 
 import com.intellij.database.connection.throwable.info.WarningInfo
+import com.intellij.database.console.session.DatabaseSessionManager
 import com.intellij.database.dataSource.DatabaseConnection
 import com.intellij.database.dataSource.DatabaseConnectionPoint
+import com.intellij.database.dataSource.connection.DGDepartment
 import com.intellij.database.datagrid.DataAuditors
 import com.intellij.database.datagrid.DataConsumer
 import com.intellij.database.datagrid.DataRequest
@@ -15,29 +17,21 @@ import com.intellij.database.util.SearchPath
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.application.runWriteAction
-import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.RangeMarker
-import com.intellij.openapi.editor.event.DocumentEvent
-import com.intellij.openapi.editor.event.DocumentListener
 import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.openapi.vfs.VirtualFileManager
-import com.intellij.openapi.vfs.newvfs.BulkFileListener
-import com.intellij.openapi.vfs.newvfs.events.VFileEvent
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
-import com.intellij.psi.PsiDocumentListener
 import com.intellij.psi.PsiDocumentManager
-import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
-import com.intellij.psi.util.PsiModificationTracker
-import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.sql.psi.SqlBlockStatement
 import com.intellij.sql.psi.SqlFunctionCallExpression
 import com.intellij.ui.content.Content
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugSession
+import kotlinx.coroutines.*
+import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 import java.util.regex.Pattern
 
 class PlController(
@@ -52,20 +46,28 @@ class PlController(
 ) : SqlDebugController() {
 
     private val auditor = QueryAuditor()
-    private val consumer = QueryConsumer()
-    private val psiListener = PsiListener()
     private val pattern = Pattern.compile(".*PLDBGBREAK:([0-9]+).*")
     private lateinit var plProcess: PlProcess
     lateinit var xSession: XDebugSession
     internal val windowLister = ToolListener()
+    val guardedConnection = DatabaseSessionManager.getFacade(
+        project,
+        connectionPoint,
+        null,
+        null/*controller.searchPath*/,
+        true,
+        null,
+        DGDepartment.DEBUGGER
+    ).connect()
 
-    val executor = PlExecutor(this)
-    private var busConnection = project.messageBus.connect()
-
-    init {
-        println("controller: init")
-        busConnection.subscribe(ToolWindowManagerListener.TOPIC, windowLister)
+    private val exceptionHandler = CoroutineExceptionHandler { _, e ->
+        executor.setError("CoroutineExceptionHandler got", e)
+        xSession.stop()
     }
+    val scope = CoroutineScope(Dispatchers.Default + exceptionHandler)
+    val executor = PlExecutor(this)
+    var timeOutJob: Job? = null
+    val settings = PlDebuggerSettingsState.getInstance()
 
     fun closeFile(file: PlFunctionSource?) {
         if (file == null) {
@@ -97,6 +99,8 @@ class PlController(
 
     override fun getReady() {
         executor.setDebug("Controller: getReady")
+        project.messageBus.connect(xSession.consoleView).subscribe(ToolWindowManagerListener.TOPIC, windowLister)
+
         executor.checkExtension()
         if (executor.interrupted()) {
             return
@@ -126,8 +130,29 @@ class PlController(
         executor.startDebug(connection)
         if (!executor.interrupted()) {
             ownerEx.messageBus.addAuditor(auditor)
-            ownerEx.messageBus.addConsumer(consumer)
+            timeOutJob = scope.launch {
+                waitForPort()
+            }
         }
+    }
+
+    private suspend fun waitForPort() {
+        kotlin.runCatching {
+            withTimeout(settings.attachTimeOut.toLong()) {
+                repeat(3) {
+                    delay(settings.attachTimeOut.toLong())
+                }
+            }
+        }.onFailure {
+            when (it) {
+                is CancellationException -> executor.setInfo("Port reached, discard timeout")
+                else -> {
+                    executor.setError("CoroutineExceptionHandler got", it)
+                    plProcess.stop()
+                }
+            }
+        }
+
     }
 
     override fun debugBegin() {
@@ -137,26 +162,31 @@ class PlController(
 
     override fun debugEnd() {
         println("controller: debugEnd")
-        busConnection.disconnect()
+        executor.terminate()
+        executor.displayInfo()
     }
 
     override fun close() {
         println("controller: close")
-        //windowLister.close()
-
+        xSession.stop()
+        guardedConnection.close()
+        Disposer.dispose(DatabaseSessionManager.getSession(project, connectionPoint))
     }
 
     inner class QueryAuditor : DataAuditors.Adapter() {
 
         override fun warn(context: DataRequest.Context, info: WarningInfo) {
-            executor.setWarning("[CALLER]: ${info.message}")
+            executor.setNotice(info.logMessage)
+            executor.displayInfo()
             if (!executor.hasError() && context.request.owner == ownerEx) {
                 val matcher = pattern.matcher(info.message)
                 if (matcher.matches()) {
                     val port = matcher.group(1).toInt()
                     executor.attachToPort(port)
                     if (!executor.interrupted()) {
+                        timeOutJob?.cancel("Everything's good", PortReached())
                         plProcess.startDebug()
+
                     }
                 }
             }
@@ -169,69 +199,38 @@ class PlController(
         }
     }
 
-    inner class QueryConsumer : DataConsumer.Adapter() {
-        override fun afterLastRowAdded(context: DataRequest.Context, total: Int) {
-            if (context.request.owner == ownerEx) {
-                //ownerExConnection?.remoteConnection?.close()
-            }
-        }
-
-    }
-
-    inner class PsiListener: PsiDocumentListener {
-        override fun documentCreated(document: Document, psiFile: PsiFile?, project: Project) {
-            println("documentCreated ${psiFile?.name}")
-        }
-
-        override fun fileCreated(file: PsiFile, document: Document) {
-            println("fileCreated ${file.name}")
-            document.addDocumentListener(DocListener())
-        }
-    }
-
-    inner class DocListener: DocumentListener {
-        override fun documentChanged(event: DocumentEvent) {
-            println("documentChanged $event")
-        }
-
-        override fun bulkUpdateStarting(document: Document) {
-            println("documentChanged $document")
-        }
-
-        override fun bulkUpdateFinished(document: Document) {
-            println("bulkUpdateFinished $document")
-        }
-    }
+    inner class PortReached : Exception("Port reached")
 
     inner class ToolListener : ToolWindowManagerListener {
 
-        private var window: ToolWindow? = null
+        private var debugWindow: ToolWindow? = null
         private var first: Boolean = false
         private var acutal: Content? = null
         var hasShown = false
 
         override fun toolWindowShown(toolWindow: ToolWindow) {
             if (toolWindow.id == "Debug") {
-                window = toolWindow
+                debugWindow = toolWindow
                 first = true
             }
             if (first && toolWindow.id != "Debug") {
-                window?.show()
-                acutal = window?.contentManager?.contents?.find {
+                debugWindow?.show()
+                acutal = debugWindow?.contentManager?.contents?.find {
                     it.tabName == xSession.sessionName
                 }
                 first = false
                 hasShown = true
-                executor.updateInfo()
+                executor.displayInfo( )
             }
         }
 
         fun close() {
             runInEdt {
-                windowLister.acutal?.let { window?.contentManager?.removeContent(it, true) }
+                windowLister.acutal?.let { debugWindow?.contentManager?.removeContent(it, true) }
             }
         }
     }
+
 }
 
 
