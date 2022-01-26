@@ -54,3 +54,13 @@
 - Fix procedure detection on PG 14
 - Better error handling
 - Close owner connection when something has failed
+
+## [1.1.0]
+### Added
+- Plugin configuration:
+  - Custom query on both running and debugging session
+  - Add SQL specific verbosity
+### Changed
+- Fix call identification
+- Fix breakpoint support for PROCEDURE
+- Improved breakpoint management
