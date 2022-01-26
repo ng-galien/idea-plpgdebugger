@@ -4,6 +4,8 @@
 
 package net.plpgsql.ideadebugger
 
+data class PlApiVoid(val void: Int = 0)
+
 data class PlApiBoolean(val value: Boolean)
 
 data class PlApiInt(val value: Int)
