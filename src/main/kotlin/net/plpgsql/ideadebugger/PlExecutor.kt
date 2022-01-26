@@ -250,13 +250,14 @@ class PlExecutor(private val controller: PlController) {
         }
         var res: List<T>? = null
         var error: Throwable? = null
-        val sqlQuery = sanitizeQuery(customQuery(cmd = query))
+        val sqlQuery = customQuery(cmd = query)
+        var rowset: DBRowSet<T>? = null
         lock.withLock {
             query.runCatching {
                 res = getRowSet(query.producer as Producer<T>, sqlQuery, dc) {
+                    rowset = this
                     initializers.add("SET CLIENT_ENCODING TO 'UTF8'")
                     fetch(args)
-                    setDebug(sqlQuery)
                 }
             }.onFailure {
                 error = it
@@ -266,7 +267,12 @@ class PlExecutor(private val controller: PlController) {
             if (!skipError) {
                 interrupted = interrupted || interruptible
                 setError("Query failed", it)
+            } else {
+                setDebug("Query failed ${it.message}")
             }
+        }
+        rowset?.let {
+            setDebug(it.internalSql)
         }
         return res ?: listOf<T>()
     }
