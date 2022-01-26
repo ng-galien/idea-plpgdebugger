@@ -27,22 +27,20 @@ class PlExecutor(private val controller: PlController) {
 
     private var lastError: Message? = null
 
-    private val extensionName = "pldbgapi"
-
     private val messages = mutableListOf<Message>()
 
-    private val connection = controller.guardedConnection.get()
+    private val internalConnection = controller.guardedConnection.get()
 
 
     fun checkExtension() {
         if (controller.settings.failExtension) {
-            setError("[FAKE]Extension $extensionName not found")
+            setError("[FAKE]Extension $DEBUGGER_EXTENSION not found")
             return
         }
         val res = executeQuery<PlApiExtension>(ApiQuery.GET_EXTENSION)
-        return when (val ext = res.find { it.name == extensionName }) {
+        return when (val ext = res.find { it.name == DEBUGGER_EXTENSION }) {
             null -> {
-                setError("Extension $extensionName not found")
+                setError("Extension $DEBUGGER_EXTENSION not found")
             }
             else -> {
                 setDebug("Extension found, version=${ext.version}")
@@ -144,7 +142,7 @@ class PlExecutor(private val controller: PlController) {
     }
 
     fun abort() {
-        if (connection.remoteConnection.isClosed) {
+        if (internalConnection.remoteConnection.isClosed) {
             return
         }
         executeQuery<Boolean>(
@@ -177,12 +175,11 @@ class PlExecutor(private val controller: PlController) {
     fun getFunctionDef(oid: Long): PlApiFunctionDef =
         executeQuery<PlApiFunctionDef>(query = ApiQuery.GET_FUNCTION_DEF, args = listOf("$oid")).first()
 
-
     fun getVariables(): List<PlApiStackVariable> {
 
         val vars = executeQuery<PlApiStackVariable>(ApiQuery.GET_RAW_VARIABLES, listOf("$session"))
 
-        if (vars.isEmpty()) return vars;
+        if (vars.isEmpty()) return vars
 
         val query = vars.joinToString(prefix = "(", separator = "\nUNION ALL\n", postfix = ") v") {
             // Fix array type prefixed with underscore and NULL
@@ -240,23 +237,27 @@ class PlExecutor(private val controller: PlController) {
     fun <T> executeQuery(
         query: ApiQuery,
         args: List<String> = listOf(),
-        dc: DatabaseConnection = connection,
+        dc: DatabaseConnection = internalConnection,
         interruptible: Boolean = false,
-        skipError: Boolean = false
+        skipError: Boolean = false,
+        additionnalCommand: String? = null,
     ): List<T> {
-
-        if (query.print) {
-            setCmd("query=${query.name}, args=$args")
-        }
+        setCmd("query=${query.name}, args=$args")
         var res: List<T>? = null
         var error: Throwable? = null
         val sqlQuery = customQuery(cmd = query)
         var rowset: DBRowSet<T>? = null
         lock.withLock {
             query.runCatching {
-                res = getRowSet(query.producer as Producer<T>, sqlQuery, dc) {
+                res = getRowSet(
+                    producer = query.producer as Producer<T>,
+                    cmd = sqlQuery,
+                    connection = dc) {
                     rowset = this
-                    initializers.add("SET CLIENT_ENCODING TO 'UTF8'")
+                    initializers.add("SET CLIENT_ENCODING TO 'UTF8';")
+                    additionnalCommand?.let {
+                        initializers.add(additionnalCommand)
+                    }
                     fetch(args)
                 }
             }.onFailure {
@@ -272,9 +273,19 @@ class PlExecutor(private val controller: PlController) {
             }
         }
         rowset?.let {
-            setDebug(it.internalSql)
+            setSQL(it.internalSql)
         }
         return res ?: listOf<T>()
+    }
+
+    fun executeSessionCommand(rawSql: String, connection: DatabaseConnection = internalConnection) {
+        setDebug("Execute session command: rawSQL=$rawSql")
+        executeQuery<PlApiVoid>(
+            query = ApiQuery.VOID,
+            args = listOf(rawSql),
+            dc = connection,
+            additionnalCommand = rawSql
+        )
     }
 
     private fun customQuery(cmd: ApiQuery): String {
@@ -290,11 +301,9 @@ class PlExecutor(private val controller: PlController) {
         }
     }
 
-
     fun ready(): Boolean {
         return (session != 0)
     }
-
 
     private fun Throwable.getRootCause(): Throwable {
         val it = cause
@@ -310,6 +319,8 @@ class PlExecutor(private val controller: PlController) {
     fun setCmd(msg: String) = addMessage(Message(level = Level.CMD, content = msg))
 
     fun setDebug(msg: String) = addMessage(Message(level = Level.DEBUG, content = msg))
+
+    fun setSQL(msg: String) = addMessage(Message(level = Level.SQL, content = msg))
 
     fun setNotice(msg: String) = addMessage(Message(level = Level.NOTICE, content = msg))
 
@@ -348,9 +359,9 @@ class PlExecutor(private val controller: PlController) {
         Level.DEBUG -> controller.settings.showDebug
         Level.NOTICE -> controller.settings.showNotice
         Level.INFO -> controller.settings.showInfo
+        Level.SQL -> controller.settings.showSQL
         else -> true
     }
-
 
     private fun addMessage(msg: Message) {
         if (!canPrint(msg.level)) {
@@ -384,8 +395,8 @@ class PlExecutor(private val controller: PlController) {
     fun terminate() {
         runCatching {
             interrupted = true
-            if (!connection.remoteConnection.isClosed) {
-                connection.remoteConnection.close()
+            if (!internalConnection.remoteConnection.isClosed) {
+                internalConnection.remoteConnection.close()
             }
         }.onFailure {
             //setError("Terminates with exception", it)
@@ -400,7 +411,7 @@ class PlExecutor(private val controller: PlController) {
         connection: DatabaseConnection,
         builder: DBRowSet<T>.() -> Unit
     ): List<T> =
-        DBRowSet(producer, cmd, connection).apply(builder).values
+        DBRowSet(producer = producer, cmd = cmd, connection = connection).apply(builder).values
 
 
     enum class Level(val ct: ConsoleViewContentType) {
@@ -408,6 +419,7 @@ class PlExecutor(private val controller: PlController) {
         NOTICE(ConsoleViewContentType.NORMAL_OUTPUT),
         INFO(ConsoleViewContentType.LOG_INFO_OUTPUT),
         CMD(ConsoleViewContentType.LOG_VERBOSE_OUTPUT),
+        SQL(ConsoleViewContentType.LOG_WARNING_OUTPUT),
         DEBUG(ConsoleViewContentType.LOG_DEBUG_OUTPUT),
     }
 

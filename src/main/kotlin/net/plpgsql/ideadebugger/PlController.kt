@@ -10,7 +10,6 @@ import com.intellij.database.dataSource.DatabaseConnection
 import com.intellij.database.dataSource.DatabaseConnectionPoint
 import com.intellij.database.dataSource.connection.DGDepartment
 import com.intellij.database.datagrid.DataAuditors
-import com.intellij.database.datagrid.DataConsumer
 import com.intellij.database.datagrid.DataRequest
 import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.util.SearchPath
@@ -67,7 +66,7 @@ class PlController(
     val scope = CoroutineScope(Dispatchers.Default + exceptionHandler)
     val executor = PlExecutor(this)
     var timeOutJob: Job? = null
-    val settings = PlDebuggerSettingsState.getInstance()
+    val settings = PlDebuggerSettingsState.getInstance().state
 
     fun closeFile(file: PlFunctionSource?) {
         if (file == null) {
@@ -101,10 +100,18 @@ class PlController(
         executor.setDebug("Controller: getReady")
         project.messageBus.connect(xSession.consoleView).subscribe(ToolWindowManagerListener.TOPIC, windowLister)
 
+        if (settings.enableDebuggerCommand) {
+            executor.executeSessionCommand(settings.debuggerCommand)
+            if (executor.interrupted()) {
+                return
+            }
+        }
+
         executor.checkExtension()
         if (executor.interrupted()) {
             return
         }
+
         if (callExpression != null) {
             val callDef = parseFunctionCall(callExpression)
             assert(callDef.first.isNotEmpty() && callDef.first.size <= 2) { "Error while parsing ${callExpression.text}" }
@@ -127,6 +134,12 @@ class PlController(
 
     override fun initRemote(connection: DatabaseConnection) {
         executor.setDebug("Controller: initRemote")
+        if (settings.enableSessionCommand) {
+            executor.executeSessionCommand(rawSql = settings.sessionCommand, connection = connection)
+            if (executor.interrupted()) {
+                return
+            }
+        }
         executor.startDebug(connection)
         if (!executor.interrupted()) {
             ownerEx.messageBus.addAuditor(auditor)

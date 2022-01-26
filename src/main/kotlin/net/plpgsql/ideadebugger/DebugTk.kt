@@ -15,6 +15,9 @@ import com.intellij.sql.psi.SqlReferenceExpression
 import java.nio.charset.Charset
 import java.security.MessageDigest
 
+const val SELECT_NULL = "SELECT NULL;"
+
+const val DEBUGGER_EXTENSION = "pldbgapi"
 
 fun getPlLanguage(): Language = PgDialect.INSTANCE
 
@@ -32,9 +35,12 @@ fun plNull(value: String) = (value.uppercase() == "NULL")
 
 fun parseFunctionCall(callExpr: SqlFunctionCallExpression): Pair<List<String>, List<String>> {
     val (func, args) = runReadAction {
-        val func = PsiTreeUtil.findChildrenOfAnyType(callExpr, SqlReferenceExpression::class.java).map {
-            it.text.trim()
-        }
+        val funcEl = PsiTreeUtil.findChildOfType(callExpr, SqlReferenceExpression::class.java)
+        val func = funcEl?.let {
+            PsiTreeUtil.findChildrenOfType(funcEl, SqlIdentifier::class.java).map {
+                it.text.trim()
+            }
+        } ?: listOf()
         val values = PsiTreeUtil.findChildOfType(
             callExpr,
             SqlExpressionList::class.java

@@ -45,7 +45,7 @@ class PlProcess(
 
     fun startDebug() {
         executor.setInfo("From auxiliary request: startDebug")
-        updateStack(true)
+        updateStack()
     }
 
     override fun startForceStepInto(context: XSuspendContext?) {
@@ -67,10 +67,18 @@ class PlProcess(
         executor.abort()
     }
 
-    private fun updateStack(first: Boolean = false) {
+    private fun updateStack() {
+
+        val plStacks = executor.getStack()
+        // If we reach this frame for the first time
+        val first = stack.topFrame?.let {
+            (it as XStack.XFrame).file.oid != plStacks.firstOrNull()?.oid
+        } ?: true
+        executor.setDebug("Reach frame ${plStacks.firstOrNull()?.oid}, first=$first")
+
         stack.clear()
-        val stacks = executor.getStack()
-        stacks.forEach {
+
+        plStacks.forEach {
             var existing = PlVirtualFileSystem.getInstance().findFileByPath("${it.oid}")
             val reload = (existing == null) || (existing.md5 != it.md5)
             if (reload) {
@@ -88,20 +96,45 @@ class PlProcess(
         }
         (stack.topFrame as XStack.XFrame)?.let { frame ->
 
-            val next = breakpoints["${frame.frame.oid}"]?.isNotEmpty() ?: false
+            // Get stack and file breakpoint list for merge
+            val stackBreakPoints = executor.getBreakPoints().filter {
+                it.oid == frame.file.oid
+            }.filter {
+                it.line > 0
+            }.map {
+                it.line + frame.file.start
+            }
+            val fileBreakPoints = breakpoints["${frame.frame.oid}"]?.map {
+                it.line
+            } ?: listOf()
 
-            if (next) {
-                executor.getBreakPoints().forEach {
-                    executor.updateBreakPoint(ApiQuery.DROP_BREAKPOINT, it.oid, it.line)
+            // Remove stack break point not in file list
+            stackBreakPoints.filter {
+                !fileBreakPoints.contains(it)
+            }.forEach {
+                executor.updateBreakPoint(ApiQuery.DROP_BREAKPOINT, frame.file.oid, it - frame.file.start)
+            }
+
+            // Add missing breakPoints to stack and verify for existing
+            val (toCheck, toAdd) = fileBreakPoints.partition { stackBreakPoints.contains(it) }
+
+            breakpoints["${frame.frame.oid}"]?.filter {
+                toAdd.contains(it.line)
+            }?.forEach {
+               addBreakpoint(frame.file, it)
+            }
+            if (first) {
+                breakpoints["${frame.frame.oid}"]?.filter {
+                    toCheck.contains(it.line)
+                }?.forEach {
+                    session.setBreakpointVerified(it)
                 }
             }
 
-            breakpoints["${frame.frame.oid}"]?.forEach {
-                addBreakpoint(frame.file, it)
-            }
-            breakpoints.remove("${frame.frame.oid}")
-
+            //We can go to next step
+            val next = first && !fileBreakPoints.any { frame.frame.line == it - frame.file.start }
             if (next) {
+                executor.setDebug("Got to next")
                 controller.scope.launch() { goToStep(ApiQuery.STEP_CONTINUE) }
             } else {
                 session.positionReached(context)
@@ -137,14 +170,15 @@ class PlProcess(
                 executor.runStep(cmd)
             }
             updateStack()
+            executor.displayInfo()
         }.onFailure {
             executor.setError("Command Timeout ", it)
             session.stop()
         }
-        executor.displayInfo()
+
     }
 
-    private suspend fun abort()  {
+    private suspend fun abort() {
         kotlin.runCatching {
             withTimeout(controller.settings.stepTimeOut.toLong()) {
                 executor.abort()
@@ -198,12 +232,11 @@ class PlProcess(
                 val file = PlVirtualFileSystem.getInstance().findFileByPath(path)
                 if (file != null && executor.ready()) {
                     addBreakpoint(file, breakpoint)
-                } else {
-                    breakpoints[path]?.let {
-                        it.add(breakpoint)
-                    } ?: kotlin.run {
-                        breakpoints[path] = mutableListOf(breakpoint)
-                    }
+                }
+                breakpoints[path]?.let {
+                    it.add(breakpoint)
+                } ?: kotlin.run {
+                    breakpoints[path] = mutableListOf(breakpoint)
                 }
             }
         }
@@ -215,6 +248,9 @@ class PlProcess(
                 val file = PlVirtualFileSystem.getInstance().findFileByPath(path)
                 if (file != null && executor.ready()) {
                     dropBreakpoint(file, breakpoint)
+                }
+                breakpoints[path]?.removeIf {
+                    it.line == breakpoint.line
                 }
             }
         }

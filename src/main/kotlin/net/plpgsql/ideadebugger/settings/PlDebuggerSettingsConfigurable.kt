@@ -16,7 +16,7 @@ import javax.swing.JComponent
 class PlDebuggerSettingsConfigurable : Configurable {
 
     var panel: DialogPanel? = null
-    val data = PlDebuggerSettingsState.getInstance().toSettings()
+    val formData = PlDebuggerSettingsState.getInstance().data
 
     override fun createComponent(): JComponent? {
         panel = plParametersPanel()
@@ -27,7 +27,7 @@ class PlDebuggerSettingsConfigurable : Configurable {
 
     override fun apply() {
         panel?.apply()
-        PlDebuggerSettingsState.getInstance().fromSettings(data)
+        PlDebuggerSettingsState.getInstance().data = formData
     }
 
     override fun reset() {
@@ -45,36 +45,64 @@ class PlDebuggerSettingsConfigurable : Configurable {
 
         val res = panel {
             row("Attach timeout(ms)") {
-                intTextField().bindIntText(data::attachTimeOut)
+                intTextField().bindIntText(formData::attachTimeOut)
                     .comment("The debugger should outputs PLDBGBREAK up until this delay")
             }
             row("Step timeout(ms)") {
-                intTextField().bindIntText(data::stepTimeOut)
+                intTextField().bindIntText(formData::stepTimeOut)
                     .comment("Maximum time allowed for a step command")
             }
-            /*
-            row("Run pre-command") {
-                textField().bindText(data::preRunCommand)
+            collapsibleGroup("Custom commands") {
+                row {
+                    checkBox("Enable session command")
+                        .bindSelected(formData::enableSessionCommand)
+                }
+                row("Session command") {
+                    textArea()
+                        .bindText(formData::sessionCommand)
+                        .resizableColumn()
+                        .horizontalAlign(HorizontalAlign.FILL)
+                        .comment(
+                            """
+                            Optional command run on the running session 
+                            """.trimIndent()
+                        )
+                }
+                row {
+                    checkBox("Enable debugger command")
+                        .bindSelected(formData::enableDebuggerCommand)
+                }
+                row("Debugger command") {
+                    textArea()
+                        .bindText(formData::debuggerCommand)
+                        .resizableColumn()
+                        .horizontalAlign(HorizontalAlign.FILL)
+                        .comment(
+                            """
+                            Optional command run on the internal debugger session 
+                            """.trimIndent())
+                }
             }
-            row("Debug pre-command") {
-                textField().bindText(data::preDebugCommand)
-            }*/
             collapsibleGroup("Debugger Output") {
                 row {
                     checkBox("Show NOTICE")
-                        .bindSelected(data::showNotice)
+                        .bindSelected(formData::showNotice)
                 }
                 row {
                     checkBox("Show info")
-                        .bindSelected(data::showInfo)
+                        .bindSelected(formData::showInfo)
                 }
                 row {
                     checkBox("Show API")
-                        .bindSelected(data::showCmd)
+                        .bindSelected(formData::showCmd)
+                }
+                row {
+                    checkBox("Show SQL")
+                        .bindSelected(formData::showSQL)
                 }
                 row {
                     checkBox("Show debug")
-                        .bindSelected(data::showDebug)
+                        .bindSelected(formData::showDebug)
                 }
             }
             collapsibleGroup("Developer settings") {
@@ -83,7 +111,7 @@ class PlDebuggerSettingsConfigurable : Configurable {
 
                     row {
                         checkBox("Use custom queries")
-                            .bindSelected(data::customQuery)
+                            .bindSelected(formData::customQuery)
                             .comment(
                                 """
                                 Customize queries for solving compatibility issues 
@@ -92,7 +120,7 @@ class PlDebuggerSettingsConfigurable : Configurable {
 
                     row("Function detection") {
                         textArea()
-                            .bindText(data::queryFuncArgs)
+                            .bindText(formData::queryFuncArgs)
                             .resizableColumn()
                             .horizontalAlign(HorizontalAlign.FILL)
                             .comment(
@@ -103,7 +131,7 @@ class PlDebuggerSettingsConfigurable : Configurable {
                     }
                     row("Fetch variables") {
                         textArea()
-                            .bindText(data::queryRawVars)
+                            .bindText(formData::queryRawVars)
                             .resizableColumn()
                             .horizontalAlign(HorizontalAlign.FILL)
                             .comment(
@@ -115,7 +143,7 @@ class PlDebuggerSettingsConfigurable : Configurable {
                     row("Explode composite") {
 
                         textArea()
-                            .bindText(data::queryExplodeComposite)
+                            .bindText(formData::queryExplodeComposite)
                             .resizableColumn()
                             .horizontalAlign(HorizontalAlign.FILL)
                             .comment(
@@ -127,7 +155,7 @@ class PlDebuggerSettingsConfigurable : Configurable {
                     row("ExplodeArray") {
 
                         textArea()
-                            .bindText(data::queryExplodeArray)
+                            .bindText(formData::queryExplodeArray)
                             .resizableColumn()
                             .horizontalAlign(HorizontalAlign.FILL)
                             .comment(
@@ -141,23 +169,23 @@ class PlDebuggerSettingsConfigurable : Configurable {
                 collapsibleGroup("Failure testing") {
                     row {
                         checkBox("Extension failure")
-                            .bindSelected(data::failExtension)
+                            .bindSelected(formData::failExtension)
                     }
                     row {
                         checkBox("Query detection failure")
-                            .bindSelected(data::failDetection)
+                            .bindSelected(formData::failDetection)
                     }
                     row {
                         checkBox("Start debug failure")
-                            .bindSelected(data::failStart)
+                            .bindSelected(formData::failStart)
                     }
                     row {
                         checkBox("PLDBGBREAK failure")
-                            .bindSelected(data::failPGBreak)
+                            .bindSelected(formData::failPGBreak)
                     }
                     row {
                         checkBox("Process attachment failure")
-                            .bindSelected(data::failAttach)
+                            .bindSelected(formData::failAttach)
                     }
                 }
 

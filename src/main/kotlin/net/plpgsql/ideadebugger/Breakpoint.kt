@@ -15,6 +15,8 @@ import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiElementFilter
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.psi.PgCreateFunctionStatementImpl
+import com.intellij.sql.dialects.postgres.psi.PgCreateProcedureStatementImpl
+import com.intellij.sql.psi.SqlBlockStatement
 import com.intellij.sql.psi.impl.SqlTokenElement
 import com.intellij.xdebugger.breakpoints.XLineBreakpoint
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
@@ -45,16 +47,28 @@ class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>("
         }
         var goodCandidate = false
         val psi: PsiFile? = PsiManager.getInstance(project).findFile(file)
-        val funcEl = psi?.firstChild
-        if (funcEl is PgCreateFunctionStatementImpl) {
-            val begin = PsiTreeUtil.collectElements(funcEl, PsiElementFilter {
-                it is SqlTokenElement && it.text.uppercase() == "BEGIN"
-            }).firstOrNull()
-            if (begin != null) {
-                val doc = FileDocumentManager.getInstance().getDocument(file)
-                val beginPos = doc?.getLineNumber(begin.textOffset)
-                if (beginPos != null) {
-                    goodCandidate = beginPos < line
+
+        when(psi?.firstChild) {
+            is PgCreateFunctionStatementImpl,
+            is PgCreateProcedureStatementImpl -> {
+                PsiTreeUtil.findChildOfType(psi, SqlBlockStatement::class.java)?.let { block ->
+
+                    val beginEl = PsiTreeUtil.collectElements(block, PsiElementFilter {
+                        it is SqlTokenElement && it.text.uppercase() == "BEGIN"
+                    }).firstOrNull()
+
+                    val endEl = PsiTreeUtil.collectElements(block, PsiElementFilter {
+                        it is SqlTokenElement && it.text.uppercase() == "END"
+                    }).lastOrNull()
+
+                    if (beginEl != null && endEl != null) {
+                        val doc = FileDocumentManager.getInstance().getDocument(file)
+                        val beginPos = doc?.getLineNumber(beginEl.textOffset)
+                        val endPos = doc?.getLineNumber(endEl.textOffset)
+                        if (beginPos != null && endPos != null) {
+                            goodCandidate = beginPos < line && line < endPos
+                        }
+                    }
                 }
             }
         }
