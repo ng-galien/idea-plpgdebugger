@@ -99,6 +99,8 @@ class PlProcess(
             // Get stack and file breakpoint list for merge
             val stackBreakPoints = executor.getBreakPoints().filter {
                 it.oid == frame.file.oid
+            }.filter {
+                it.line > 0
             }.map {
                 it.line + frame.file.start
             }
@@ -130,7 +132,7 @@ class PlProcess(
             }
 
             //We can go to next step
-            val next = first && fileBreakPoints.isNotEmpty()
+            val next = first && !fileBreakPoints.any { frame.frame.line == it - frame.file.start }
             if (next) {
                 executor.setDebug("Got to next")
                 controller.scope.launch() { goToStep(ApiQuery.STEP_CONTINUE) }
