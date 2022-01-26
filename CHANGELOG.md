@@ -42,3 +42,15 @@
 ### Changed
 - Fix procedure detection
 - Many internal changes
+
+## [1.0.3]
+### Added
+- Plugin configuration: 
+  - Timeout control
+  - Output verbosity
+  - Internal queries(to fix manually)
+  - Failure tests(for developer)
+### Changed
+- Fix procedure detection on PG 14
+- Better error handling
+- Close owner connection when something has failed
