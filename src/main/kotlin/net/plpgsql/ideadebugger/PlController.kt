@@ -67,7 +67,7 @@ class PlController(
     val scope = CoroutineScope(Dispatchers.Default + exceptionHandler)
     val executor = PlExecutor(this)
     var timeOutJob: Job? = null
-    val settings = PlDebuggerSettingsState.getInstance()
+    val settings = PlDebuggerSettingsState.getInstance().state
 
     fun closeFile(file: PlFunctionSource?) {
         if (file == null) {
