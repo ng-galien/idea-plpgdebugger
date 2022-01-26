@@ -46,7 +46,7 @@ class PlController(
 ) : SqlDebugController() {
 
     private val auditor = QueryAuditor()
-    private val pattern = Pattern.compile(".*PLDBGBREAK:([0-9]+).*")
+
     private lateinit var plProcess: PlProcess
     lateinit var xSession: XDebugSession
     internal val windowLister = ToolListener()
@@ -131,12 +131,12 @@ class PlController(
         if (!executor.interrupted()) {
             ownerEx.messageBus.addAuditor(auditor)
             timeOutJob = scope.launch {
-                waitForPort()
+                waitForPort(connection)
             }
         }
     }
 
-    private suspend fun waitForPort() {
+    private suspend fun waitForPort(ownerConnection: DatabaseConnection) {
         kotlin.runCatching {
             withTimeout(settings.attachTimeOut.toLong()) {
                 repeat(3) {
@@ -145,11 +145,18 @@ class PlController(
             }
         }.onFailure {
             when (it) {
-                is CancellationException -> executor.setInfo("Port reached, discard timeout")
-                else -> {
-                    executor.setError("CoroutineExceptionHandler got", it)
-                    plProcess.stop()
+                is TimeoutCancellationException -> {
+                    //executor.abort()
+                    executor.setError("Attachment timeout reached (${settings.attachTimeOut}ms)")
+                    executor.interrupted()
+                    xSession.stop()
+                    kotlin.runCatching {
+                        ownerConnection.remoteConnection.close()
+                    }.onFailure { e ->
+                        println("$e")
+                    }
                 }
+                else -> executor.setInfo("Port reached, discard timeout")
             }
         }
 
@@ -175,12 +182,14 @@ class PlController(
 
     inner class QueryAuditor : DataAuditors.Adapter() {
 
+        private val pattern = Pattern.compile(".*PLDBGBREAK:([0-9]+).*")
+
         override fun warn(context: DataRequest.Context, info: WarningInfo) {
             executor.setNotice(info.logMessage)
             executor.displayInfo()
             if (!executor.hasError() && context.request.owner == ownerEx) {
                 val matcher = pattern.matcher(info.message)
-                if (matcher.matches()) {
+                if (!settings.failPGBreak && matcher.matches()) {
                     val port = matcher.group(1).toInt()
                     executor.attachToPort(port)
                     if (!executor.interrupted()) {

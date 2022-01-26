@@ -142,30 +142,32 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                 t_extension.extversion
             FROM pg_extension t_extension
             JOIN pg_namespace t_namespace ON t_extension.extnamespace = t_namespace.oid
-        """, Producer<Any> {
+        """.trimIndent(),
+        Producer<Any> {
             PlApiExtension(it.string(), it.string(), it.string())
         }
     ),
     GET_FUNCTION_CALL_ARGS(
         """
-        SELECT oid,
-        pronargs,
-        idx,
-        proargname,
-        concat(t_type_ns.nspname, '.', t_type.typname),
-        idx > (pronargs-pronargdefaults)
-        FROM (SELECT idx                          ,
-                     pronargs,
-                     pronargdefaults,
+        SELECT 
+               t_proc2.oid,
+               t_proc2.pronargs,
+               t_proc2.idx,
+               t_proc2.proargname,
+               concat(t_type_ns.nspname, '.', t_type.typname),
+               t_proc2.pronargs > 0 AND idx > (t_proc2.pronargs - t_proc2.pronargdefaults)
+        FROM (SELECT idx as idx,
+                     t_proc1.pronargs,
+                     t_proc1.pronargdefaults,
                      t_proc1.oid,
-                     t_proc1.proargtypes[idx - 1] as proargtype,
-                     t_proc1.proargnames[idx]     as proargname
+                     t_proc1.proargtypes[idx - 1] AS proargtype,
+                     t_proc1.proargnames[idx]     AS proargname
               FROM (SELECT t_proc.oid,
-                           case when t_proc.pronargs = 0 then '{0}'::oid[] else t_proc.proargtypes::oid[] end as proargtypes,
-                           case when t_proc.pronargs = 0 then '{""}'::text[] else t_proc.proargnames end      as proargnames,
+                           CASE WHEN t_proc.pronargs = 0 THEN '{0}'::oid[] ELSE t_proc.proargtypes::oid[] END AS proargtypes,
+                           CASE WHEN t_proc.pronargs = 0 THEN '{""}'::TEXT[] ELSE t_proc.proargnames END      AS proargnames,
                            t_proc.pronargs,
                            t_proc.pronargdefaults,
-                           case when t_proc.pronargs = 0 then 1 else t_proc.pronargs end                      as serial
+                           CASE WHEN t_proc.pronargs = 0 THEN 1 ELSE t_proc.pronargs END                      AS serial
                     FROM pg_proc t_proc
                              JOIN pg_namespace t_namespace
                                   ON t_proc.pronamespace = t_namespace.oid
@@ -175,8 +177,8 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                    generate_series(1, t_proc1.serial) idx) t_proc2
                  LEFT JOIN pg_type t_type
                            ON t_proc2.proargtype = t_type.oid
-                 left join pg_namespace t_type_ns ON t_type.typnamespace = t_type_ns.oid;
-        """, Producer<Any> {
+                 LEFT JOIN pg_namespace t_type_ns ON t_type.typnamespace = t_type_ns.oid;
+        """.trimIndent(), Producer<Any> {
             PlApiFunctionArg(
                 it.long(),
                 it.int(),
@@ -223,7 +225,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
 
     EXPLODE_ARRAY(
         """
-        (SELECT 
+        SELECT 
                t_arr_type.oid                     AS oid,
                '%s[' || idx || ']'                AS name,
                t_arr_type.typname                 AS type,
@@ -234,8 +236,9 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
         FROM jsonb_array_elements_text('%s'::jsonb) WITH ORDINALITY arr(val, idx)
                  JOIN pg_type t_type ON t_type.oid = %s
                  JOIN pg_type t_arr_type ON t_type.typelem = t_arr_type.oid
-                 LEFT JOIN pg_type t_sub ON t_arr_type.typelem = t_sub.oid) f
-        """, Producer<Any> {
+                 LEFT JOIN pg_type t_sub ON t_arr_type.typelem = t_sub.oid;
+        """.trimIndent(),
+        Producer<Any> {
             PlAiValue(
                 it.long(),
                 it.string(),
@@ -250,7 +253,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
 
     EXPLODE_COMPOSITE(
         """
-        (SELECT 
+        SELECT 
                t_att_type.oid                                   AS oid,
                t_att.attname                                    AS name,
                t_att_type.typname                               AS type_name,
@@ -268,8 +271,8 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                  LEFT JOIN pg_type t_sub ON t_att_type.typelem = t_sub.oid
                  JOIN (SELECT '%s'::jsonb val) AS jsonb
                       ON TRUE
-        WHERE t_type.oid = %s) c
-        """, Producer<Any> {
+        WHERE t_type.oid = %s;
+        """.trimIndent(), Producer<Any> {
             PlAiValue(
                 it.long(),
                 it.string(),
@@ -303,8 +306,8 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
  *
  *@param query
  */
-fun sanitizeQuery(query: ApiQuery): String {
-    var res = query.sql.trimIndent().replace(";", "")
+fun sanitizeQuery(sql: String): String {
+    var res = sql.trimIndent().replace(";", "")
     if (res.lowercase().startsWith("select")) {
         res = String.format("(%s)q", res)
     }

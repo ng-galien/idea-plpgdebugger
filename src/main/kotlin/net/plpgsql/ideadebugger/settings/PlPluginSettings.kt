@@ -4,6 +4,7 @@
 
 package net.plpgsql.ideadebugger.settings
 
+import net.plpgsql.ideadebugger.ApiQuery
 import org.jetbrains.annotations.ApiStatus
 
 
@@ -17,4 +18,14 @@ data class PlPluginSettings(
     var showDebug: Boolean = false,
     var showInfo: Boolean = false,
     var showNotice: Boolean = true,
+    var failExtension: Boolean = false,
+    var failDetection: Boolean = false,
+    var failStart: Boolean = false,
+    var failPGBreak: Boolean = false,
+    var failAttach: Boolean = false,
+    var customQuery: Boolean = false,
+    var queryFuncArgs: String = ApiQuery.GET_FUNCTION_CALL_ARGS.sql,
+    var queryRawVars: String = ApiQuery.GET_RAW_VARIABLES.sql,
+    var queryExplodeComposite: String = ApiQuery.EXPLODE_COMPOSITE.sql,
+    var queryExplodeArray: String = ApiQuery.EXPLODE_ARRAY.sql,
 )

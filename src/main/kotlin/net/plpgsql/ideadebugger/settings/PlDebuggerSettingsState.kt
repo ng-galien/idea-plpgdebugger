@@ -9,6 +9,7 @@ import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.util.xmlb.XmlSerializerUtil
+import net.plpgsql.ideadebugger.ApiQuery
 
 @State(
     name = "net.plpgsql.ideadebugger.settings.PlProjectSettingState",
@@ -24,6 +25,16 @@ class PlDebuggerSettingsState : PersistentStateComponent<PlDebuggerSettingsState
     var showDebug: Boolean = false
     var showInfo: Boolean = false
     var showNotice: Boolean = true
+    var failExtension: Boolean = false
+    var failDetection: Boolean = false
+    var failStart: Boolean = false
+    var failPGBreak: Boolean = false
+    var failAttach: Boolean = false
+    var customQuery: Boolean = false
+    var queryFuncArgs: String = ApiQuery.GET_FUNCTION_CALL_ARGS.sql
+    var queryRawVars: String = ApiQuery.GET_RAW_VARIABLES.sql
+    var queryExplodeComposite: String = ApiQuery.EXPLODE_COMPOSITE.sql
+    var queryExplodeArray: String = ApiQuery.EXPLODE_ARRAY.sql
 
     override fun getState(): PlDebuggerSettingsState? = this
 
@@ -45,6 +56,16 @@ class PlDebuggerSettingsState : PersistentStateComponent<PlDebuggerSettingsState
         showInfo = data.showInfo
         showNotice = data.showNotice
         showCmd = data.showCmd
+        failExtension = data.failExtension
+        failDetection = data.failDetection
+        failStart = data.failStart
+        failPGBreak = data.failPGBreak
+        failAttach = data.failAttach
+        customQuery = data.customQuery
+        queryFuncArgs = data.queryFuncArgs
+        queryRawVars = data.queryRawVars
+        queryExplodeComposite = data.queryExplodeComposite
+        queryExplodeArray = data.queryExplodeArray
     }
 
     fun toSettings(): PlPluginSettings =
@@ -57,5 +78,15 @@ class PlDebuggerSettingsState : PersistentStateComponent<PlDebuggerSettingsState
             showDebug = showDebug,
             showInfo = showInfo,
             showNotice = showNotice,
+            failExtension = failExtension,
+            failDetection = failDetection,
+            failStart = failStart,
+            failPGBreak = failPGBreak,
+            failAttach = failAttach,
+            customQuery = customQuery,
+            queryFuncArgs = queryFuncArgs,
+            queryRawVars = queryRawVars,
+            queryExplodeComposite = queryExplodeComposite,
+            queryExplodeArray = queryExplodeArray,
         )
 }
