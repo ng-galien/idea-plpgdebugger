@@ -9,9 +9,15 @@ package net.plpgsql.ideadebugger
  */
 enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boolean = true) {
 
+    VOID(
+        SELECT_NULL,
+        Producer<Any> { PlApiVoid() }),
     RAW_BOOL(
         "%s",
         Producer<Any> { PlApiBoolean(it.bool()) }),
+    RAW_TEXT(
+        "%s",
+        Producer<Any> { PlApiString(it.string()) }),
     CREATE_LISTENER(
         "pldbg_create_listener()",
         Producer<Any> { PlApiInt(it.int()) }),
