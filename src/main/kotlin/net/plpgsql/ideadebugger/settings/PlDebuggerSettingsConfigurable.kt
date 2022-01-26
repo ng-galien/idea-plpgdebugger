@@ -52,13 +52,37 @@ class PlDebuggerSettingsConfigurable : Configurable {
                 intTextField().bindIntText(formData::stepTimeOut)
                     .comment("Maximum time allowed for a step command")
             }
-            /*
-            row("Run pre-command") {
-                textField().bindText(data::preRunCommand)
+            collapsibleGroup("Custom commands") {
+                row {
+                    checkBox("Enable session command")
+                        .bindSelected(formData::enableSessionCommand)
+                }
+                row("Session command") {
+                    textArea()
+                        .bindText(formData::sessionCommand)
+                        .resizableColumn()
+                        .horizontalAlign(HorizontalAlign.FILL)
+                        .comment(
+                            """
+                            Optional command run on the running session 
+                            """.trimIndent()
+                        )
+                }
+                row {
+                    checkBox("Enable debugger command")
+                        .bindSelected(formData::enableDebuggerCommand)
+                }
+                row("Debugger command") {
+                    textArea()
+                        .bindText(formData::debuggerCommand)
+                        .resizableColumn()
+                        .horizontalAlign(HorizontalAlign.FILL)
+                        .comment(
+                            """
+                            Optional command run on the internal debugger session 
+                            """.trimIndent())
+                }
             }
-            row("Debug pre-command") {
-                textField().bindText(data::preDebugCommand)
-            }*/
             collapsibleGroup("Debugger Output") {
                 row {
                     checkBox("Show NOTICE")
@@ -71,6 +95,10 @@ class PlDebuggerSettingsConfigurable : Configurable {
                 row {
                     checkBox("Show API")
                         .bindSelected(formData::showCmd)
+                }
+                row {
+                    checkBox("Show SQL")
+                        .bindSelected(formData::showSQL)
                 }
                 row {
                     checkBox("Show debug")
