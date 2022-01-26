@@ -31,7 +31,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                    step.linenumber,
                    md5(pg_catalog.pg_get_functiondef(step.func))
             FROM pldbg_step_over(%s) step;
-        """.trimIndent(),
+        """,
         Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) }),
     STEP_INTO(
         """
@@ -39,7 +39,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                    step.linenumber,
                    md5(pg_catalog.pg_get_functiondef(step.func))
             FROM pldbg_step_into(%s) step;
-        """.trimIndent(),
+        """,
         Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) }),
     STEP_CONTINUE(
         """
@@ -47,7 +47,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                    step.linenumber,
                    md5(pg_catalog.pg_get_functiondef(step.func))
             FROM pldbg_continue(%s) step;
-        """.trimIndent(),
+        """,
         Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) }),
 
     LIST_BREAKPOINT(
@@ -56,7 +56,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                    step.linenumber,
                    ''
             FROM pldbg_get_breakpoints(%s) step;
-        """.trimIndent(),
+        """,
         Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) },
         false),
     ADD_BREAKPOINT(
@@ -74,7 +74,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
             frame.linenumber,
             md5(pg_catalog.pg_get_functiondef(frame.func))
         FROM pldbg_get_stack(%s) frame;
-        """.trimIndent(),
+        """,
         Producer<Any> {
             PlApiStackFrame(
                 it.int(), // Level
@@ -100,7 +100,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
             FROM pldbg_get_variables(%s) t_var
             LEFT JOIN pg_type t_type ON t_var.dtype = t_type.oid
             LEFT JOIN pg_type t_sub ON t_type.typelem = t_sub.oid;
-        """.trimIndent(), Producer<Any> {
+        """, Producer<Any> {
             PlApiStackVariable(
                 it.bool(),
                 it.int(),
@@ -136,13 +136,13 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
 
     GET_EXTENSION(
         """
-            SELECT 
-                t_namespace.nspname,
-                t_extension.extname,
-                t_extension.extversion
-            FROM pg_extension t_extension
-            JOIN pg_namespace t_namespace ON t_extension.extnamespace = t_namespace.oid
-        """.trimIndent(),
+        SELECT 
+            t_namespace.nspname,
+            t_extension.extname,
+            t_extension.extversion
+        FROM pg_extension t_extension
+        JOIN pg_namespace t_namespace ON t_extension.extnamespace = t_namespace.oid
+        """,
         Producer<Any> {
             PlApiExtension(it.string(), it.string(), it.string())
         }
@@ -178,7 +178,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                  LEFT JOIN pg_type t_type
                            ON t_proc2.proargtype = t_type.oid
                  LEFT JOIN pg_namespace t_type_ns ON t_type.typnamespace = t_type_ns.oid;
-        """.trimIndent(), Producer<Any> {
+        """, Producer<Any> {
             PlApiFunctionArg(
                 it.long(),
                 it.int(),
@@ -237,7 +237,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                  JOIN pg_type t_type ON t_type.oid = %s
                  JOIN pg_type t_arr_type ON t_type.typelem = t_arr_type.oid
                  LEFT JOIN pg_type t_sub ON t_arr_type.typelem = t_sub.oid;
-        """.trimIndent(),
+        """,
         Producer<Any> {
             PlAiValue(
                 it.long(),
@@ -272,7 +272,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                  JOIN (SELECT '%s'::jsonb val) AS jsonb
                       ON TRUE
         WHERE t_type.oid = %s;
-        """.trimIndent(), Producer<Any> {
+        """, Producer<Any> {
             PlAiValue(
                 it.long(),
                 it.string(),
@@ -287,16 +287,16 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
 
     T0_JSON(
         """
-        (SELECT to_jsonb(row) FROM (SELECT %s::%s) row) j
+        SELECT to_jsonb(row) FROM (SELECT %s::%s) row
         """, Producer<Any> { PlApiString(it.string()) }
     ),
 
     OLD_FUNCTION(
         """
-            SELECT func.id 
-            FROM unnest(%s) WITH ORDINALITY func(id)
-            LEFT JOIN pg_proc t_proc ON t_proc.oid = func.id
-            WHERE t_proc IS NULL
+        SELECT func.id 
+        FROM unnest(%s) WITH ORDINALITY func(id)
+        LEFT JOIN pg_proc t_proc ON t_proc.oid = func.id
+        WHERE t_proc IS NULL
         """, Producer<Any> { PlApiLong(it.long()) }
     )
 }
@@ -307,7 +307,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
  *@param query
  */
 fun sanitizeQuery(sql: String): String {
-    var res = sql.trimIndent().replace(";", "")
+    var res = sql.trimIndent().replace("(?m)^\\s+\$", "").removeSuffix(";")
     if (res.lowercase().startsWith("select")) {
         res = String.format("(%s)q", res)
     }
