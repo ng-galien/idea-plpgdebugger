@@ -64,20 +64,21 @@ class DBIterator<R>(producer: Producer<R>,
  */
 class DBRowSet<R>(
     producer: Producer<R>,
-    cmd: ApiQuery,
+    cmd: String,
     private var connection: DatabaseConnection,
-    ) : AbstractRowSet<R>(producer, sanitizeQuery(cmd)) {
+    ) : AbstractRowSet<R>(producer, cmd) {
 
     var initializers = mutableListOf<String>()
+    lateinit var internalSql: String
 
     override fun open(): RowIterator<R>? {
+        internalSql = String.format("SELECT * FROM %s;", sanitizeQuery(path))
         initializers.forEach {
             val statement = connection.remoteConnection.createStatement()
             statement.execute(it)
             statement.close()
         }
-        val query = String.format("SELECT * FROM %s;", path)
-        return DBIterator(producer = producer, connection, query)
+        return DBIterator(producer = producer, connection, internalSql)
     }
 }
 

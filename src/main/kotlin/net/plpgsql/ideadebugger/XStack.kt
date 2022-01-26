@@ -5,7 +5,6 @@
 package net.plpgsql.ideadebugger
 
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.application.runReadAction
 import com.intellij.xdebugger.XDebuggerUtil
 import com.intellij.xdebugger.XSourcePosition
 import com.intellij.xdebugger.evaluation.XDebuggerEvaluator
@@ -191,6 +190,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
 
         override fun computeChildren(node: XCompositeNode) {
             explode(node, executor.explode(plVar))
+            executor.displayInfo()
         }
 
         override fun computeSourcePosition(navigatable: XNavigatable) {
