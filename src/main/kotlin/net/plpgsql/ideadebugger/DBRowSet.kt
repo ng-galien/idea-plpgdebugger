@@ -69,16 +69,16 @@ class DBRowSet<R>(
     ) : AbstractRowSet<R>(producer, cmd) {
 
     var initializers = mutableListOf<String>()
-    lateinit var sqlQuery: String
+    lateinit var internalSql: String
 
     override fun open(): RowIterator<R>? {
-        sqlQuery = String.format("SELECT * FROM %s;", path)
+        internalSql = String.format("SELECT * FROM %s;", sanitizeQuery(path))
         initializers.forEach {
             val statement = connection.remoteConnection.createStatement()
             statement.execute(it)
             statement.close()
         }
-        return DBIterator(producer = producer, connection, sqlQuery)
+        return DBIterator(producer = producer, connection, internalSql)
     }
 }
 
