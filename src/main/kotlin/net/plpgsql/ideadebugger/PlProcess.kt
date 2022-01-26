@@ -132,7 +132,8 @@ class PlProcess(
             }
 
             //We can go to next step
-            val next = first && !fileBreakPoints.any { frame.frame.line == it - frame.file.start }
+            val next = first && fileBreakPoints.isNotEmpty()
+                    && !fileBreakPoints.any { frame.frame.line == it - frame.file.start }
             if (next) {
                 executor.setDebug("Got to next")
                 controller.scope.launch() { goToStep(ApiQuery.STEP_CONTINUE) }
