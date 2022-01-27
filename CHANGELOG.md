@@ -55,7 +55,7 @@
 - Better error handling
 - Close owner connection when something has failed
 
-## [1.1.0]
+## [1.1.1]
 ### Added
 - Plugin configuration:
   - Custom query on both running and debugging session
@@ -64,4 +64,3 @@
 - Fix call identification
 - Fix breakpoint support for PROCEDURE
 - Improved breakpoint management
-- 
