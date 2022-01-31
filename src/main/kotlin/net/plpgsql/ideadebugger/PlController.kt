@@ -182,6 +182,7 @@ class PlController(
     override fun close() {
         println("controller: close")
         xSession.stop()
+        windowLister.close()
         Disposer.dispose(DatabaseSessionManager.getSession(project, connectionPoint))
     }
 

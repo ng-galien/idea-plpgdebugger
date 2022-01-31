@@ -15,7 +15,6 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.psi.*
 import com.intellij.sql.psi.impl.SqlTokenElement
 import com.intellij.testFramework.LightVirtualFile
-import com.intellij.xdebugger.XDebuggerUtil
 import java.nio.charset.Charset
 
 class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFile(
@@ -54,13 +53,13 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
                         start = doc.getLineNumber(block.textOffset) - 2
                         end = doc.getLineNumber(block.textOffset + block.textLength) - 2
 
-                        val beginEl = PsiTreeUtil.collectElements(block, PsiElementFilter {
+                        val beginEl = PsiTreeUtil.collectElements(block){
                             it is SqlTokenElement && it.text.uppercase() == "BEGIN"
-                        }).firstOrNull()
+                        }.firstOrNull()
 
-                        val endEl = PsiTreeUtil.collectElements(block, PsiElementFilter {
+                        val endEl = PsiTreeUtil.collectElements(block) {
                             it is SqlTokenElement && it.text.uppercase() == "END"
-                        }).lastOrNull()
+                        }.lastOrNull()
 
                         if (beginEl != null && endEl != null) {
                             codeRange = Pair(doc.getLineNumber(beginEl.textOffset), doc.getLineNumber(endEl.textOffset))
@@ -76,14 +75,17 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
                         }.forEach { set ->
                             PsiTreeUtil.findChildrenOfType(set, SqlIdentifier::class.java).filter{ id ->
                                 psiArgs.containsKey(id.text) || psiVariables.containsKey(id.text)
-                            }.forEach {
-                                val p = Pair(doc.getLineNumber(it.textOffset), it)
-                                psiUse[it.text]?.add(p) ?: kotlin.run {
-                                    psiUse[it.text] = mutableListOf(p)
+                            }.forEach { el ->
+                                val toAdd = Pair(doc.getLineNumber(el.textOffset), el)
+                                psiUse[el.text]?.let {
+                                    it.find { test ->
+                                        test.first == toAdd.first && test.second.text == toAdd.second.text
+                                    } ?: it.add(toAdd)
+                                } ?: kotlin.run {
+                                    psiUse[el.text] = mutableListOf(toAdd)
                                 }
                             }
                         }
-
                     }
                 }
             }

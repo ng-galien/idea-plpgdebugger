@@ -28,7 +28,7 @@ class PlProcess(
     private var breakPointHandler = BreakPointHandler()
     internal val command = ConcurrentLinkedQueue<ApiQuery>()
     private val proxyTask = ProxyTask(controller.project, "PL/pg Debug")
-    val proxyProgress = ProxyProgress(proxyTask)
+    val proxyProgress = BackgroundableProcessIndicator(proxyTask)
 
     override fun startStepOver(context: XSuspendContext?) {
         executor.setInfo("User request: startStepOver")
@@ -63,11 +63,11 @@ class PlProcess(
     }
 
     override fun stop() {
-        executor.terminateBackEnd()
+        executor.terminateBackend()
         proxyTask.running = false
     }
 
-    fun updateStack(): Double {
+    fun updateStack(): StepInfo {
 
         val plStacks = executor.getStack()
         // If we reach this frame for the first time
@@ -140,7 +140,8 @@ class PlProcess(
             } else {
                 session.positionReached(context)
             }
-            frame.getSourceRatio()
+            StepInfo(frame.getSourceLine()+1, frame.file.codeRange.second, frame.getSourceRatio())
+
         }
 
     }
@@ -198,7 +199,7 @@ class PlProcess(
     }
 
 
-    inner class BreakPointHandler() :
+    inner class BreakPointHandler :
         XBreakpointHandler<XLineBreakpoint<PlLineBreakpointProperties>>(PlLineBreakpointType::class.java),
         XBreakpointListener<XLineBreakpoint<PlLineBreakpointProperties>> {
 
@@ -237,7 +238,7 @@ class PlProcess(
         override fun onCancel() {
             //println("canceled")
             executor.abort()
-            executor.terminateBackEnd()
+            executor.terminateBackend()
             running = false
         }
 
@@ -247,34 +248,47 @@ class PlProcess(
                 return
             }
             indicator.isIndeterminate = false
-            executor.setGlobalBreakPoint()
-            executor.waitForTarget()
-
+            kotlin.runCatching {
+                executor.setGlobalBreakPoint()
+                executor.waitForTarget()
+            }.onFailure {
+                executor.interrupted()
+                return
+            }
             do {
                 indicator.checkCanceled()
                 val query = command.poll()
                 if (query != null) {
-                    var step: PlApiStep? = null
-                    when (query) {
-                        ApiQuery.VOID -> {
-                            step = PlApiStep(executor.entryPoint, -1, "")
-                            indicator.text2 = "Waiting for debug command"
+                    kotlin.runCatching {
+                        var step: PlApiStep? = null
+                        when (query) {
+                            ApiQuery.VOID -> {
+                                step = PlApiStep(executor.entryPoint, -1, "")
+                            }
+                            ApiQuery.STEP_OVER,
+                            ApiQuery.STEP_CONTINUE,
+                            ApiQuery.STEP_INTO -> {
+                                step = executor.runStep(query)
+                                indicator.text2 = "Last step ${query.name}"
+                            }
+                            else -> {
+                                //TODO manage it
+                            }
                         }
-                        ApiQuery.STEP_OVER,
-                        ApiQuery.STEP_CONTINUE,
-                        ApiQuery.STEP_INTO -> {
-                            step = executor.runStep(query)
-                            indicator.text2 = "Last step ${query.name}"
+                        if (step != null) {
+                            val info = updateStack()
+                            indicator.fraction = info.ratio
+                            if (step.line < 0) {
+                                indicator.text2 = "Waiting for step [${info.pos} / ${info.total}]"
+                            } else {
+                                indicator.text2 = "Last step ${query.name} [${info.pos} / ${info.total}]"
+                            }
+                            executor.displayInfo()
                         }
-                        else -> {
-                            //TODO manage it
-                        }
+                    }.onFailure {
+                        indicator.cancel()
                     }
-                    if (step != null) {
-                        indicator.fraction = updateStack()
-                        indicator.text2 = "Last step ${query.name}"
-                        executor.displayInfo()
-                    }
+
                 } else {
                     Thread.sleep(200)
                 }
@@ -284,7 +298,7 @@ class PlProcess(
 
     }
 
-    inner class ProxyProgress(task: ProxyTask) : BackgroundableProcessIndicator(task) {
-    }
+    data class StepInfo(val pos: Int, val total: Int, val ratio: Double)
+
 
 }

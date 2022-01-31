@@ -9,6 +9,7 @@ import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.ui.Messages
 import com.jetbrains.rd.util.first
+import java.sql.SQLException
 
 /**
  *
@@ -16,7 +17,6 @@ import com.jetbrains.rd.util.first
 class PlExecutor(private val controller: PlController) {
 
     var entryPoint = 0L
-    var interrupted = false
     private var lastMessage: Message? = null
     private var lastError: Message? = null
     private val messages = mutableListOf<Message>()
@@ -129,7 +129,6 @@ class PlExecutor(private val controller: PlController) {
             query = ApiQuery.ABORT,
             args = listOf("$session")
         )
-        terminate()
     }
 
     fun runStep(step: ApiQuery): PlApiStep? {
@@ -138,8 +137,7 @@ class PlExecutor(private val controller: PlController) {
             ApiQuery.STEP_INTO,
             ApiQuery.STEP_CONTINUE -> executeQuery<PlApiStep>(
                 query = step,
-                args = listOf("$session"),
-                interruptible = true
+                args = listOf("$session")
             ).firstOrNull()
             else -> {
                 setError("Invalid step command: $step")
@@ -149,7 +147,7 @@ class PlExecutor(private val controller: PlController) {
     }
 
     fun getStack(): List<PlApiStackFrame> {
-        return executeQuery<PlApiStackFrame>(query = ApiQuery.GET_STACK, args = listOf("$session"))
+        return executeQuery(query = ApiQuery.GET_STACK, args = listOf("$session"))
     }
 
     fun getFunctionDef(oid: Long): PlApiFunctionDef =
@@ -161,12 +159,12 @@ class PlExecutor(private val controller: PlController) {
 
         if (vars.isEmpty()) return vars
 
-        val query = vars.joinToString( separator = "\nUNION ALL\n", postfix = ";") {
+        val query = vars.joinToString(separator = "\nUNION ALL\n", postfix = ";") {
             // Fix array type prefixed with underscore and NULL
             val realType = if (it.value.isArray) "${it.value.type.substring(1)}[]" else it.value.type
-            var realValue = "('${it.value.value.replace("'", "''")}'::${realType})"
-            var jsonValue = realValue
-            var prettyValue = realValue
+            val realValue = "('${it.value.value.replace("'", "''")}'::${realType})"
+            var jsonValue: String
+            var prettyValue: String
             // Transform to jsonb
             if (it.value.isArray || it.value.kind == 'c') {
                 jsonValue = "to_json$realValue::text"
@@ -183,7 +181,7 @@ class PlExecutor(private val controller: PlController) {
                     "${it.value.isArray},'${it.value.arrayType}',$jsonValue, $prettyValue"
 
         }
-        return executeQuery<PlApiStackVariable>(query = ApiQuery.GET_JSON_VARIABLES, args = listOf(query))
+        return executeQuery(query = ApiQuery.GET_JSON_VARIABLES, args = listOf(query))
     }
 
     fun explode(value: PlApiValue): List<PlApiValue> {
@@ -200,11 +198,11 @@ class PlExecutor(private val controller: PlController) {
             value.value.replace("'", "''"),
             "${value.oid}"
         )
-        return executeQuery<PlApiValue>(ApiQuery.EXPLODE, listOf(query))
+        return executeQuery(ApiQuery.EXPLODE, listOf(query))
     }
 
     fun getBreakPoints(): List<PlApiStep> =
-        executeQuery<PlApiStep>(query = ApiQuery.LIST_BREAKPOINT, args = listOf("$session"))
+        executeQuery(query = ApiQuery.LIST_BREAKPOINT, args = listOf("$session"))
 
     fun setGlobalBreakPoint() {
         executeQuery<PlApiBoolean>(
@@ -241,10 +239,10 @@ class PlExecutor(private val controller: PlController) {
         query: ApiQuery,
         args: List<String> = listOf(),
         dc: DatabaseConnection = internalConnection,
-        interruptible: Boolean = false,
         skipError: Boolean = false,
         additionnalCommand: String? = null,
     ): List<T> {
+
         setCmd("query=${query.name}, args=$args")
         var res: List<T>? = null
         var error: Throwable? = null
@@ -264,13 +262,17 @@ class PlExecutor(private val controller: PlController) {
                 }
                 fetch(args)
             }
-        }.onFailure {
-            error = it
+        }.onFailure { throwable ->
+            val reportError = (throwable as SQLException).let {
+                "08006" != throwable.sqlState
+            }
+            if (reportError) {
+                error = throwable
+            }
         }
 
         error?.let {
             if (!skipError) {
-                interrupted = interrupted || interruptible
                 setError("Query failed", it)
             } else {
                 setDebug("Query failed ${it.message}")
@@ -279,7 +281,7 @@ class PlExecutor(private val controller: PlController) {
         rowset?.let {
             setSQL(it.internalSql)
         }
-        return res ?: listOf<T>()
+        return res ?: listOf()
     }
 
     fun executeSessionCommand(rawSql: String, connection: DatabaseConnection = internalConnection) {
@@ -320,18 +322,16 @@ class PlExecutor(private val controller: PlController) {
 
     fun setInfo(msg: String) = addMessage(Message(level = Level.INFO, content = msg))
 
-    fun setCmd(msg: String) = addMessage(Message(level = Level.CMD, content = msg))
+    private fun setCmd(msg: String) = addMessage(Message(level = Level.CMD, content = msg))
 
     fun setDebug(msg: String) = addMessage(Message(level = Level.DEBUG, content = msg))
 
-    fun setSQL(msg: String) = addMessage(Message(level = Level.SQL, content = msg))
+    private fun setSQL(msg: String) = addMessage(Message(level = Level.SQL, content = msg))
 
     fun setError(msg: String, thw: Throwable? = null) {
-        if (!interrupted) {
-            val err = Message(level = Level.ERROR, content = msg, cause = thw?.getRootCause())
-            addMessage(err)
-            lastError = err
-        }
+        val err = Message(level = Level.ERROR, content = msg, cause = thw?.getRootCause())
+        addMessage(err)
+        lastError = err
     }
 
     fun displayInfo() {
@@ -373,7 +373,7 @@ class PlExecutor(private val controller: PlController) {
         messages.add(msg)
     }
 
-    fun hasError(): Boolean = !interrupted && (lastError != null)
+    private fun hasError(): Boolean = (lastError != null)
 
     fun interrupted(): Boolean {
         if (hasError()) {
@@ -384,17 +384,17 @@ class PlExecutor(private val controller: PlController) {
                 Messages.showMessageDialog(
                     controller.project,
                     msg?.content ?: "Unknown error",
-                    "PL/pg Debugger",
+                    "PostgresSQL Debugger",
                     Messages.getErrorIcon()
                 )
             }
-            terminate()
+            terminateBackend()
             return true
         }
         return false
     }
 
-    fun terminateBackEnd() {
+    fun terminateBackend() {
         val closingConnection = controller.getAuxiliaryConnection()
         listOf(ApiQuery.CANCEL_BACKEND, ApiQuery.TERMINATE_BACKEND).forEach {
             executeQuery<PlApiBoolean>(
@@ -404,23 +404,6 @@ class PlExecutor(private val controller: PlController) {
             )
         }
         closingConnection.remoteConnection.close()
-    }
-
-    fun terminate() {
-        runCatching {
-            interrupted = true
-            if (!internalConnection.remoteConnection.isClosed) {
-                executeQuery<PlApiBoolean>(
-                    ApiQuery.TERMINATE_BACKEND,
-                    args = listOf("$backendPid")
-                )
-                internalConnection.remoteConnection.close()
-            }
-        }.onFailure {
-            //setError("Terminates with exception", it)
-        }.onSuccess {
-            setInfo("Terminated without exception")
-        }
     }
 
     private inline fun <T> getRowSet(
