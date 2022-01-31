@@ -64,3 +64,12 @@
 - Fix call identification
 - Fix breakpoint support for PROCEDURE
 - Improved breakpoint management
+
+## [1.2.0-beta]
+### Added
+- Use background task:
+  - User can control debug task
+  - Gracefully terminate session
+- Inline variable display
+  - User can see variable in code
+  - Variable with long value are truncated 
