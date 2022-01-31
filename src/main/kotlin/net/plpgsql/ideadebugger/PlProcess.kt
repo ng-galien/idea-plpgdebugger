@@ -6,11 +6,16 @@ package net.plpgsql.ideadebugger
 
 import com.intellij.database.debugger.SqlDebugProcess
 import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.Task
+import com.intellij.openapi.progress.impl.BackgroundableProcessIndicator
+import com.intellij.openapi.project.Project
 import com.intellij.xdebugger.breakpoints.*
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
-import kotlinx.coroutines.*
+import java.util.concurrent.ConcurrentLinkedQueue
 
 class PlProcess(
     var controller: PlController
@@ -18,56 +23,51 @@ class PlProcess(
 
     private val breakpoints = mutableMapOf<String, MutableList<XLineBreakpoint<PlLineBreakpointProperties>>>()
     private val context = XContext()
-    private val fakeStep = PlApiStep(-1, 0, "")
-    private val executor = controller.executor
+    val executor = controller.executor
     private var stack: XStack = XStack(this)
     private var breakPointHandler = BreakPointHandler()
-
-
-    init {
-
-    }
+    internal val command = ConcurrentLinkedQueue<ApiQuery>()
+    private val proxyTask = ProxyTask(controller.project, "PL/pg Debug")
+    val proxyProgress = BackgroundableProcessIndicator(proxyTask)
 
     override fun startStepOver(context: XSuspendContext?) {
         executor.setInfo("User request: startStepOver")
-        controller.scope.launch() { goToStep(ApiQuery.STEP_OVER) }
+        command.add(ApiQuery.STEP_OVER)
     }
 
     override fun startStepInto(context: XSuspendContext?) {
         executor.setInfo("User request: startStepInto")
-        controller.scope.launch() { goToStep(ApiQuery.STEP_INTO) }
+        command.add(ApiQuery.STEP_INTO)
     }
 
     override fun resume(context: XSuspendContext?) {
         executor.setInfo("User request: resume")
-        controller.scope.launch() { goToStep(ApiQuery.STEP_CONTINUE) }
+        command.add(ApiQuery.STEP_CONTINUE)
     }
 
     fun startDebug() {
         executor.setInfo("From auxiliary request: startDebug")
-        updateStack()
+        ProgressManager.getInstance().runProcessWithProgressAsynchronously(proxyTask, proxyProgress)
+        command.add(ApiQuery.VOID)
     }
 
     override fun startForceStepInto(context: XSuspendContext?) {
         executor.setInfo("User request mot supported: use startStepInto")
-        controller.scope.launch() { goToStep(ApiQuery.STEP_INTO) }
+        command.add(ApiQuery.STEP_INTO)
 
     }
 
     override fun startStepOut(context: XSuspendContext?) {
         executor.setInfo("User request mot supported: use resume")
-        controller.scope.launch() { goToStep(ApiQuery.STEP_CONTINUE) }
+        command.add(ApiQuery.STEP_OVER)
     }
 
     override fun stop() {
-        executor.setInfo("User request: stop")
-        runCatching {
-            controller.scope.cancel("Stopped by user")
-        }
-        executor.abort()
+        executor.terminateBackend()
+        proxyTask.running = false
     }
 
-    private fun updateStack() {
+    fun updateStack(): StepInfo {
 
         val plStacks = executor.getStack()
         // If we reach this frame for the first time
@@ -94,7 +94,7 @@ class PlProcess(
                 stack.append(it, existing)
             }
         }
-        (stack.topFrame as XStack.XFrame)?.let { frame ->
+        return (stack.topFrame as XStack.XFrame).let { frame ->
 
             // Get stack and file breakpoint list for merge
             val stackBreakPoints = executor.getBreakPoints().filter {
@@ -104,7 +104,7 @@ class PlProcess(
             }.map {
                 it.line + frame.file.start
             }
-            val fileBreakPoints = breakpoints["${frame.frame.oid}"]?.map {
+            val fileBreakPoints = breakpoints["${frame.plFrame.oid}"]?.map {
                 it.line
             } ?: listOf()
 
@@ -118,13 +118,13 @@ class PlProcess(
             // Add missing breakPoints to stack and verify for existing
             val (toCheck, toAdd) = fileBreakPoints.partition { stackBreakPoints.contains(it) }
 
-            breakpoints["${frame.frame.oid}"]?.filter {
+            breakpoints["${frame.plFrame.oid}"]?.filter {
                 toAdd.contains(it.line)
             }?.forEach {
-               addBreakpoint(frame.file, it)
+                addBreakpoint(frame.file, it)
             }
             if (first) {
-                breakpoints["${frame.frame.oid}"]?.filter {
+                breakpoints["${frame.plFrame.oid}"]?.filter {
                     toCheck.contains(it.line)
                 }?.forEach {
                     session.setBreakpointVerified(it)
@@ -133,20 +133,22 @@ class PlProcess(
 
             //We can go to next step
             val next = first && fileBreakPoints.isNotEmpty()
-                    && !fileBreakPoints.any { frame.frame.line == it - frame.file.start }
+                    && !fileBreakPoints.any { frame.plFrame.line == it - frame.file.start }
             if (next) {
                 executor.setDebug("Got to next")
-                controller.scope.launch() { goToStep(ApiQuery.STEP_CONTINUE) }
+                command.add(ApiQuery.STEP_CONTINUE)
             } else {
                 session.positionReached(context)
             }
+            StepInfo(frame.getSourceLine()+1, frame.file.codeRange.second, frame.getSourceRatio())
+
         }
 
     }
 
     fun addBreakpoint(file: PlFunctionSource, breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
         if (executor.updateBreakPoint(
-                ApiQuery.ADD_BREAKPOINT,
+                ApiQuery.SET_BREAKPOINT,
                 file.oid,
                 breakpoint.line - file.start
             )
@@ -162,32 +164,6 @@ class PlProcess(
             file.oid,
             breakpoint.line - file.start
         )
-    }
-
-
-    private suspend fun goToStep(cmd: ApiQuery) {
-        kotlin.runCatching {
-            withTimeout(controller.settings.stepTimeOut.toLong()) {
-                executor.runStep(cmd)
-            }
-            updateStack()
-            executor.displayInfo()
-        }.onFailure {
-            executor.setError("Command Timeout ", it)
-            session.stop()
-        }
-
-    }
-
-    private suspend fun abort() {
-        kotlin.runCatching {
-            withTimeout(controller.settings.stepTimeOut.toLong()) {
-                executor.abort()
-            }
-        }.onFailure {
-            executor.setError("Command Timeout ", it)
-        }
-        executor.displayInfo()
     }
 
     override fun getEditorsProvider(): XDebuggerEditorsProvider {
@@ -206,6 +182,7 @@ class PlProcess(
         return arrayOf(breakPointHandler)
     }
 
+
     inner class XContext : XSuspendContext() {
 
         override fun getActiveExecutionStack(): XExecutionStack {
@@ -222,7 +199,7 @@ class PlProcess(
     }
 
 
-    inner class BreakPointHandler() :
+    inner class BreakPointHandler :
         XBreakpointHandler<XLineBreakpoint<PlLineBreakpointProperties>>(PlLineBreakpointType::class.java),
         XBreakpointListener<XLineBreakpoint<PlLineBreakpointProperties>> {
 
@@ -234,9 +211,7 @@ class PlProcess(
                 if (file != null && executor.ready()) {
                     addBreakpoint(file, breakpoint)
                 }
-                breakpoints[path]?.let {
-                    it.add(breakpoint)
-                } ?: kotlin.run {
+                breakpoints[path]?.add(breakpoint) ?: kotlin.run {
                     breakpoints[path] = mutableListOf(breakpoint)
                 }
             }
@@ -256,5 +231,74 @@ class PlProcess(
             }
         }
     }
+
+    inner class ProxyTask(project: Project, title: String) : Task.Backgroundable(project, title, true) {
+        var running = true
+
+        override fun onCancel() {
+            //println("canceled")
+            executor.abort()
+            executor.terminateBackend()
+            running = false
+        }
+
+        override fun run(indicator: ProgressIndicator) {
+
+            if (executor.entryPoint == 0L) {
+                return
+            }
+            indicator.isIndeterminate = false
+            kotlin.runCatching {
+                executor.setGlobalBreakPoint()
+                executor.waitForTarget()
+            }.onFailure {
+                executor.interrupted()
+                return
+            }
+            do {
+                indicator.checkCanceled()
+                val query = command.poll()
+                if (query != null) {
+                    kotlin.runCatching {
+                        var step: PlApiStep? = null
+                        when (query) {
+                            ApiQuery.VOID -> {
+                                step = PlApiStep(executor.entryPoint, -1, "")
+                            }
+                            ApiQuery.STEP_OVER,
+                            ApiQuery.STEP_CONTINUE,
+                            ApiQuery.STEP_INTO -> {
+                                step = executor.runStep(query)
+                                indicator.text2 = "Last step ${query.name}"
+                            }
+                            else -> {
+                                //TODO manage it
+                            }
+                        }
+                        if (step != null) {
+                            val info = updateStack()
+                            indicator.fraction = info.ratio
+                            if (step.line < 0) {
+                                indicator.text2 = "Waiting for step [${info.pos} / ${info.total}]"
+                            } else {
+                                indicator.text2 = "Last step ${query.name} [${info.pos} / ${info.total}]"
+                            }
+                            executor.displayInfo()
+                        }
+                    }.onFailure {
+                        indicator.cancel()
+                    }
+
+                } else {
+                    Thread.sleep(200)
+                }
+            } while (!indicator.isCanceled && running)
+
+        }
+
+    }
+
+    data class StepInfo(val pos: Int, val total: Int, val ratio: Double)
+
 
 }

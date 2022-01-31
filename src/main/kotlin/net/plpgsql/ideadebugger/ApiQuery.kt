@@ -7,7 +7,7 @@ package net.plpgsql.ideadebugger
 /**
  *
  */
-enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boolean = true) {
+enum class ApiQuery(val sql: String, val producer: Producer<Any>) {
 
     VOID(
         SELECT_NULL,
@@ -15,22 +15,24 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
     RAW_BOOL(
         "%s",
         Producer<Any> { PlApiBoolean(it.bool()) }),
-    RAW_TEXT(
-        "%s",
-        Producer<Any> { PlApiString(it.string()) }),
+    GET_BACKEND(
+        "pg_backend_pid()",
+        Producer<Any> { PlApiLong(it.long()) }),
+    CANCEL_BACKEND(
+        "pg_cancel_backend(%s)",
+        Producer<Any> { PlApiBoolean(it.bool()) }),
+    TERMINATE_BACKEND(
+        "pg_terminate_backend(%s)",
+        Producer<Any> { PlApiBoolean(it.bool()) }),
     CREATE_LISTENER(
         "pldbg_create_listener()",
         Producer<Any> { PlApiInt(it.int()) }),
-    ATTACH_TO_PORT(
-        "pldbg_attach_to_port(%s)",
-        Producer<Any> { PlApiInt(it.int()) }),
+    WAIT_FOR_TARGET(
+        "pldbg_wait_for_target(%s)",
+        Producer<Any> { PlApiLong(it.long()) }),
     ABORT(
         "pldbg_abort_target(%s)",
         Producer<Any> { PlApiBoolean(it.bool()) }),
-    DEBUG_OID(
-        "plpgsql_oid_debug(%s)",
-        Producer<Any> { PlApiInt(it.int()) }),
-
     STEP_OVER(
         """
             SELECT step.func,
@@ -63,9 +65,11 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                    ''
             FROM pldbg_get_breakpoints(%s) step;
         """,
-        Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) },
-        false),
-    ADD_BREAKPOINT(
+        Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) }),
+    SET_GLOBAL_BREAKPOINT(
+        "pldbg_set_global_breakpoint(%s, %s, -1, NULL)",
+        Producer<Any> { PlApiBoolean(it.bool()) }),
+    SET_BREAKPOINT(
         "pldbg_set_breakpoint(%s, %s, %s)",
         Producer<Any> { PlApiBoolean(it.bool()) }),
     DROP_BREAKPOINT(
@@ -102,7 +106,8 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                    coalesce(t_type.typtype, 'b') as kind,
                    t_type.typarray = 0 as is_array,
                    coalesce(t_sub.typname, 'unknown') as array_type,
-                   t_var.value as value
+                   t_var.value as value,
+                   '' as pretty
             FROM pldbg_get_variables(%s) t_var
             LEFT JOIN pg_type t_type ON t_var.dtype = t_type.oid
             LEFT JOIN pg_type t_sub ON t_type.typelem = t_sub.oid;
@@ -110,35 +115,39 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
             PlApiStackVariable(
                 it.bool(),
                 it.int(),
-                PlAiValue(
+                PlApiValue(
                     it.long(),
                     it.string(),
                     it.string(),
                     it.char(),
                     it.bool(),
                     it.string(),
+                    it.string(),
                     it.string()
                 )
             )
-        },
-        false
+        }
     ),
 
-    GET_JSON_VARIABLES("%s", Producer<Any> {
-        PlApiStackVariable(
-            it.bool(),
-            it.int(),
-            PlAiValue(
-                it.long(),
-                it.string(),
-                it.string(),
-                it.char(),
+    GET_JSON_VARIABLES(
+        "%s",
+        Producer<Any> {
+            PlApiStackVariable(
                 it.bool(),
-                it.string(),
-                it.string()
+                it.int(),
+                PlApiValue(
+                    it.long(),
+                    it.string(),
+                    it.string(),
+                    it.char(),
+                    it.bool(),
+                    it.string(),
+                    it.string(),
+                    it.string()
+                )
             )
-        )
-    }, false),
+        }
+    ),
 
     GET_EXTENSION(
         """
@@ -193,7 +202,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                 it.string(),
                 it.bool(),
             )
-        }, false
+        }
     ),
 
     GET_FUNCTION_DEF(
@@ -212,22 +221,23 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                 it.string(),
                 it.string(),
                 "${it.string().removeSuffix("\n")};",
-            it.string()
+                it.string()
             )
         }
     ),
 
     EXPLODE("%s", Producer<Any> {
-        PlAiValue(
+        PlApiValue(
             it.long(),
             it.string(),
             it.string(),
             it.char(),
             it.bool(),
             it.string(),
+            it.string(),
             it.string()
         )
-    }, false),
+    }),
 
     EXPLODE_ARRAY(
         """
@@ -238,35 +248,38 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                t_arr_type.typtype                 AS kind,
                t_arr_type.typarray = 0            AS is_array,
                coalesce(t_sub.typname, 'unknown') AS array_type,
-               arr.val::TEXT                      AS value
-        FROM jsonb_array_elements_text('%s'::jsonb) WITH ORDINALITY arr(val, idx)
+               arr.val::TEXT                      AS value,
+               jsonb_pretty(arr.val)    AS pretty
+        FROM jsonb_array_elements('%s'::jsonb) WITH ORDINALITY arr(val, idx)
                  JOIN pg_type t_type ON t_type.oid = %s
                  JOIN pg_type t_arr_type ON t_type.typelem = t_arr_type.oid
                  LEFT JOIN pg_type t_sub ON t_arr_type.typelem = t_sub.oid;
         """,
         Producer<Any> {
-            PlAiValue(
+            PlApiValue(
                 it.long(),
                 it.string(),
                 it.string(),
                 it.char(),
                 it.bool(),
                 it.string(),
+                it.string(),
                 it.string()
             )
-        }, false
+        }
     ),
 
     EXPLODE_COMPOSITE(
         """
         SELECT 
-               t_att_type.oid                                   AS oid,
-               t_att.attname                                    AS name,
-               t_att_type.typname                               AS type_name,
-               t_att_type.typtype                               AS kind,
-               t_att_type.typarray = 0                          AS is_array,
-               coalesce(t_sub.typname, 'unknown')               AS array_type,
-               jsonb_extract_path_text(jsonb.val, t_att.attname) AS value
+               t_att_type.oid                                               AS oid,
+               t_att.attname                                                AS name,
+               t_att_type.typname                                           AS type_name,
+               t_att_type.typtype                                           AS kind,
+               t_att_type.typarray = 0                                      AS is_array,
+               coalesce(t_sub.typname, 'unknown')                           AS array_type,
+               jsonb_extract_path_text(jsonb.val, t_att.attname)            AS value,
+               jsonb_pretty(jsonb_extract_path(jsonb.val, t_att.attname))   AS pretty
         FROM pg_type t_type
                  JOIN pg_class t_class
                       ON t_type.typrelid = t_class.oid
@@ -279,38 +292,24 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                       ON TRUE
         WHERE t_type.oid = %s;
         """, Producer<Any> {
-            PlAiValue(
+            PlApiValue(
                 it.long(),
                 it.string(),
                 it.string(),
                 it.char(),
                 it.bool(),
                 it.string(),
+                it.string(),
                 it.string()
             )
-        }, false
+        }
     ),
-
-    T0_JSON(
-        """
-        SELECT to_jsonb(row) FROM (SELECT %s::%s) row
-        """, Producer<Any> { PlApiString(it.string()) }
-    ),
-
-    OLD_FUNCTION(
-        """
-        SELECT func.id 
-        FROM unnest(%s) WITH ORDINALITY func(id)
-        LEFT JOIN pg_proc t_proc ON t_proc.oid = func.id
-        WHERE t_proc IS NULL
-        """, Producer<Any> { PlApiLong(it.long()) }
-    )
 }
 
 
 /**
  *
- *@param query
+ *@param sql
  */
 fun sanitizeQuery(sql: String): String {
     var res = sql.trimIndent().replace("(?m)^\\s+\$", "").removeSuffix(";")

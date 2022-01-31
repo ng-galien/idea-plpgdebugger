@@ -18,7 +18,7 @@ data class PlApiStep(val oid: Long, val line: Int, val md5: String)
 
 data class PlApiStackFrame(val level: Int, val oid: Long, val line: Int, val md5: String)
 
-data class PlAiValue(
+data class PlApiValue(
     val oid: Long,
     val name: String,
     val type: String,
@@ -26,12 +26,13 @@ data class PlAiValue(
     val isArray: Boolean,
     val arrayType: String,
     val value: String,
+    val pretty: String
 )
 
 data class PlApiStackVariable(
     val isArg: Boolean,
     val line: Int,
-    val value: PlAiValue,
+    val value: PlApiValue,
 )
 
 data class PlApiFunctionArg(
