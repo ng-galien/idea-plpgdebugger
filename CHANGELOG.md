@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [1.2.0-beta]
+- Use background task:
+  - User can control debug task
+  - Gracefully terminate session
+- Inline variable display
+  - User can see variable in code
+  - Variable with long value are truncated
+
 ## [1.0.0-alpha]
 ### Added
 - Allow direct debug of a PL/pg function
@@ -19,6 +27,7 @@
 ### Added
 - Support for breakpoint
 - Implements a Virtual File System to store debug files
+
 ### Changed
 - Refactor many parts for future test support
 
@@ -39,6 +48,7 @@
 ## [1.0.2]
 ### Added
 - Plugin configuration: timeouts and output verbosity
+
 ### Changed
 - Fix procedure detection
 - Many internal changes
@@ -50,6 +60,7 @@
   - Output verbosity
   - Internal queries(to fix manually)
   - Failure tests(for developer)
+
 ### Changed
 - Fix procedure detection on PG 14
 - Better error handling
@@ -60,6 +71,7 @@
 - Plugin configuration:
   - Custom query on both running and debugging session
   - Add SQL specific verbosity
+
 ### Changed
 - Fix call identification
 - Fix breakpoint support for PROCEDURE
@@ -72,4 +84,4 @@
   - Gracefully terminate session
 - Inline variable display
   - User can see variable in code
-  - Variable with long value are truncated 
+  - Variable with long value are truncated
