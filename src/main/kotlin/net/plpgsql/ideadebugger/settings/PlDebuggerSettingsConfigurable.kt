@@ -44,13 +44,19 @@ class PlDebuggerSettingsConfigurable : Configurable {
     private fun plParametersPanel(): DialogPanel {
 
         val res = panel {
-            row("Attach timeout(ms)") {
-                intTextField().bindIntText(formData::attachTimeOut)
-                    .comment("The debugger should outputs PLDBGBREAK up until this delay")
-            }
-            row("Step timeout(ms)") {
-                intTextField().bindIntText(formData::stepTimeOut)
-                    .comment("Maximum time allowed for a step command")
+            group("General") {
+                row("Attach timeout(ms)") {
+                    intTextField().bindIntText(formData::attachTimeOut)
+                        .comment("The debugger should outputs PLDBGBREAK up until this delay")
+                }
+                row("Step timeout(ms)") {
+                    intTextField().bindIntText(formData::stepTimeOut)
+                        .comment("Maximum time allowed for a step command")
+                }
+                row {
+                    checkBox("Display variables in code")
+                        .bindSelected(formData::showInlineVariable)
+                }
             }
             collapsibleGroup("Custom commands") {
                 row {

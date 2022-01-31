@@ -161,24 +161,32 @@ class PlExecutor(private val controller: PlController) {
 
         if (vars.isEmpty()) return vars
 
-        val query = vars.joinToString(prefix = "(", separator = "\nUNION ALL\n", postfix = ") v") {
+        val query = vars.joinToString( separator = "\nUNION ALL\n", postfix = ";") {
             // Fix array type prefixed with underscore and NULL
             val realType = if (it.value.isArray) "${it.value.type.substring(1)}[]" else it.value.type
-            var realValue = "('${it.value.value.replace("'", "''")}'::${realType})::text"
+            var realValue = "('${it.value.value.replace("'", "''")}'::${realType})"
+            var jsonValue = realValue
+            var prettyValue = realValue
             // Transform to jsonb
             if (it.value.isArray || it.value.kind == 'c') {
-                realValue = "to_json$realValue"
+                jsonValue = "to_json$realValue::text"
+                prettyValue = "jsonb_pretty(to_jsonb$realValue)"
+            } else {
+                jsonValue = "$realValue::text"
+                prettyValue = jsonValue
             }
             if (plNull(it.value.value)) {
-                realValue = "'NULL'"
+                jsonValue = "'NULL'"
+                prettyValue = "'NULL'"
             }
-            "SELECT ${it.isArg},${it.line},${it.value.oid},'${it.value.name}','$realType','${it.value.kind}',${it.value.isArray},'${it.value.arrayType}',$realValue"
+            "SELECT ${it.isArg},${it.line},${it.value.oid},'${it.value.name}','$realType','${it.value.kind}'," +
+                    "${it.value.isArray},'${it.value.arrayType}',$jsonValue, $prettyValue"
 
         }
         return executeQuery<PlApiStackVariable>(query = ApiQuery.GET_JSON_VARIABLES, args = listOf(query))
     }
 
-    fun explode(value: PlAiValue): List<PlAiValue> {
+    fun explode(value: PlApiValue): List<PlApiValue> {
         if (!value.isArray && value.kind != 'c') {
             throw IllegalArgumentException("Explode not supported for: $value")
         }
@@ -192,7 +200,7 @@ class PlExecutor(private val controller: PlController) {
             value.value.replace("'", "''"),
             "${value.oid}"
         )
-        return executeQuery<PlAiValue>(ApiQuery.EXPLODE, listOf(query))
+        return executeQuery<PlApiValue>(ApiQuery.EXPLODE, listOf(query))
     }
 
     fun getBreakPoints(): List<PlApiStep> =

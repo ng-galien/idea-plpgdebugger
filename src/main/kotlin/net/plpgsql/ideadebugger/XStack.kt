@@ -5,18 +5,30 @@
 package net.plpgsql.ideadebugger
 
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.editor.DefaultLanguageHighlighterColors
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiManager
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.sql.psi.SqlParameterList
+import com.intellij.sql.psi.SqlVariableDefinition
+import com.intellij.ui.SimpleTextAttributes
+import com.intellij.util.ThreeState
 import com.intellij.xdebugger.XDebuggerUtil
 import com.intellij.xdebugger.XSourcePosition
-import com.intellij.xdebugger.evaluation.XDebuggerEvaluator
 import com.intellij.xdebugger.frame.*
+import com.intellij.xdebugger.frame.presentation.XValuePresentation
+import com.intellij.xdebugger.impl.ui.DebuggerUIUtil
+import com.intellij.xdebugger.impl.ui.tree.nodes.XValuePresentationUtil
 import icons.DatabaseIcons
 import javax.swing.Icon
+import kotlin.math.min
 
 /**
  * During a debugging session the code definition does not change
  * The function definition have not to be reevaluated
  */
-class XStack(process: PlProcess) : XExecutionStack("") {
+class XStack(private var process: PlProcess) : XExecutionStack("") {
 
     private val frames = mutableListOf<XFrame>()
     private val variableRegistry = mutableMapOf<Long, List<PlApiStackVariable>>()
@@ -60,13 +72,11 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             return (plFrame.line + file.start - file.codeRange.first).toDouble() / file.lineRangeCount
         }
 
-        override fun getEvaluator(): XDebuggerEvaluator? {
-            return super.getEvaluator()
+        override fun getSourcePosition(): XSourcePosition? {
+            return XDebuggerUtil.getInstance().createPosition(file, getSourceLine())
         }
 
-        override fun getSourcePosition(): XSourcePosition? {
-            return XDebuggerUtil.getInstance().createPosition(file, plFrame.line + file.start)
-        }
+        fun getSourceLine(): Int = plFrame.line + file.start
 
         override fun computeChildren(node: XCompositeNode) {
             val list = XValueChildrenList()
@@ -74,10 +84,10 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             val plVars = getVariables()
             val (args, values) = plVars.partition { it.isArg }
             if (args.isNotEmpty()) {
-                list.addTopGroup(XValGroup(GroupType.PARAMETER, args))
+                list.addTopGroup(XValGroup(GroupType.PARAMETER, args, this))
             }
             if (values.isNotEmpty()) {
-                list.addBottomGroup(XValGroup(GroupType.VALUE, values))
+                list.addBottomGroup(XValGroup(GroupType.VALUE, values, this))
             }
             node.addChildren(list, true)
         }
@@ -94,79 +104,87 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             PlApiStackVariable(
                 false,
                 0,
-                PlAiValue(
+                PlApiValue(
                     0,
                     "Function",
                     "text",
                     'b',
                     false,
                     "",
-                    file.name
+                    file.name,
+                    file.name,
                 )
             ),
             PlApiStackVariable(
                 false,
                 0,
-                PlAiValue(
+                PlApiValue(
                     0,
                     "Oid",
                     "int8",
                     'b',
                     false,
                     "",
-                    "${plFrame.oid}"
+                    "${plFrame.oid}",
+                    "${plFrame.oid}",
                 )
             ),
             PlApiStackVariable(
                 false,
                 0,
-                PlAiValue(
+                PlApiValue(
                     0,
                     "Level",
                     "int4",
                     'b',
                     false,
                     "",
-                    "${plFrame.level}"
+                    "${plFrame.level}",
+                    "${plFrame.level}",
                 )
             ),
             PlApiStackVariable(
                 false,
                 0,
-                PlAiValue(
+                PlApiValue(
                     0,
                     "Level",
                     "int4",
                     'b',
                     false,
                     "",
-                    "${plFrame.level}"
+                    "${plFrame.level}",
+                    "${plFrame.level}",
                 )
             ),
             PlApiStackVariable(
                 false,
                 0,
-                PlAiValue(
+                PlApiValue(
                     0,
                     "Position",
                     "int4",
                     'b',
                     false,
                     "",
-                    "${plFrame.line}"
+                    "${plFrame.line}",
+                    "${plFrame.line}",
                 )
             ),
         )
     }
 
 
-    inner class XValGroup(private val type: GroupType, private val plVars: List<PlApiStackVariable>) :
+    inner class XValGroup(
+        private val type: GroupType,
+        private val plVars: List<PlApiStackVariable>,
+        private val xFrame: XFrame? = null
+    ) :
         XValueGroup(type.title) {
-
         override fun computeChildren(node: XCompositeNode) {
             val list = XValueChildrenList()
             plVars.forEach {
-                list.add(XVal(it.value))
+                list.add(XVal(it, xFrame))
             }
             node.addChildren(list, true)
         }
@@ -180,19 +198,37 @@ class XStack(process: PlProcess) : XExecutionStack("") {
         }
     }
 
-    inner class XVal(private val plVar: PlAiValue) : XNamedValue(plVar.name) {
+    inner class XVal(
 
+        private val plStackVar: PlApiStackVariable,
+        private val xFrame: XFrame? = null) : XNamedValue(plStackVar.value.name) {
+
+        private val plVar: PlApiValue = plStackVar.value
 
         override fun computePresentation(node: XValueNode, place: XValuePlace) {
-
             node.setPresentation(
                 if (isArray()) AllIcons.Debugger.Db_array
                 else if (isComposite()) AllIcons.Nodes.Type
                 else AllIcons.Nodes.Variable,
-                if (isArray()) "${plVar.arrayType}[]" else plVar.type,
-                plVar.value,
+                //if (isArray()) "${plVar.arrayType}[]" else plVar.type,
+                object: XValuePresentation() {
+                    override fun renderValue(renderer: XValueTextRenderer) {
+                        val type = if (isArray()) "${plVar.arrayType}[]" else plVar.type
+                        renderer.renderComment("$type => ")
+                        renderer.renderValue(plVar.value.substring(0, min(plVar.value.length, 50)))
+                    }
+
+                },
                 canExplode()
             )
+            if(plVar.value.length > 50) {
+                node.setFullValueEvaluator(object: XFullValueEvaluator(plVar.value.length) {
+                    override fun startEvaluation(callback: XFullValueEvaluationCallback) {
+                        callback.evaluated(plVar.pretty)
+                    }
+
+                })
+            }
         }
 
         override fun computeChildren(node: XCompositeNode) {
@@ -200,16 +236,42 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             executor.displayInfo()
         }
 
-        override fun computeSourcePosition(navigatable: XNavigatable) {
-            super.computeSourcePosition(navigatable)
+        override fun computeInlineDebuggerData(callback: XInlineDebuggerDataCallback): ThreeState {
+            if (!process.controller.settings.showInlineVariable) {
+                return ThreeState.NO
+            }
+            var compute = false
+            xFrame?.file?.let { fs ->
+                (if (plStackVar.isArg) fs.psiArgs else fs.psiVariables).let { map ->
+                    map[plVar.name]?.let {
+                        val pos = XDebuggerUtil.getInstance().createPositionByElement(it)
+                        callback.computed(pos)
+                        compute = true
+                    }
+                }
+                fs.psiUse[plVar.name]?.filter { p ->
+                    xFrame.getSourceLine() >= p.first
+                }?.forEach { p ->
+                    val pos = XDebuggerUtil.getInstance().createPositionByElement(p.second)
+                    callback.computed(pos)
+                    compute = true
+                }
+            }
+            return if (compute) ThreeState.YES else ThreeState.NO
         }
 
-        override fun canNavigateToSource(): Boolean = true
+        override fun getEvaluationExpression(): String? {
+            return plVar.value
+        }
 
-        private fun explode(node: XCompositeNode, values: List<PlAiValue>) {
+
+        override fun canNavigateToSource(): Boolean = plStackVar.line > 0 || plStackVar.isArg
+
+
+        private fun explode(node: XCompositeNode, values: List<PlApiValue>) {
             val list = XValueChildrenList()
             values.forEach {
-                list.add(XVal(it))
+                list.add(XVal(PlApiStackVariable(plStackVar.isArg, 0, it)))
             }
             if (list.size() > 0) {
                 node.addChildren(list, true)
