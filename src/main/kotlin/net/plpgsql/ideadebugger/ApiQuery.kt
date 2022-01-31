@@ -7,7 +7,7 @@ package net.plpgsql.ideadebugger
 /**
  *
  */
-enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boolean = true) {
+enum class ApiQuery(val sql: String, val producer: Producer<Any>) {
 
     VOID(
         SELECT_NULL,
@@ -15,22 +15,24 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
     RAW_BOOL(
         "%s",
         Producer<Any> { PlApiBoolean(it.bool()) }),
-    RAW_TEXT(
-        "%s",
-        Producer<Any> { PlApiString(it.string()) }),
+    GET_BACKEND(
+        "pg_backend_pid()",
+        Producer<Any> { PlApiLong(it.long()) }),
+    CANCEL_BACKEND(
+        "pg_cancel_backend(%s)",
+        Producer<Any> { PlApiBoolean(it.bool()) }),
+    TERMINATE_BACKEND(
+        "pg_terminate_backend(%s)",
+        Producer<Any> { PlApiBoolean(it.bool()) }),
     CREATE_LISTENER(
         "pldbg_create_listener()",
         Producer<Any> { PlApiInt(it.int()) }),
-    ATTACH_TO_PORT(
-        "pldbg_attach_to_port(%s)",
-        Producer<Any> { PlApiInt(it.int()) }),
+    WAIT_FOR_TARGET(
+        "pldbg_wait_for_target(%s)",
+        Producer<Any> { PlApiLong(it.long()) }),
     ABORT(
         "pldbg_abort_target(%s)",
         Producer<Any> { PlApiBoolean(it.bool()) }),
-    DEBUG_OID(
-        "plpgsql_oid_debug(%s)",
-        Producer<Any> { PlApiInt(it.int()) }),
-
     STEP_OVER(
         """
             SELECT step.func,
@@ -63,9 +65,11 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                    ''
             FROM pldbg_get_breakpoints(%s) step;
         """,
-        Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) },
-        false),
-    ADD_BREAKPOINT(
+        Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) }),
+    SET_GLOBAL_BREAKPOINT(
+        "pldbg_set_global_breakpoint(%s, %s, -1, NULL)",
+        Producer<Any> { PlApiBoolean(it.bool()) }),
+    SET_BREAKPOINT(
         "pldbg_set_breakpoint(%s, %s, %s)",
         Producer<Any> { PlApiBoolean(it.bool()) }),
     DROP_BREAKPOINT(
@@ -120,25 +124,27 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                     it.string()
                 )
             )
-        },
-        false
+        }
     ),
 
-    GET_JSON_VARIABLES("%s", Producer<Any> {
-        PlApiStackVariable(
-            it.bool(),
-            it.int(),
-            PlAiValue(
-                it.long(),
-                it.string(),
-                it.string(),
-                it.char(),
+    GET_JSON_VARIABLES(
+        "%s",
+        Producer<Any> {
+            PlApiStackVariable(
                 it.bool(),
-                it.string(),
-                it.string()
+                it.int(),
+                PlAiValue(
+                    it.long(),
+                    it.string(),
+                    it.string(),
+                    it.char(),
+                    it.bool(),
+                    it.string(),
+                    it.string()
+                )
             )
-        )
-    }, false),
+        }
+    ),
 
     GET_EXTENSION(
         """
@@ -193,7 +199,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                 it.string(),
                 it.bool(),
             )
-        }, false
+        }
     ),
 
     GET_FUNCTION_DEF(
@@ -212,7 +218,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                 it.string(),
                 it.string(),
                 "${it.string().removeSuffix("\n")};",
-            it.string()
+                it.string()
             )
         }
     ),
@@ -227,7 +233,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
             it.string(),
             it.string()
         )
-    }, false),
+    }),
 
     EXPLODE_ARRAY(
         """
@@ -254,7 +260,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                 it.string(),
                 it.string()
             )
-        }, false
+        }
     ),
 
     EXPLODE_COMPOSITE(
@@ -288,29 +294,14 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val print: Boo
                 it.string(),
                 it.string()
             )
-        }, false
+        }
     ),
-
-    T0_JSON(
-        """
-        SELECT to_jsonb(row) FROM (SELECT %s::%s) row
-        """, Producer<Any> { PlApiString(it.string()) }
-    ),
-
-    OLD_FUNCTION(
-        """
-        SELECT func.id 
-        FROM unnest(%s) WITH ORDINALITY func(id)
-        LEFT JOIN pg_proc t_proc ON t_proc.oid = func.id
-        WHERE t_proc IS NULL
-        """, Producer<Any> { PlApiLong(it.long()) }
-    )
 }
 
 
 /**
  *
- *@param query
+ *@param sql
  */
 fun sanitizeQuery(sql: String): String {
     var res = sql.trimIndent().replace("(?m)^\\s+\$", "").removeSuffix(";")

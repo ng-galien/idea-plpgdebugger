@@ -9,28 +9,25 @@ import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.ui.Messages
 import com.jetbrains.rd.util.first
-import java.util.concurrent.locks.Lock
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
 
 /**
  *
  */
 class PlExecutor(private val controller: PlController) {
 
-    private val lock: Lock = ReentrantLock()
-    private var entryPoint = 0L
-    private var session = 0
+    var entryPoint = 0L
     var interrupted = false
-
     private var lastMessage: Message? = null
-
     private var lastError: Message? = null
-
     private val messages = mutableListOf<Message>()
+    private var internalConnection: DatabaseConnection = controller.getAuxiliaryConnection()
 
-    private val internalConnection = controller.guardedConnection.get()
+    private val backendPid = executeQuery<PlApiLong>(
+        query = ApiQuery.GET_BACKEND,
+        args = listOf()
+    ).first().value
 
+    private var session = createListener()
 
     fun checkExtension() {
         if (controller.settings.failExtension) {
@@ -111,58 +108,41 @@ class PlExecutor(private val controller: PlController) {
         }
     }
 
-    fun startDebug(databaseConnection: DatabaseConnection) {
-        if (controller.settings.failStart) {
-            setError("[FAKE]Failed to start direct debug: entryPoint=$entryPoint")
-            return
-        }
-        when (executeQuery<PlApiInt>(
-            query = ApiQuery.DEBUG_OID,
-            args = listOf("$entryPoint"),
-            dc = databaseConnection
-        ).firstOrNull()?.value ?: -1) {
-            0 -> setInfo("Entering direct debug: entryPoint=$entryPoint\"")
-            else -> setError("Failed to start direct debug: entryPoint=$entryPoint")
-        }
+    private fun createListener(): Int {
+        return executeQuery<PlApiInt>(
+            query = ApiQuery.CREATE_LISTENER
+        ).first().value
     }
 
-    fun attachToPort(port: Int) {
-        if (controller.settings.failAttach) {
-            setError("[FAKE]Failed to attach to port: port=$port")
-            return
-        }
-        session = executeQuery<PlApiInt>(
-            query = ApiQuery.ATTACH_TO_PORT,
-            args = listOf("$port")
-        ).firstOrNull()?.value ?: -1
-        when {
-            session > 0 -> setInfo("Connected to session =$session")
-            else -> setError("Failed to attach to port: port=$port")
-        }
+    fun waitForTarget(): Long {
+        return executeQuery<PlApiLong>(
+            query = ApiQuery.WAIT_FOR_TARGET,
+            args = listOf("$session")
+        ).first().value
     }
 
     fun abort() {
         if (internalConnection.remoteConnection.isClosed) {
             return
         }
-        executeQuery<Boolean>(
+        executeQuery<PlApiBoolean>(
             query = ApiQuery.ABORT,
             args = listOf("$session")
         )
         terminate()
     }
 
-    fun runStep(cmd: ApiQuery): PlApiStep? {
-        return when (cmd) {
+    fun runStep(step: ApiQuery): PlApiStep? {
+        return when (step) {
             ApiQuery.STEP_OVER,
             ApiQuery.STEP_INTO,
             ApiQuery.STEP_CONTINUE -> executeQuery<PlApiStep>(
-                query = cmd,
+                query = step,
                 args = listOf("$session"),
                 interruptible = true
             ).firstOrNull()
             else -> {
-                setError("Invalid step command: $cmd")
+                setError("Invalid step command: $step")
                 null
             }
         }
@@ -218,10 +198,17 @@ class PlExecutor(private val controller: PlController) {
     fun getBreakPoints(): List<PlApiStep> =
         executeQuery<PlApiStep>(query = ApiQuery.LIST_BREAKPOINT, args = listOf("$session"))
 
+    fun setGlobalBreakPoint() {
+        executeQuery<PlApiBoolean>(
+            ApiQuery.SET_GLOBAL_BREAKPOINT,
+            listOf("$session", "$entryPoint")
+        )
+    }
+
     fun updateBreakPoint(cmd: ApiQuery, oid: Long, line: Int): Boolean {
         //TODO manage failure
         return when (cmd) {
-            ApiQuery.ADD_BREAKPOINT,
+            ApiQuery.SET_BREAKPOINT,
             ApiQuery.DROP_BREAKPOINT -> executeQuery<PlApiBoolean>(
                 cmd,
                 listOf("$session", "$oid", "$line")
@@ -231,6 +218,14 @@ class PlExecutor(private val controller: PlController) {
                 false
             }
         }
+    }
+
+    fun terminateBackend(databaseConnection: DatabaseConnection, pid: Long): Boolean {
+        return executeQuery<PlApiBoolean>(
+            query = ApiQuery.TERMINATE_BACKEND,
+            dc = databaseConnection,
+            args = listOf("$pid")
+        ).first().value
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -247,23 +242,24 @@ class PlExecutor(private val controller: PlController) {
         var error: Throwable? = null
         val sqlQuery = customQuery(cmd = query)
         var rowset: DBRowSet<T>? = null
-        lock.withLock {
-            query.runCatching {
-                res = getRowSet(
-                    producer = query.producer as Producer<T>,
-                    cmd = sqlQuery,
-                    connection = dc) {
-                    rowset = this
-                    initializers.add("SET CLIENT_ENCODING TO 'UTF8';")
-                    additionnalCommand?.let {
-                        initializers.add(additionnalCommand)
-                    }
-                    fetch(args)
+
+        query.runCatching {
+            res = getRowSet(
+                producer = query.producer as Producer<T>,
+                cmd = sqlQuery,
+                connection = dc
+            ) {
+                rowset = this
+                initializers.add("SET CLIENT_ENCODING TO 'UTF8';")
+                additionnalCommand?.let {
+                    initializers.add(additionnalCommand)
                 }
-            }.onFailure {
-                error = it
+                fetch(args)
             }
+        }.onFailure {
+            error = it
         }
+
         error?.let {
             if (!skipError) {
                 interrupted = interrupted || interruptible
@@ -321,8 +317,6 @@ class PlExecutor(private val controller: PlController) {
     fun setDebug(msg: String) = addMessage(Message(level = Level.DEBUG, content = msg))
 
     fun setSQL(msg: String) = addMessage(Message(level = Level.SQL, content = msg))
-
-    fun setNotice(msg: String) = addMessage(Message(level = Level.NOTICE, content = msg))
 
     fun setError(msg: String, thw: Throwable? = null) {
         if (!interrupted) {
@@ -392,10 +386,26 @@ class PlExecutor(private val controller: PlController) {
         return false
     }
 
+    fun terminateBackEnd() {
+        val closingConnection = controller.getAuxiliaryConnection()
+        listOf(ApiQuery.CANCEL_BACKEND, ApiQuery.TERMINATE_BACKEND).forEach {
+            executeQuery<PlApiBoolean>(
+                dc = closingConnection,
+                query = it,
+                args = listOf("$backendPid")
+            )
+        }
+        closingConnection.remoteConnection.close()
+    }
+
     fun terminate() {
         runCatching {
             interrupted = true
             if (!internalConnection.remoteConnection.isClosed) {
+                executeQuery<PlApiBoolean>(
+                    ApiQuery.TERMINATE_BACKEND,
+                    args = listOf("$backendPid")
+                )
                 internalConnection.remoteConnection.close()
             }
         }.onFailure {
