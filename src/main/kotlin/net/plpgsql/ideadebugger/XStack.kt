@@ -47,18 +47,25 @@ class XStack(process: PlProcess) : XExecutionStack("") {
         VALUE("Values", DatabaseIcons.Table)
     }
 
-    inner class XFrame(val frame: PlApiStackFrame, val file: PlFunctionSource) :
+    inner class XFrame(val plFrame: PlApiStackFrame, val file: PlFunctionSource) :
         XStackFrame() {
 
         private val oid: Long
-            get() = frame.oid
+            get() = plFrame.oid
+
+        fun getSourceRatio(): Double {
+            if (file.lineRangeCount == 0) {
+                return 1.0
+            }
+            return (plFrame.line + file.start - file.codeRange.first).toDouble() / file.lineRangeCount
+        }
 
         override fun getEvaluator(): XDebuggerEvaluator? {
             return super.getEvaluator()
         }
 
         override fun getSourcePosition(): XSourcePosition? {
-            return XDebuggerUtil.getInstance().createPosition(file, frame.line + file.start)
+            return XDebuggerUtil.getInstance().createPosition(file, plFrame.line + file.start)
         }
 
         override fun computeChildren(node: XCompositeNode) {
@@ -76,11 +83,11 @@ class XStack(process: PlProcess) : XExecutionStack("") {
         }
 
         private fun getVariables(): List<PlApiStackVariable> {
-            if ((topFrame as XFrame?)?.oid == frame.oid) {
+            if ((topFrame as XFrame?)?.oid == plFrame.oid) {
                 val plVars = executor.getVariables()
-                variableRegistry[frame.oid] = plVars
+                variableRegistry[plFrame.oid] = plVars
             }
-            return variableRegistry[frame.oid] ?: mutableListOf()
+            return variableRegistry[plFrame.oid] ?: mutableListOf()
         }
 
         private fun getFrameInfo(): List<PlApiStackVariable> = listOf<PlApiStackVariable>(
@@ -107,7 +114,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     'b',
                     false,
                     "",
-                    "${frame.oid}"
+                    "${plFrame.oid}"
                 )
             ),
             PlApiStackVariable(
@@ -120,7 +127,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     'b',
                     false,
                     "",
-                    "${frame.level}"
+                    "${plFrame.level}"
                 )
             ),
             PlApiStackVariable(
@@ -133,7 +140,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     'b',
                     false,
                     "",
-                    "${frame.level}"
+                    "${plFrame.level}"
                 )
             ),
             PlApiStackVariable(
@@ -146,7 +153,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     'b',
                     false,
                     "",
-                    "${frame.line}"
+                    "${plFrame.line}"
                 )
             ),
         )
