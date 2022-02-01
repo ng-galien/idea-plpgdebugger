@@ -11,6 +11,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.progress.impl.BackgroundableProcessIndicator
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.canShowMacSheetPanel
 import com.intellij.xdebugger.XSourcePosition
 import com.intellij.xdebugger.breakpoints.*
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
@@ -28,7 +29,8 @@ class PlProcess(
     private var stack: XStack = XStack(this)
     private var breakPointHandler = BreakPointHandler()
     internal val command = ConcurrentLinkedQueue<ApiQuery>()
-    private val proxyTask = ProxyTask(controller.project, "PL/pg Debug")
+    val mode: DebugMode = controller.mode
+    private val proxyTask = ProxyTask(controller.project, "PL/pg Debug", mode == DebugMode.DIRECT)
     private var proxyProgress: BackgroundableProcessIndicator? = null
 
     override fun startStepOver(context: XSuspendContext?) {
@@ -219,7 +221,7 @@ class PlProcess(
             runReadAction {
                 val path = breakpoint.fileUrl.removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX)
                 val file = PlVirtualFileSystem.getInstance().findFileByPath(path)
-                if (file != null && proxyTask.ready) {
+                if (file != null && readyToAcceptBreakPoint()) {
                     addBreakpoint(file, breakpoint)
                 }
                 breakpoints[path]?.add(breakpoint) ?: kotlin.run {
@@ -233,7 +235,7 @@ class PlProcess(
             runReadAction {
                 val path = breakpoint.fileUrl.removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX)
                 val file = PlVirtualFileSystem.getInstance().findFileByPath(path)
-                if (file != null && proxyTask.ready) {
+                if (file != null && readyToAcceptBreakPoint()) {
                     dropBreakpoint(file, breakpoint)
                 }
                 breakpoints[path]?.removeIf {
@@ -242,13 +244,17 @@ class PlProcess(
             }
         }
     }
+    fun readyToAcceptBreakPoint(): Boolean = proxyTask.ready && !executor.waitingForCompletion
 
-    inner class ProxyTask(project: Project, title: String) : Task.Backgroundable(project, title, true) {
+    inner class ProxyTask(project: Project, title: String, canBeCanceled: Boolean) : Task.Backgroundable(project, title, canBeCanceled) {
 
         var ready = false
         override fun onCancel() {
             console("ProxyTask canceled")
             executor.cancelAndCloseConnection()
+            if (mode == DebugMode.INDIRECT) {
+                session.stop()
+            }
         }
 
         override fun onThrowable(error: Throwable) {

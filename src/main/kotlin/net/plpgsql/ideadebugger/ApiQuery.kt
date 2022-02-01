@@ -7,7 +7,10 @@ package net.plpgsql.ideadebugger
 /**
  *
  */
-enum class ApiQuery(val sql: String, val producer: Producer<Any>, val disableDecoration: Boolean = false) {
+enum class ApiQuery(val sql: String,
+                    val producer: Producer<Any>,
+                    val disableDecoration: Boolean = false,
+                    val print: Boolean = true) {
 
     VOID(
         SELECT_NULL,
@@ -23,7 +26,7 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val disableDec
         Producer<Any> { PlApiInt(it.int()) }),
     WAIT_FOR_TARGET(
         "pldbg_wait_for_target(%s)",
-        Producer<Any> { PlApiLong(it.long()) }),
+        Producer<Any> { PlApiInt(it.int()) }),
     ABORT(
         "pldbg_abort_target(%s)",
         Producer<Any> { PlApiBoolean(it.bool()) }),
@@ -123,8 +126,8 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val disableDec
     ),
 
     GET_JSON_VARIABLES(
-        "%s",
-        Producer<Any> {
+        sql = "%s",
+        producer = Producer<Any> {
             PlApiStackVariable(
                 it.bool(),
                 it.int(),
@@ -139,7 +142,8 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val disableDec
                     it.string()
                 )
             )
-        }
+        },
+        print = false
     ),
 
     GET_SHARED_LIBRARIES(
