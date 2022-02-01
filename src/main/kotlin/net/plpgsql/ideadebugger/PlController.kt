@@ -10,6 +10,8 @@ import com.intellij.database.dataSource.DatabaseConnectionPoint
 import com.intellij.database.dataSource.connection.DGDepartment
 import com.intellij.database.datagrid.DataRequest
 import com.intellij.database.debugger.SqlDebugController
+import com.intellij.database.util.ErrorHandler
+import com.intellij.database.util.GuardedRef
 import com.intellij.database.util.SearchPath
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.application.runReadAction
@@ -55,16 +57,17 @@ class PlController(
     val settings = PlDebuggerSettingsState.getInstance().state
     val executor = PlExecutor(this)
 
-    fun getAuxiliaryConnection(): DatabaseConnection =
-        DatabaseSessionManager.getFacade(
+    fun getAuxiliaryConnection(): GuardedRef<DatabaseConnection> {
+        return DatabaseSessionManager.getFacade(
             project,
             connectionPoint,
             null,
-            null/*controller.searchPath*/,
+            searchPath,
             true,
-            null,
+            object : ErrorHandler() {},
             DGDepartment.DEBUGGER
-        ).connect().get()
+        ).connect()
+    }
 
     fun closeFile(file: PlFunctionSource?) {
         if (file == null) {
@@ -95,7 +98,8 @@ class PlController(
     }
 
     override fun getReady() {
-        executor.setDebug("Controller: getReady")
+        console("Controller: getReady")
+        Disposer.register(xSession.consoleView, executor)
         project.messageBus.connect(xSession.consoleView).subscribe(ToolWindowManagerListener.TOPIC, windowLister)
     }
 
@@ -103,6 +107,7 @@ class PlController(
     override fun initLocal(session: XDebugSession): XDebugProcess {
         xSession = session
         plProcess = PlProcess(this)
+
         if (settings.enableDebuggerCommand) {
             executor.executeSessionCommand(settings.debuggerCommand)
             if (executor.interrupted()) {
@@ -110,8 +115,10 @@ class PlController(
             }
         }
 
-        executor.checkExtension()
-        if (executor.interrupted()) {
+        val diag = executor.checkDebugger()
+        if (settings.failExtension || !extensionOk(diag)) {
+            showExtensionDiagnostic(project, diag)
+            executor.cancelAndCloseConnection()
             return plProcess
         }
 
@@ -170,18 +177,17 @@ class PlController(
     }
 
     override fun debugBegin() {
-        executor.setDebug("Controller: debugBegin")
+        console("Controller: debugBegin")
     }
 
 
     override fun debugEnd() {
-        println("controller: debugEnd")
-        plProcess.proxyProgress.cancel()
+        console("controller: debugEnd")
+        xSession.stop()
     }
 
     override fun close() {
-        println("controller: close")
-        xSession.stop()
+        console("Controller: close")
         windowLister.close()
         Disposer.dispose(DatabaseSessionManager.getSession(project, connectionPoint))
     }
@@ -207,7 +213,7 @@ class PlController(
                 }
                 first = false
                 hasShown = true
-                executor.displayInfo( )
+                executor.displayInfo()
             }
         }
 

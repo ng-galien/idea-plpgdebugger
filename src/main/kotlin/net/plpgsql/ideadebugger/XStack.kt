@@ -5,21 +5,11 @@
 package net.plpgsql.ideadebugger
 
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.application.runReadAction
-import com.intellij.openapi.editor.DefaultLanguageHighlighterColors
-import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiManager
-import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.sql.psi.SqlParameterList
-import com.intellij.sql.psi.SqlVariableDefinition
-import com.intellij.ui.SimpleTextAttributes
 import com.intellij.util.ThreeState
 import com.intellij.xdebugger.XDebuggerUtil
 import com.intellij.xdebugger.XSourcePosition
 import com.intellij.xdebugger.frame.*
 import com.intellij.xdebugger.frame.presentation.XValuePresentation
-import com.intellij.xdebugger.impl.ui.DebuggerUIUtil
-import com.intellij.xdebugger.impl.ui.tree.nodes.XValuePresentationUtil
 import icons.DatabaseIcons
 import javax.swing.Icon
 import kotlin.math.min
@@ -237,6 +227,8 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
         }
 
         override fun computeInlineDebuggerData(callback: XInlineDebuggerDataCallback): ThreeState {
+
+
             if (!process.controller.settings.showInlineVariable) {
                 return ThreeState.NO
             }
@@ -273,14 +265,22 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
             values.forEach {
                 list.add(XVal(PlApiStackVariable(plStackVar.isArg, 0, it)))
             }
-            if (list.size() > 0) {
-                node.addChildren(list, true)
-            }
+            node.addChildren(list, true)
         }
 
         private fun isArray() = plVar.isArray
+
         private fun isComposite() = plVar.kind == 'c'
-        private fun canExplode() = !plNull(plVar.value) && (isArray() || isComposite())
+
+        private fun canExplode(): Boolean {
+            if (plNull(plVar.value)) {
+                return false
+            }
+            if (isArray()) {
+                return plVar.value != "[]"
+            }
+            return isComposite()
+        }
     }
 
 }
