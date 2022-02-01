@@ -53,7 +53,7 @@ class PlExecutor(private val controller: PlController): Disposable {
 
     private fun invalidSession(): Boolean = (session == 0)
 
-    fun searchCallee(callFunc: List<String>, callValues: List<String>) {
+    fun searchCallee(callFunc: List<String>, callValues: List<String>, mode: DebugMode) {
 
         val schema = if (callFunc.size > 1) callFunc[0] else DEFAULT_SCHEMA
         val procedure = if (callFunc.size > 1) callFunc[1] else callFunc[0]
@@ -67,7 +67,12 @@ class PlExecutor(private val controller: PlController): Disposable {
             query = ApiQuery.GET_FUNCTION_CALL_ARGS,
             args = listOf(schema, procedure),
         ).filter {
-            if (callValues.isEmpty()) it.nb == 0 || it.default else it.nb >= callValues.size
+            if (callValues.isEmpty()) {
+                it.nb == 0 || it.default
+            }
+            else {
+                if (mode==DebugMode.DIRECT) it.nb >= callValues.size else it.nb == callValues.size
+            }
         }
 
         if (functions.isEmpty()) {
@@ -83,33 +88,48 @@ class PlExecutor(private val controller: PlController): Disposable {
             entryPoint = plArgs.first().key
             return
         }
+        if (mode == DebugMode.DIRECT) {
+            entryPoint = plArgs.filter {
+                //Check args length
+                val minimalCount = it.value.count { arg -> !arg.default }
+                callValues.size >= minimalCount && callValues.size <= it.value.size
+            }.filterValues { args ->
+                //Map call values
 
-        entryPoint = plArgs.filter {
-            //Check args length
-            val minimalCount = it.value.count { arg -> !arg.default }
-            callValues.size >= minimalCount && callValues.size <= it.value.size
-        }.filterValues { args ->
-            //Map call values
-            val namedValues = callValues.mapIndexed { index, s ->
-                if (s.contains(":=")) s.split(":=")[1].trim() to s.split(":=")[2].trim()
-                else args[index].name to s.trim()
-            }
-            //Build the test query like SELECT [(cast([value] AS [type]) = [value])] [ AND ...]
-            val query = namedValues.joinToString(prefix = "(SELECT (", separator = " AND ", postfix = ")) t") {
-                val type = args.find { plFunctionArg -> plFunctionArg.name == it.first }?.type
-                "(cast(${it.second} as ${type}) = ${it.second})"
-            }
-            query.let {
-                try {
-                    executeQuery<PlApiBoolean>(
-                        ApiQuery.RAW_BOOL,
-                        listOf(schema, procedure)
-                    ).firstOrNull()?.value ?: false
-                } catch (e: Exception) {
-                    false
+                val namedValues = callValues.mapIndexed { index, s ->
+                    if (s.contains(":=")) s.split(":=")[1].trim() to s.split(":=")[2].trim()
+                    else args[index].name to s.trim()
                 }
-            }
-        }.map { it.key }.firstOrNull() ?: entryPoint
+                //Build the test query like SELECT [(cast([value] AS [type]) = [value])] [ AND ...]
+                val query = namedValues.joinToString(prefix = "(SELECT (", separator = " AND ", postfix = ")) t") {
+                    val type = args.find { plFunctionArg -> plFunctionArg.name == it.first }?.type
+                    "(cast(${it.second} as ${type}) = ${it.second})"
+                }
+                query.let {
+                    try {
+                        executeQuery<PlApiBoolean>(
+                            ApiQuery.RAW_BOOL,
+                            listOf(schema, procedure)
+                        ).firstOrNull()?.value ?: false
+                    } catch (e: Exception) {
+                        false
+                    }
+                }
+            }.map { it.key }.firstOrNull() ?: entryPoint
+        } else {
+            entryPoint = plArgs.filter { f ->
+                val names = f.value.map { a ->
+                    a.name
+                }
+                if (names.size != callValues.size)
+                    false
+                val pairList = names.zip(callValues)
+                pairList.all { (elt1, elt2) ->
+                    elt1 == elt2
+                }
+            }.map { it.key }.firstOrNull() ?: entryPoint
+        }
+
 
         if (entryPoint == 0L) {
             setError("Function not found: schema=$schema, name=$procedure")
@@ -122,14 +142,14 @@ class PlExecutor(private val controller: PlController): Disposable {
         ).first().value
     }
 
-    fun waitForTarget(): Long {
+    fun waitForTarget(): Int {
         if (invalidSession()) {
             return 0
         }
-        return executeQuery<PlApiLong>(
+        return executeQuery<PlApiInt>(
             query = ApiQuery.WAIT_FOR_TARGET,
             args = listOf("$session")
-        ).first().value
+        ).firstOrNull()?.value ?: 0
     }
 
     private fun abort() {
@@ -266,7 +286,9 @@ class PlExecutor(private val controller: PlController): Disposable {
         additionalCommand: String? = null,
     ): List<T> {
         console("executeQuery ${query.name}")
-        setCmd("query=${query.name}, args=$args")
+        if (query.print) {
+            setCmd("query=${query.name}, args=$args")
+        }
         var res: List<T>? = null
         val sqlQuery = customQuery(cmd = query)
         var rowset: DBRowSet<T>? = null

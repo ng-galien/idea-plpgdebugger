@@ -6,19 +6,21 @@ package net.plpgsql.ideadebugger
 
 import com.intellij.lang.Language
 import com.intellij.openapi.application.runReadAction
+import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.PgDialect
-import com.intellij.sql.psi.SqlExpressionList
-import com.intellij.sql.psi.SqlFunctionCallExpression
-import com.intellij.sql.psi.SqlIdentifier
-import com.intellij.sql.psi.SqlReferenceExpression
+import com.intellij.sql.dialects.postgres.psi.PgParameterDefinitionImpl
+import com.intellij.sql.psi.*
 
-const val CONSOLE = false
+const val CONSOLE = true
 const val SELECT_NULL = "SELECT NULL;"
 const val DEFAULT_SCHEMA = "public"
 const val DEBUGGER_EXTENSION = "pldbgapi"
 const val DEBUGGER_SHARED_LIBRARY = "plugin_debugger"
 
+enum class DebugMode {
+    DIRECT, INDIRECT
+}
 
 
 fun getPlLanguage(): Language = PgDialect.INSTANCE
@@ -34,24 +36,33 @@ fun console(msg: String, throwable: Throwable? = null) {
 
 /**
  * Returns a pair of function definition / arguments
- * @param callExpr
+ * @param psi
  */
-fun parseFunctionCall(callExpr: SqlFunctionCallExpression): Pair<List<String>, List<String>> {
+fun parseFunctionCall(psi: PsiElement, mode: DebugMode): Pair<List<String>, List<String>> {
     val (func, args) = runReadAction {
-        val funcEl = PsiTreeUtil.findChildOfType(callExpr, SqlReferenceExpression::class.java)
+        val funcEl = PsiTreeUtil.findChildOfType(psi, SqlReferenceExpression::class.java)
         val func = funcEl?.let {
             PsiTreeUtil.findChildrenOfType(funcEl, SqlIdentifier::class.java).map {
                 it.text.trim()
             }
         } ?: listOf()
-        val values = PsiTreeUtil.findChildOfType(
-            callExpr,
+        val values = if (mode == DebugMode.DIRECT) PsiTreeUtil.findChildOfType(
+            psi,
             SqlExpressionList::class.java
-        )?.children?.map { it.text.trim() }?.filter { it != "" && it != "," && !it.startsWith("--") }
+        )?.children?.map {
+            it.text.trim()
+        }?.filter {
+            it != "" && it != "," && !it.startsWith("--")
+        }
+        else PsiTreeUtil.findChildrenOfType(psi, PgParameterDefinitionImpl::class.java).mapNotNull { p ->
+            PsiTreeUtil.findChildOfType(p, SqlIdentifier::class.java)?.text
+        }
+
         Pair(first = func, second = values ?: listOf())
     }
     return Pair(func, args)
 }
+
 
 /**
  *
