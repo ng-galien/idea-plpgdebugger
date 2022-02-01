@@ -11,6 +11,7 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.progress.impl.BackgroundableProcessIndicator
 import com.intellij.openapi.project.Project
+import com.intellij.xdebugger.XSourcePosition
 import com.intellij.xdebugger.breakpoints.*
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
@@ -28,43 +29,53 @@ class PlProcess(
     private var breakPointHandler = BreakPointHandler()
     internal val command = ConcurrentLinkedQueue<ApiQuery>()
     private val proxyTask = ProxyTask(controller.project, "PL/pg Debug")
-    val proxyProgress = BackgroundableProcessIndicator(proxyTask)
+    private var proxyProgress: BackgroundableProcessIndicator? = null
 
     override fun startStepOver(context: XSuspendContext?) {
-        executor.setInfo("User request: startStepOver")
+        console("User request: startStepOver")
         command.add(ApiQuery.STEP_OVER)
     }
 
     override fun startStepInto(context: XSuspendContext?) {
-        executor.setInfo("User request: startStepInto")
+        console("User request: startStepInto")
         command.add(ApiQuery.STEP_INTO)
     }
 
     override fun resume(context: XSuspendContext?) {
-        executor.setInfo("User request: resume")
+        console("User request: resume")
         command.add(ApiQuery.STEP_CONTINUE)
     }
 
     fun startDebug() {
+        console("Process startDebug")
         executor.setInfo("From auxiliary request: startDebug")
-        ProgressManager.getInstance().runProcessWithProgressAsynchronously(proxyTask, proxyProgress)
+        proxyProgress = BackgroundableProcessIndicator(proxyTask)
+        ProgressManager.getInstance().runProcessWithProgressAsynchronously(proxyTask, proxyProgress!!)
         command.add(ApiQuery.VOID)
     }
 
     override fun startForceStepInto(context: XSuspendContext?) {
-        executor.setInfo("User request mot supported: use startStepInto")
+        console("User request mot supported: use startStepInto")
         command.add(ApiQuery.STEP_INTO)
 
     }
 
     override fun startStepOut(context: XSuspendContext?) {
-        executor.setInfo("User request mot supported: use resume")
+        console("User request mot supported: use resume")
         command.add(ApiQuery.STEP_OVER)
     }
 
     override fun stop() {
-        executor.terminateBackend()
-        proxyTask.running = false
+        console("Process stop")
+        if (executor.waitingForCompletion) {
+            executor.cancelConnection()
+        } else {
+            proxyProgress?.cancel()
+        }
+    }
+
+    override fun runToPosition(position: XSourcePosition, context: XSuspendContext?) {
+        command.add(ApiQuery.VOID)
     }
 
     fun updateStack(): StepInfo {
@@ -140,7 +151,7 @@ class PlProcess(
             } else {
                 session.positionReached(context)
             }
-            StepInfo(frame.getSourceLine()+1, frame.file.codeRange.second, frame.getSourceRatio())
+            StepInfo(frame.getSourceLine() + 1, frame.file.codeRange.second, frame.getSourceRatio())
 
         }
 
@@ -208,7 +219,7 @@ class PlProcess(
             runReadAction {
                 val path = breakpoint.fileUrl.removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX)
                 val file = PlVirtualFileSystem.getInstance().findFileByPath(path)
-                if (file != null && executor.ready()) {
+                if (file != null && proxyTask.ready) {
                     addBreakpoint(file, breakpoint)
                 }
                 breakpoints[path]?.add(breakpoint) ?: kotlin.run {
@@ -222,7 +233,7 @@ class PlProcess(
             runReadAction {
                 val path = breakpoint.fileUrl.removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX)
                 val file = PlVirtualFileSystem.getInstance().findFileByPath(path)
-                if (file != null && executor.ready()) {
+                if (file != null && proxyTask.ready) {
                     dropBreakpoint(file, breakpoint)
                 }
                 breakpoints[path]?.removeIf {
@@ -233,13 +244,16 @@ class PlProcess(
     }
 
     inner class ProxyTask(project: Project, title: String) : Task.Backgroundable(project, title, true) {
-        var running = true
 
+        var ready = false
         override fun onCancel() {
-            //println("canceled")
-            executor.abort()
-            executor.terminateBackend()
-            running = false
+            console("ProxyTask canceled")
+            executor.cancelAndCloseConnection()
+        }
+
+        override fun onThrowable(error: Throwable) {
+            console("Proxy task throws", error)
+            executor.cancelAndCloseConnection()
         }
 
         override fun run(indicator: ProgressIndicator) {
@@ -249,51 +263,52 @@ class PlProcess(
             }
             indicator.isIndeterminate = false
             kotlin.runCatching {
+                executor.createListener()
                 executor.setGlobalBreakPoint()
                 executor.waitForTarget()
             }.onFailure {
-                executor.interrupted()
+                console("Run failed to start", it)
+                indicator.cancel()
                 return
             }
+            ready = true
             do {
-                indicator.checkCanceled()
                 val query = command.poll()
                 if (query != null) {
-                    kotlin.runCatching {
-                        var step: PlApiStep? = null
-                        when (query) {
-                            ApiQuery.VOID -> {
-                                step = PlApiStep(executor.entryPoint, -1, "")
-                            }
-                            ApiQuery.STEP_OVER,
-                            ApiQuery.STEP_CONTINUE,
-                            ApiQuery.STEP_INTO -> {
-                                step = executor.runStep(query)
-                                indicator.text2 = "Last step ${query.name}"
-                            }
-                            else -> {
-                                //TODO manage it
-                            }
+                    var step: PlApiStep? = null
+                    when (query) {
+                        ApiQuery.VOID -> {
+                            step = PlApiStep(executor.entryPoint, -1, "")
                         }
-                        if (step != null) {
-                            val info = updateStack()
-                            indicator.fraction = info.ratio
-                            if (step.line < 0) {
-                                indicator.text2 = "Waiting for step [${info.pos} / ${info.total}]"
-                            } else {
-                                indicator.text2 = "Last step ${query.name} [${info.pos} / ${info.total}]"
-                            }
-                            executor.displayInfo()
+                        ApiQuery.STEP_OVER,
+                        ApiQuery.STEP_CONTINUE,
+                        ApiQuery.STEP_INTO -> {
+                            step = executor.runStep(query)
+                            indicator.text2 = "Last step ${query.name}"
                         }
-                    }.onFailure {
-                        indicator.cancel()
+                        else -> {
+                            indicator.cancel()
+                        }
                     }
-
+                    if (step != null) {
+                        val info = updateStack()
+                        indicator.fraction = info.ratio
+                        if (step.line < 0) {
+                            indicator.text2 = "Waiting for step [${info.pos} / ${info.total}]"
+                        } else {
+                            indicator.text2 = "Last step ${query.name} [${info.pos} / ${info.total}]"
+                        }
+                        executor.displayInfo()
+                    }
                 } else {
                     Thread.sleep(200)
                 }
-            } while (!indicator.isCanceled && running)
-
+                indicator.checkCanceled()
+            } while (executor.ready())
+            ready = false
+            executor.closeConnection()
+            console("ProxyTask run end")
+            executor.interrupted()
         }
 
     }

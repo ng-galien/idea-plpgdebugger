@@ -4,20 +4,63 @@
 
 package net.plpgsql.ideadebugger
 
-data class PlApiVoid(val void: Int = 0)
+/**
+ *
+ */
+data class PlApiVoid(
+    val void: Int = 0
+)
 
-data class PlApiBoolean(val value: Boolean)
+/**
+ *
+ */
+data class PlApiBoolean(
+    val value: Boolean
+)
 
-data class PlApiInt(val value: Int)
+/**
+ *
+ */
+data class PlApiInt(
+    val value: Int
+)
 
-data class PlApiLong(val value: Long)
+/**
+ *
+ */
+data class PlApiLong(
+    val value: Long
+)
 
-data class PlApiString(val value: String)
+/**
+ *
+ */
+data class PlApiString(
+    val value: String
+)
 
-data class PlApiStep(val oid: Long, val line: Int, val md5: String)
+/**
+ *
+ */
+data class PlApiStep(
+    val oid: Long,
+    val line: Int,
+    val md5: String
+)
 
-data class PlApiStackFrame(val level: Int, val oid: Long, val line: Int, val md5: String)
+/**
+ *
+ */
+data class PlApiStackFrame(
+    val level: Int,
+    val oid: Long,
+    val line: Int,
+    val md5: String
+)
 
+/**
+ *
+ */
 data class PlApiValue(
     val oid: Long,
     val name: String,
@@ -29,12 +72,18 @@ data class PlApiValue(
     val pretty: String
 )
 
+/**
+ *
+ */
 data class PlApiStackVariable(
     val isArg: Boolean,
     val line: Int,
     val value: PlApiValue,
 )
 
+/**
+ *
+ */
 data class PlApiFunctionArg(
     val oid: Long,
     val nb: Int,
@@ -44,6 +93,9 @@ data class PlApiFunctionArg(
     val default: Boolean,
 )
 
+/**
+ *
+ */
 data class PlApiFunctionDef(
     val oid: Long,
     val schema: String,
@@ -52,8 +104,12 @@ data class PlApiFunctionDef(
     val md5: String,
 )
 
+/**
+ *
+ */
 data class PlApiExtension(
     val schema: String,
     val name: String,
     val version: String,
 )
+

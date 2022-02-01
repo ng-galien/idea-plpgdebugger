@@ -73,3 +73,7 @@
 - Inline variable display
   - User can see variable in code
   - Variable with long value are truncated 
+
+## [1.2.0-beta2]
+### Changed
+- Fix session handling

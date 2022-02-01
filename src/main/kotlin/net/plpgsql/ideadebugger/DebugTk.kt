@@ -12,27 +12,30 @@ import com.intellij.sql.psi.SqlExpressionList
 import com.intellij.sql.psi.SqlFunctionCallExpression
 import com.intellij.sql.psi.SqlIdentifier
 import com.intellij.sql.psi.SqlReferenceExpression
-import java.nio.charset.Charset
-import java.security.MessageDigest
 
+const val CONSOLE = false
 const val SELECT_NULL = "SELECT NULL;"
-
+const val DEFAULT_SCHEMA = "public"
 const val DEBUGGER_EXTENSION = "pldbgapi"
+const val DEBUGGER_SHARED_LIBRARY = "plugin_debugger"
+
+
 
 fun getPlLanguage(): Language = PgDialect.INSTANCE
 
-fun md5(data: String): String {
-    val digest = MessageDigest.getInstance("MD5")
-    val encodedHash = digest.digest(data.toByteArray(Charsets.UTF_8))
-    val sb: StringBuilder = StringBuilder(encodedHash.size * 2)
-    encodedHash.forEach {
-        sb.append( String.format("%02x", it) )
-    }
-    return sb.toString()
-}
-
 fun plNull(value: String) = (value.uppercase() == "NULL")
 
+fun console(msg: String, throwable: Throwable? = null) {
+    if (CONSOLE) {
+        println(msg)
+        throwable?.printStackTrace()
+    }
+}
+
+/**
+ * Returns a pair of function definition / arguments
+ * @param callExpr
+ */
 fun parseFunctionCall(callExpr: SqlFunctionCallExpression): Pair<List<String>, List<String>> {
     val (func, args) = runReadAction {
         val funcEl = PsiTreeUtil.findChildOfType(callExpr, SqlReferenceExpression::class.java)
@@ -50,7 +53,18 @@ fun parseFunctionCall(callExpr: SqlFunctionCallExpression): Pair<List<String>, L
     return Pair(func, args)
 }
 
-fun getDefaultSchema(): String = "public"
+/**
+ *
+ *@param sql
+ */
+fun sanitizeQuery(sql: String): String {
+    var res = sql.trimIndent().replace("(?m)^\\s+\$", "").removeSuffix(";")
+    if (res.lowercase().startsWith("select")) {
+        res = String.format("(%s)q", res)
+    }
+    return res
+}
+
 
 
 

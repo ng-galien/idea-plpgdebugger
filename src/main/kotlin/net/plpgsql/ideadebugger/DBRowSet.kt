@@ -66,13 +66,18 @@ class DBRowSet<R>(
     producer: Producer<R>,
     cmd: String,
     private var connection: DatabaseConnection,
+    private var disableDecoration: Boolean
     ) : AbstractRowSet<R>(producer, cmd) {
 
     var initializers = mutableListOf<String>()
     lateinit var internalSql: String
 
-    override fun open(): RowIterator<R>? {
-        internalSql = String.format("SELECT * FROM %s;", sanitizeQuery(path))
+    override fun open(): RowIterator<R> {
+        internalSql = if (disableDecoration) {
+            path
+        } else {
+            String.format("SELECT * FROM %s;", sanitizeQuery(path))
+        }
         initializers.forEach {
             val statement = connection.remoteConnection.createStatement()
             statement.execute(it)

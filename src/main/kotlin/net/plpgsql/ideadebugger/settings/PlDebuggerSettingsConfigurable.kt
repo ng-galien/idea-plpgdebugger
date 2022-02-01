@@ -13,6 +13,7 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.gridLayout.HorizontalAlign
 import javax.swing.JComponent
 
+@Suppress("UnstableApiUsage")
 class PlDebuggerSettingsConfigurable : Configurable {
 
     var panel: DialogPanel? = null
@@ -35,7 +36,7 @@ class PlDebuggerSettingsConfigurable : Configurable {
     }
 
 
-    override fun getDisplayName(): String = "PL/pg Debugger"
+    override fun getDisplayName(): String = "PostgreSQL Debugger"
 
     override fun disposeUIResources() {
         panel = null
@@ -58,7 +59,7 @@ class PlDebuggerSettingsConfigurable : Configurable {
                         .bindSelected(formData::showInlineVariable)
                 }
             }
-            collapsibleGroup("Custom commands") {
+            collapsibleGroup("Custom Commands") {
                 row {
                     checkBox("Enable session command")
                         .bindSelected(formData::enableSessionCommand)
@@ -111,7 +112,7 @@ class PlDebuggerSettingsConfigurable : Configurable {
                         .bindSelected(formData::showDebug)
                 }
             }
-            collapsibleGroup("Developer settings") {
+            collapsibleGroup("Developer Settings") {
 
                 collapsibleGroup("Queries") {
 
@@ -172,7 +173,7 @@ class PlDebuggerSettingsConfigurable : Configurable {
                     }
                 }
 
-                collapsibleGroup("Failure testing") {
+                collapsibleGroup("Failure Testing") {
                     row {
                         checkBox("Extension failure")
                             .bindSelected(formData::failExtension)
@@ -194,12 +195,8 @@ class PlDebuggerSettingsConfigurable : Configurable {
                             .bindSelected(formData::failAttach)
                     }
                 }
-
             }
-
         }
         return res
     }
-
-
 }

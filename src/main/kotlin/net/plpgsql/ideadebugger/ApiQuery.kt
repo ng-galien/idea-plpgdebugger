@@ -7,7 +7,7 @@ package net.plpgsql.ideadebugger
 /**
  *
  */
-enum class ApiQuery(val sql: String, val producer: Producer<Any>) {
+enum class ApiQuery(val sql: String, val producer: Producer<Any>, val disableDecoration: Boolean = false) {
 
     VOID(
         SELECT_NULL,
@@ -15,15 +15,9 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>) {
     RAW_BOOL(
         "%s",
         Producer<Any> { PlApiBoolean(it.bool()) }),
-    GET_BACKEND(
-        "pg_backend_pid()",
-        Producer<Any> { PlApiLong(it.long()) }),
-    CANCEL_BACKEND(
-        "pg_cancel_backend(%s)",
-        Producer<Any> { PlApiBoolean(it.bool()) }),
-    TERMINATE_BACKEND(
-        "pg_terminate_backend(%s)",
-        Producer<Any> { PlApiBoolean(it.bool()) }),
+    RAW_STRING(
+        "%s",
+        Producer<Any> { PlApiString(it.string()) }),
     CREATE_LISTENER(
         "pldbg_create_listener()",
         Producer<Any> { PlApiInt(it.int()) }),
@@ -60,10 +54,10 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>) {
 
     LIST_BREAKPOINT(
         """
-            SELECT step.func,
-                   step.linenumber,
+            SELECT bp.func,
+                   bp.linenumber,
                    ''
-            FROM pldbg_get_breakpoints(%s) step;
+            FROM pldbg_get_breakpoints(%s) bp;
         """,
         Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) }),
     SET_GLOBAL_BREAKPOINT(
@@ -94,7 +88,6 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>) {
             )
         }
     ),
-
     GET_RAW_VARIABLES(
         """
             SELECT
@@ -147,6 +140,14 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>) {
                 )
             )
         }
+    ),
+
+    GET_SHARED_LIBRARIES(
+        sql = "SHOW shared_preload_libraries;",
+        producer = Producer<Any> {
+            PlApiString(it.string())
+        },
+        disableDecoration = true
     ),
 
     GET_EXTENSION(
@@ -307,14 +308,4 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>) {
 }
 
 
-/**
- *
- *@param sql
- */
-fun sanitizeQuery(sql: String): String {
-    var res = sql.trimIndent().replace("(?m)^\\s+\$", "").removeSuffix(";")
-    if (res.lowercase().startsWith("select")) {
-        res = String.format("(%s)q", res)
-    }
-    return res
-}
+
