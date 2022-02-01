@@ -4,7 +4,30 @@
 
 ## [Unreleased]
 
+## [1.2.0-beta2]
+Fix 
+- Sessions issues
+- NULL handling with array and composite types
+
 ## [1.2.0-beta]
+- Use background task:
+  - User can control debug task
+  - Gracefully terminate session
+- Inline variable display
+  - User can see variable in code
+  - Variable with long value are truncated
+
+## [1.2.0-beta]
+- Use background task:
+  - User can control debug task
+  - Gracefully terminate session
+- Inline variable display
+  - User can see variable in code
+  - Variable with long value are truncated
+
+## [1.2.0-beta]
+
+### Added
 - Use background task:
   - User can control debug task
   - Gracefully terminate session
@@ -76,15 +99,6 @@
 - Fix call identification
 - Fix breakpoint support for PROCEDURE
 - Improved breakpoint management
-
-## [1.2.0-beta]
-### Added
-- Use background task:
-  - User can control debug task
-  - Gracefully terminate session
-- Inline variable display
-  - User can see variable in code
-  - Variable with long value are truncated 
 
 ## [1.2.0-beta2]
 ### Changed
