@@ -242,15 +242,14 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val disableDec
 
     EXPLODE_ARRAY(
         """
-        SELECT 
-               t_arr_type.oid                     AS oid,
-               '%s[' || idx || ']'                AS name,
-               t_arr_type.typname                 AS type,
-               t_arr_type.typtype                 AS kind,
-               t_arr_type.typarray = 0            AS is_array,
-               coalesce(t_sub.typname, 'unknown') AS array_type,
-               arr.val::TEXT                      AS value,
-               jsonb_pretty(arr.val)    AS pretty
+        SELECT t_arr_type.oid                          AS oid,
+               '%s[' || idx || ']'                     AS name,
+               t_arr_type.typname                      AS type,
+               t_arr_type.typtype                      AS kind,
+               t_arr_type.typarray = 0                 AS is_array,
+               coalesce(t_sub.typname, 'unknown')      AS array_type,
+               coalesce(arr.val::TEXT, 'NULL')         AS value,
+               coalesce(jsonb_pretty(arr.val), 'NULL') AS pretty
         FROM jsonb_array_elements('%s'::jsonb) WITH ORDINALITY arr(val, idx)
                  JOIN pg_type t_type ON t_type.oid = %s
                  JOIN pg_type t_arr_type ON t_type.typelem = t_arr_type.oid
@@ -272,15 +271,14 @@ enum class ApiQuery(val sql: String, val producer: Producer<Any>, val disableDec
 
     EXPLODE_COMPOSITE(
         """
-        SELECT 
-               t_att_type.oid                                               AS oid,
-               t_att.attname                                                AS name,
-               t_att_type.typname                                           AS type_name,
-               t_att_type.typtype                                           AS kind,
-               t_att_type.typarray = 0                                      AS is_array,
-               coalesce(t_sub.typname, 'unknown')                           AS array_type,
-               jsonb_extract_path_text(jsonb.val, t_att.attname)            AS value,
-               jsonb_pretty(jsonb_extract_path(jsonb.val, t_att.attname))   AS pretty
+        SELECT t_att_type.oid                                                               AS oid,
+               t_att.attname                                                                AS name,
+               t_att_type.typname                                                           AS type_name,
+               t_att_type.typtype                                                           AS kind,
+               t_att_type.typarray = 0                                                      AS is_array,
+               coalesce(t_sub.typname, 'unknown')                                           AS array_type,
+               coalesce(jsonb_extract_path_text(jsonb.val, t_att.attname), 'NULL')          AS value,
+               coalesce(jsonb_pretty(jsonb_extract_path(jsonb.val, t_att.attname)), 'NULL') AS pretty
         FROM pg_type t_type
                  JOIN pg_class t_class
                       ON t_type.typrelid = t_class.oid
