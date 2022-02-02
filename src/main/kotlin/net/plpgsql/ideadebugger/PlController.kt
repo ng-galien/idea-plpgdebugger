@@ -18,12 +18,17 @@ import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.ProgressManagerListener
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
 import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.sql.psi.SqlFunctionCallExpression
 import com.intellij.ui.content.Content
@@ -40,7 +45,8 @@ class PlController(
     val virtualFile: VirtualFile?,
     val rangeMarker: RangeMarker?,
     val searchPath: SearchPath?,
-    val callExpression: SqlFunctionCallExpression?,
+    val callExpression: PsiElement,
+    val mode: DebugMode,
 ) : SqlDebugController() {
 
     private lateinit var plProcess: PlProcess
@@ -101,6 +107,26 @@ class PlController(
         console("Controller: getReady")
         Disposer.register(xSession.consoleView, executor)
         project.messageBus.connect(xSession.consoleView).subscribe(ToolWindowManagerListener.TOPIC, windowLister)
+        if (mode == DebugMode.INDIRECT) {
+            project.messageBus.connect(xSession.consoleView).subscribe(ProgressManagerListener.TOPIC,
+            object : ProgressManagerListener{
+                override fun beforeTaskStart(task: Task, indicator: ProgressIndicator) {
+                    console("beforeTaskStart")
+                }
+
+                override fun afterTaskStart(task: Task, indicator: ProgressIndicator) {
+                    console("afterTaskStart")
+                }
+
+                override fun beforeTaskFinished(task: Task) {
+                    console("beforeTaskFinished")
+                }
+
+                override fun afterTaskFinished(task: Task) {
+                    console("afterTaskFinished")
+                }
+            })
+        }
     }
 
 
@@ -122,16 +148,11 @@ class PlController(
             return plProcess
         }
 
-        if (callExpression != null) {
-            val callDef = parseFunctionCall(callExpression)
-            assert(callDef.first.isNotEmpty() && callDef.first.size <= 2) { "Error while parsing ${callExpression.text}" }
-            executor.searchCallee(callDef.first, callDef.second)
-            if (executor.interrupted()) {
-                return plProcess
-            }
-        } else {
-            executor.setError("Invalid call expression")
-            executor.interrupted()
+        val callDef = parseFunctionCall(callExpression, mode)
+        assert(callDef.first.isNotEmpty() && callDef.first.size <= 2) { "Error while parsing ${callExpression.text}" }
+        executor.searchCallee(callDef.first, callDef.second, mode)
+        if (executor.interrupted()) {
+            return plProcess
         }
         plProcess.startDebug()
         return plProcess
@@ -139,15 +160,6 @@ class PlController(
 
     override fun initRemote(connection: DatabaseConnection) {
         executor.setDebug("Controller: initRemote")
-
-        /*if (settings.enableSessionCommand) {
-            executor.executeSessionCommand(rawSql = settings.sessionCommand, connection = connection)
-            if (executor.interrupted()) {
-                return
-            }
-        }
-        */
-
     }
 
     private suspend fun waitForPort(ownerConnection: DatabaseConnection) {
@@ -183,13 +195,17 @@ class PlController(
 
     override fun debugEnd() {
         console("controller: debugEnd")
-        xSession.stop()
+        if (mode == DebugMode.DIRECT) {
+            xSession.stop()
+        }
     }
 
     override fun close() {
         console("Controller: close")
-        windowLister.close()
-        Disposer.dispose(DatabaseSessionManager.getSession(project, connectionPoint))
+        if (mode == DebugMode.DIRECT) {
+            windowLister.close()
+            Disposer.dispose(DatabaseSessionManager.getSession(project, connectionPoint))
+        }
     }
 
     inner class PortReached : Exception("Port reached")

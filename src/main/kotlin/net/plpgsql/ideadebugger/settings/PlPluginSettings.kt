@@ -12,6 +12,7 @@ import org.jetbrains.annotations.ApiStatus
 data class PlPluginSettings(
     var attachTimeOut: Int = 3000,
     var stepTimeOut: Int = 3000,
+    var enableIndirect: Boolean = false,
     var showInlineVariable: Boolean = true,
     var enableSessionCommand: Boolean = false,
     var enableDebuggerCommand: Boolean = false,

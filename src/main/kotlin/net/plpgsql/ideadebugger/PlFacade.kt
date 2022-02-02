@@ -10,30 +10,50 @@ import com.intellij.database.util.SearchPath
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.sql.dialects.postgres.psi.PgCreateFunctionStatementImpl
+import com.intellij.sql.dialects.postgres.psi.PgCreateProcedureStatementImpl
 import com.intellij.sql.psi.*
+import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
+import kotlin.test.assertNotNull
 
 class PlFacade : SqlDebuggerFacade {
 
     private val logger = getLogger(PlFacade::class)
-    var disableMe: SearchPath? = null
-    private var call: SqlFunctionCallExpression? = null
+    private var callElement: PsiElement? = null
+    private var mode: DebugMode = DebugMode.DIRECT
 
     init {
         logger.debug("PlFacade init")
     }
 
     override fun isApplicableToDebugStatement(statement: SqlStatement): Boolean {
-        call = null
+
+        callElement = null
+        if (statement.containingFile.virtualFile is PlFunctionSource) {
+            return false
+        }
         //Procedure is discarded here
-        if (statement !is SqlSelectStatement) {
-            //return false
+        when (statement) {
+            is PgCreateFunctionStatementImpl,
+            is PgCreateProcedureStatementImpl -> {
+                val settings = PlDebuggerSettingsState.getInstance().state
+                if (settings.enableIndirect){
+                    callElement = statement
+                    mode = DebugMode.INDIRECT
+                }
+            }
+            is SqlSelectStatement,
+            is SqlCallStatement -> {
+                callElement = PsiTreeUtil.findChildrenOfAnyType(statement, SqlFunctionCallExpression::class.java)
+                    .firstOrNull()
+                mode = DebugMode.DIRECT
+            }
+
         }
-        val children = PsiTreeUtil.findChildrenOfAnyType(statement, SqlFunctionCallExpression::class.java)
-        if (children.size == 1) {
-            call = children.first()
-        }
-        return call != null
+        return callElement != null
     }
 
     override fun isApplicableToDebugRoutine(basicSourceAware: BasicSourceAware): Boolean {
@@ -60,10 +80,12 @@ class PlFacade : SqlDebuggerFacade {
             searchPath = searchPath,
             virtualFile = virtualFile,
             rangeMarker = rangeMarker,
-            callExpression = call,
+            callExpression = callElement!!,
+            mode = mode
         )
     }
-//(disableMe as LocalDataSource).localDataSource.schemaMapping 54724
+
+    //(disableMe as LocalDataSource).localDataSource.schemaMapping 54724
     private fun checkConnection(ds: LocalDataSource): Boolean {
         return ds.dbms.isPostgres
     }
