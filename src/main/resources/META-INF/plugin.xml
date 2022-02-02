@@ -2,7 +2,7 @@
 <idea-plugin>
     <id>net.plpgsql.ideadebugger</id>
     <name>PostgreSQL Debugger</name>
-    <vendor email="courriel.alexandre.boyer@hotmail.fr" url="https://github.com/ng-galien">Alexandre Boyer</vendor>
+    <vendor email="courriel.alexandre.boyer@hotmail.fr" url="https://github.com/ng-galien/idea-plpgdebugger">Alexandre Boyer</vendor>
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.database</depends>
     <extensions defaultExtensionNs="com.intellij.database">
