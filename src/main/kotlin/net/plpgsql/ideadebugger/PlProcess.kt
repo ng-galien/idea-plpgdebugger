@@ -11,9 +11,10 @@ import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.progress.impl.BackgroundableProcessIndicator
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.canShowMacSheetPanel
 import com.intellij.xdebugger.XSourcePosition
-import com.intellij.xdebugger.breakpoints.*
+import com.intellij.xdebugger.breakpoints.XBreakpointHandler
+import com.intellij.xdebugger.breakpoints.XBreakpointListener
+import com.intellij.xdebugger.breakpoints.XLineBreakpoint
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
@@ -84,9 +85,14 @@ class PlProcess(
 
         val plStacks = executor.getStack()
         // If we reach this frame for the first time
-        val first = stack.topFrame?.let {
+        var first = stack.topFrame?.let {
             (it as XStack.XFrame).file.oid != plStacks.firstOrNull()?.oid
         } ?: true
+        if (!first && mode == DebugMode.INDIRECT && stack.topFrame != null) {
+            (stack.topFrame as XStack.XFrame).let {
+                first = it.getSourceLine() == it.file.codeRange.first + 1
+            }
+        }
         executor.setDebug("Reach frame ${plStacks.firstOrNull()?.oid}, first=$first")
 
         stack.clear()
