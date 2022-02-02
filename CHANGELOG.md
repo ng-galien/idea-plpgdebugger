@@ -4,6 +4,7 @@
 
 ## [Unreleased]
 
+
 ## [1.2.0-beta2]
 ### Fix 
 - Sessions issues
