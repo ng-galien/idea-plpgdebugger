@@ -1,8 +1,8 @@
 # Intellij PL/pg SQL debugger
 
 ![Build](https://github.com/ng-galien/idea-plpgdebugger/workflows/Build/badge.svg)
-[![Version](https://img.shields.io/jetbrains/plugin/v/PLUGIN_ID.svg)](https://plugins.jetbrains.com/plugin/PLUGIN_ID)
-[![Downloads](https://img.shields.io/jetbrains/plugin/d/PLUGIN_ID.svg)](https://plugins.jetbrains.com/plugin/PLUGIN_ID)
+[![Version](https://img.shields.io/jetbrains/plugin/v/PLUGIN_ID.svg)](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger)
+[![Downloads](https://img.shields.io/jetbrains/plugin/d/PLUGIN_ID.svg)](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger)
 
 <!-- Plugin description -->
 Debug PL/pg SQL in Intellij with Database Tool module to speed up and improve productivity with PostgreSQL<br/>
