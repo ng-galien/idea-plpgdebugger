@@ -88,6 +88,7 @@ class PlProcess(
         var first = stack.topFrame?.let {
             (it as XStack.XFrame).file.oid != plStacks.firstOrNull()?.oid
         } ?: true
+        // In case of indirect debugging check it's first line
         if (!first && mode == DebugMode.INDIRECT && stack.topFrame != null) {
             (stack.topFrame as XStack.XFrame).let {
                 first = it.getSourceLine() == it.file.codeRange.first + 1

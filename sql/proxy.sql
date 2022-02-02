@@ -69,8 +69,6 @@ FROM pldbg_create_listener();
 SELECT *
 FROM pldbg_set_global_breakpoint(1, 16442, -1, NULL);
 --return true
-SELECT *
-FROM pg_backend_pid();
 --136
 -- returns proxy session id
 SELECT *
@@ -79,7 +77,7 @@ FROM pldbg_wait_for_target(1) w;
 SELECT *
 FROM pldbg_get_stack(1);
 SELECT *
-FROM pldbg_step_over(1);
+FROM pldbg_get_variables(1);
 SELECT *
 FROM pldbg_continue(1);
 SELECT pldbg_abort_target(1);

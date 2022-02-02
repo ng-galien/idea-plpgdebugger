@@ -26,6 +26,9 @@ repositories {
 
 dependencies {
     testImplementation(kotlin("test"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation(platform("org.junit:junit-bom:5.8.2"))
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.8.2")
 }
 
 // Configure Gradle IntelliJ Plugin - read more: https://github.com/JetBrains/gradle-intellij-plugin
@@ -121,6 +124,8 @@ tasks {
     }
 
     test {
-        useJUnitPlatform()
+        useJUnitPlatform {
+            includeEngines("junit-vintage")
+        }
     }
 }

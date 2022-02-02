@@ -38,25 +38,18 @@ fun console(msg: String, throwable: Throwable? = null) {
 }
 
 fun getCallStatement(statement: SqlStatement, settings: PlPluginSettings): Pair<DebugMode, PsiElement?> {
-    when (statement) {
-        is SqlCreateFunctionStatementImpl,
-        is SqlCreateProcedureStatementImpl -> {
-            return if (settings.enableIndirect){
+    return when (statement) {
+        is SqlCreateProcedureStatement -> {
+            if (settings.enableIndirect){
                 Pair(DebugMode.INDIRECT, statement)
             } else {
                 Pair(DebugMode.NONE, null)
             }
         }
-        is SqlSelectStatement,
-        is SqlCallStatement -> {
-            val callElement = PsiTreeUtil.findChildrenOfAnyType(statement, SqlFunctionCallExpression::class.java)
-                .firstOrNull()
-            return Pair(DebugMode.DIRECT, callElement)
-        }
         else -> {
-            return Pair(DebugMode.NONE, null)
+            val callElement = PsiTreeUtil.findChildOfType(statement, SqlFunctionCallExpression::class.java)
+            Pair(DebugMode.DIRECT, callElement)
         }
-
     }
 }
 
