@@ -138,13 +138,13 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
                 0,
                 PlApiValue(
                     0,
-                    "Level",
+                    "Line",
                     "int4",
                     'b',
                     false,
                     "",
-                    "${plFrame.level}",
-                    "${plFrame.level}",
+                    "${getSourceLine()}",
+                    "${getSourceLine()}",
                 )
             ),
             PlApiStackVariable(
@@ -152,13 +152,27 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
                 0,
                 PlApiValue(
                     0,
-                    "Position",
+                    "Range Start",
                     "int4",
                     'b',
                     false,
                     "",
-                    "${plFrame.line}",
-                    "${plFrame.line}",
+                    "${file.codeRange.first}",
+                    "${file.codeRange.first}",
+                )
+            ),
+            PlApiStackVariable(
+                false,
+                0,
+                PlApiValue(
+                    0,
+                    "Range End",
+                    "int4",
+                    'b',
+                    false,
+                    "",
+                    "${file.codeRange.second}",
+                    "${file.codeRange.second}",
                 )
             ),
         )
