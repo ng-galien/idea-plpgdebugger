@@ -11,6 +11,9 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.PgDialect
 import com.intellij.sql.dialects.postgres.psi.PgParameterDefinitionImpl
 import com.intellij.sql.psi.*
+import com.intellij.sql.psi.impl.SqlCreateFunctionStatementImpl
+import com.intellij.sql.psi.impl.SqlCreateProcedureStatementImpl
+import net.plpgsql.ideadebugger.settings.PlPluginSettings
 
 const val CONSOLE = true
 const val SELECT_NULL = "SELECT NULL;"
@@ -19,7 +22,7 @@ const val DEBUGGER_EXTENSION = "pldbgapi"
 const val DEBUGGER_SHARED_LIBRARY = "plugin_debugger"
 
 enum class DebugMode {
-    DIRECT, INDIRECT
+    NONE, DIRECT, INDIRECT
 }
 
 
@@ -31,6 +34,29 @@ fun console(msg: String, throwable: Throwable? = null) {
     if (CONSOLE) {
         println(msg)
         throwable?.printStackTrace()
+    }
+}
+
+fun getCallStatement(statement: SqlStatement, settings: PlPluginSettings): Pair<DebugMode, PsiElement?> {
+    when (statement) {
+        is SqlCreateFunctionStatementImpl,
+        is SqlCreateProcedureStatementImpl -> {
+            return if (settings.enableIndirect){
+                Pair(DebugMode.INDIRECT, statement)
+            } else {
+                Pair(DebugMode.NONE, null)
+            }
+        }
+        is SqlSelectStatement,
+        is SqlCallStatement -> {
+            val callElement = PsiTreeUtil.findChildrenOfAnyType(statement, SqlFunctionCallExpression::class.java)
+                .firstOrNull()
+            return Pair(DebugMode.DIRECT, callElement)
+        }
+        else -> {
+            return Pair(DebugMode.NONE, null)
+        }
+
     }
 }
 
