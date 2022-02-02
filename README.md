@@ -5,23 +5,40 @@
 [![Downloads](https://img.shields.io/jetbrains/plugin/d/PLUGIN_ID.svg)](https://plugins.jetbrains.com/plugin/PLUGIN_ID)
 
 <!-- Plugin description -->
-Debug PL/pg SQL in Intellij with Datbase Tool to speed up and improve productivity with PostgreSQL<br/>
+Debug PL/pg SQL in Intellij with Database Tool module to speed up and improve productivity with PostgreSQL<br/>
 Allow to debug a query from the console like you run it normally: inspect variables and set breakpoints<br/>
 The pldbgapi extension must be enabled on the target database.<br/>
-This plugin is in early stage of development.
+This plugin is in early stage of development.  
+
 Submit features => [Production ready task list](https://github.com/ng-galien/idea-plpgdebugger/issues/17)  
 Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea-plpgdebugger/issues/new/choose)
 <!-- Plugin description end -->
 
 ## Features
 
-* Direct debug from a console
-* Code inspection
+### Direct debug from a console from a SELECT statement
+
+![](img/select-debug.png)
+
+### Variable inspection
+
+(Composite types are not returned by the extension)
+
   * Basic variables
   * Arrays(including array of composite)
-* Breakpoints are persisted across sessions
 
-![](img/start.png)
+![](img/inspect-variables.png)
+
+### Inline values
+
+Arguments and variables are displayed in code, it can be disabled in the plugin configuration.  
+![](img/inline-variables.png)
+
+### Debug process
+
+The debugger activity is visible as a background process in the IDE
+
+![](img/background-process.png)
 
 ## Limitation
 
@@ -30,6 +47,13 @@ A modified extension is available in this [repo](https://github.com/ng-galien/pl
 At the moment indirect debugging is not supported but will be available soon.
 
 ## Installation
+
+### Server
+You must first install the debugger extension and activate the shared library onto the server.  
+Follow these [instructions for PgAdmin](https://www.pgadmin.org/docs/pgadmin4/development/debugger.html)
+
+
+### IDE
 
 - Using IDE built-in plugin system:
   

@@ -45,7 +45,7 @@ class PlExecutor(private val controller: PlController): Disposable {
 
         return ExtensionDiagnostic(
             sharedLibraries = sharedLibraries.joinToString(separator = ", ") { it.value },
-            sharedLibraryOk = sharedLibraries.any { it.value == DEBUGGER_SHARED_LIBRARY },
+            sharedLibraryOk = sharedLibraries.any { it.value.contains(DEBUGGER_SHARED_LIBRARY) },
             extensions = extensions.joinToString(separator = ", ") { it.name },
             extensionOk = extensions.any { it.name == DEBUGGER_EXTENSION }
         )
