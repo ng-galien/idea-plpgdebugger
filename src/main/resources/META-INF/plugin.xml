@@ -16,6 +16,12 @@
                              id="net.plpgsql.ideadebugger.settings.PlSettingsConfigurable"
                              displayName="PL/pg Debugger"/>
         <applicationService serviceImplementation="net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState"/>
+        <applicationService serviceInterface="net.plpgsql.ideadebugger.service.PlProcessWatcher"
+                            serviceImplementation="net.plpgsql.ideadebugger.service.PlProcessWatcherImpl"/>
 
     </extensions>
+    <applicationListeners>
+        <listener class="net.plpgsql.ideadebugger.service.PlProcessWatcherImpl"
+                  topic="net.plpgsql.ideadebugger.service.PlProcessListener"/>
+    </applicationListeners>
 </idea-plugin>

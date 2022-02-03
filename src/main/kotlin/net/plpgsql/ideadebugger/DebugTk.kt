@@ -47,7 +47,7 @@ fun getCallStatement(statement: SqlStatement, settings: PlPluginSettings): Pair<
             }
         }
         else -> {
-            val callElement = PsiTreeUtil.findChildOfType(statement, SqlFunctionCallExpression::class.java)
+            val callElement = PsiTreeUtil.findChildrenOfType(statement, SqlFunctionCallExpression::class.java).firstOrNull()
             Pair(DebugMode.DIRECT, callElement)
         }
     }

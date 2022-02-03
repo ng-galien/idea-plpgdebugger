@@ -1,5 +1,6 @@
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.SqlFileType
+import com.intellij.sql.dialects.postgres.PgDialect
 import com.intellij.sql.psi.SqlFile
 import com.intellij.sql.psi.SqlSelectStatement
 import com.intellij.sql.psi.SqlStatement
@@ -20,80 +21,64 @@ import org.junit.jupiter.api.Test
 
 @TestDataPath("\$CONTENT_ROOT/src/test/testData")
 class FacadeDetection : BasePlatformTestCase() {
-
+    
     @Test
     fun testSelectDetection() {
-        Assertions.assertNotNull(myFixture)
-        val psiFile = myFixture.configureByText(SqlFileType.INSTANCE,
-            """
-                
-            SELECT test_debug();
-                
-            SELECT test_debug('TEST', 123);
-                
-            SELECT public.test_debug('TEST', 123);
-               
-            """.trimIndent()
-
+        val testSuite = mapOf(
+            "SELECT\n * \nFROM \nfunc();" to Pair("func()",  Pair(listOf("func"), listOf<String>())),
+            "SELECT * FROM func();" to Pair("func()",  Pair(listOf("func"), listOf<String>())),
+            "SELECT func();" to Pair("func()",  Pair(listOf("func"), listOf<String>())),
+            "SELECT sch.func();" to Pair("sch.func()",  Pair(listOf("sch", "func"), listOf<String>())),
+            "SELECT sch.func('arg');" to Pair("sch.func('arg')",  Pair(listOf("sch", "func"), listOf<String>("'arg'"))),
+            "SELECT sch.func('arg', 123);" to Pair("sch.func('arg', 123)",  Pair(listOf("sch", "func"), listOf<String>("'arg'", "123"))),
+            "SELECT sch.func(\n'arg', \n123);" to Pair("sch.func(\n'arg', \n123)",  Pair(listOf("sch", "func"), listOf<String>("'arg'", "123"))),
         )
-        val sqlFile = assertInstanceOf(psiFile, SqlFile::class.java)
-        Assertions.assertFalse(PsiErrorElementUtil.hasErrors(project, sqlFile.virtualFile))
+        Assertions.assertNotNull(myFixture)
 
-        val elements = PsiTreeUtil.findChildrenOfType(psiFile, SqlSelectStatement::class.java).toList()
-        Assertions.assertEquals(3, elements.size)
+        testSuite.forEach {
+            val psiFile = createLightFile("dummy.sql", PgDialect.INSTANCE, it.key)
+            val stmt = psiFile.children.first() as SqlStatement
+            val call = getCallStatement(stmt, PlPluginSettings())
+            Assertions.assertNotNull(call)
+            Assertions.assertEquals(DebugMode.DIRECT, call.first)
+            Assertions.assertEquals(it.value.first, call.second?.text)
 
-        // SELECT test_debug();
-        var stmt = elements[0] as SqlStatement
-        var call = getCallStatement(stmt, PlPluginSettings())
-        Assertions.assertNotNull(call)
-        Assertions.assertEquals(DebugMode.DIRECT, call.first)
-        Assertions.assertEquals("test_debug()", call.second?.text)
-        var parsed = call.second?.let { parseFunctionCall(it, call.first) }
-        Assertions.assertNotNull(parsed)
-        if (parsed != null) {
-            Assertions.assertEquals(listOf("test_debug"), parsed.first)
-            Assertions.assertEquals(listOf<String>(), parsed.second)
+            val parsed = call.second?.let { parseFunctionCall(call.second!!, call.first) }
+            Assertions.assertNotNull(parsed)
+            if (parsed != null) {
+                Assertions.assertEquals(it.value.second.first, parsed.first)
+                Assertions.assertEquals(it.value.second.second, parsed.second)
+            }
         }
-
-        // SELECT test_debug('TEST', 123);;
-        stmt = elements[1] as SqlStatement
-        call = getCallStatement(stmt, PlPluginSettings())
-        Assertions.assertNotNull(call)
-        Assertions.assertEquals(DebugMode.DIRECT, call.first)
-        Assertions.assertEquals("test_debug('TEST', 123)", call.second?.text)
-        parsed = call.second?.let { parseFunctionCall(it, call.first) }
-        Assertions.assertNotNull(parsed)
-        if (parsed != null) {
-            Assertions.assertEquals(listOf("test_debug"), parsed.first)
-            Assertions.assertEquals(listOf("'TEST'", "123"), parsed.second)
-        }
-
-        // SELECT public.test_debug('TEST', 123);
-        stmt = elements[2] as SqlStatement
-        call = getCallStatement(stmt, PlPluginSettings())
-        Assertions.assertNotNull(call)
-        Assertions.assertEquals(DebugMode.DIRECT, call.first)
-        Assertions.assertEquals("public.test_debug('TEST', 123)", call.second?.text)
-        parsed = call.second?.let { parseFunctionCall(it, call.first) }
-        Assertions.assertNotNull(parsed)
-        if (parsed != null) {
-            Assertions.assertEquals(listOf("public", "test_debug"), parsed.first)
-            Assertions.assertEquals(listOf("'TEST'", "123"), parsed.second)
-        }
-
     }
 
     @Test
     fun testCallDetection() {
+        val testSuite = mapOf(
+            "CALL\nfunc();" to Pair("func()",  Pair(listOf("func"), listOf<String>())),
+            "CALL func();" to Pair("func()",  Pair(listOf("func"), listOf<String>())),
+            "CALL sch.func();" to Pair("sch.func()",  Pair(listOf("sch", "func"), listOf<String>())),
+            "CALL sch.func('arg');" to Pair("sch.func('arg')",  Pair(listOf("sch", "func"), listOf<String>("'arg'"))),
+            "CALL sch.func('arg', 123);" to Pair("sch.func('arg', 123)",  Pair(listOf("sch", "func"), listOf<String>("'arg'", "123"))),
+            "CALL sch.func(\n'arg', \n123);" to Pair("sch.func(\n'arg', \n123)",  Pair(listOf("sch", "func"), listOf<String>("'arg'", "123"))),
+        )
         Assertions.assertNotNull(myFixture)
-        val psiFile = myFixture.configureByText(SqlFileType.INSTANCE, "CALL test_function();")
-        val sqlFile = assertInstanceOf(psiFile, SqlFile::class.java)
-        Assertions.assertFalse(PsiErrorElementUtil.hasErrors(project, sqlFile.virtualFile))
-        val statement = psiFile.children.first() as SqlStatement
-        val test = getCallStatement(statement, PlPluginSettings())
-        Assertions.assertNotNull(test)
-        Assertions.assertEquals(DebugMode.DIRECT, test.first)
-        Assertions.assertEquals("test_function", test.second?.text)
+
+        testSuite.forEach {
+            val psiFile = createLightFile("dummy.sql", PgDialect.INSTANCE, it.key)
+            val stmt = psiFile.children.first() as SqlStatement
+            val call = getCallStatement(stmt, PlPluginSettings())
+            Assertions.assertNotNull(call)
+            Assertions.assertEquals(DebugMode.DIRECT, call.first)
+            Assertions.assertEquals(it.value.first, call.second?.text)
+
+            val parsed = call.second?.let { parseFunctionCall(call.second!!, call.first) }
+            Assertions.assertNotNull(parsed)
+            if (parsed != null) {
+                Assertions.assertEquals(it.value.second.first, parsed.first)
+                Assertions.assertEquals(it.value.second.second, parsed.second)
+            }
+        }
     }
 
 }

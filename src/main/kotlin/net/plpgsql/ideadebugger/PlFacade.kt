@@ -7,60 +7,43 @@ import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.debugger.SqlDebuggerFacade
 import com.intellij.database.model.basic.BasicSourceAware
 import com.intellij.database.util.SearchPath
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiManager
-import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.sql.dialects.postgres.psi.PgCreateFunctionStatementImpl
-import com.intellij.sql.dialects.postgres.psi.PgCreateProcedureStatementImpl
 import com.intellij.sql.psi.*
+import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
-import kotlin.test.assertNotNull
 
 class PlFacade : SqlDebuggerFacade {
 
     private val logger = getLogger(PlFacade::class)
-    private var callElement: PsiElement? = null
-    private var mode: DebugMode = DebugMode.DIRECT
+    private var callDef: Pair<DebugMode, PsiElement?> = Pair(DebugMode.NONE, null)
+    private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
 
     init {
-        logger.debug("PlFacade init")
+        console("PlFacade init")
     }
 
     override fun isApplicableToDebugStatement(statement: SqlStatement): Boolean {
-
-        callElement = null
+        if (watcher.isDebugging()) {
+            return false
+        }
         if (statement.containingFile.virtualFile is PlFunctionSource) {
             return false
         }
-        //Procedure is discarded here
-        when (statement) {
-            is PgCreateFunctionStatementImpl,
-            is PgCreateProcedureStatementImpl -> {
-                val settings = PlDebuggerSettingsState.getInstance().state
-                if (settings.enableIndirect){
-                    callElement = statement
-                    mode = DebugMode.INDIRECT
-                }
-            }
-            is SqlSelectStatement,
-            is SqlCallStatement -> {
-                callElement = PsiTreeUtil.findChildrenOfAnyType(statement, SqlFunctionCallExpression::class.java)
-                    .firstOrNull()
-                mode = DebugMode.DIRECT
-            }
-
-        }
-        return callElement != null
+        callDef = getCallStatement(statement, PlDebuggerSettingsState.getInstance().state)
+        return callDef.first != DebugMode.NONE && callDef.second != null
     }
 
     override fun isApplicableToDebugRoutine(basicSourceAware: BasicSourceAware): Boolean {
         return true
     }
 
-    override fun canDebug(ds: LocalDataSource): Boolean = checkConnection(ds)
+    override fun canDebug(ds: LocalDataSource): Boolean{
+        return checkConnection(ds)
+    }
 
 
     override fun createController(
@@ -80,8 +63,8 @@ class PlFacade : SqlDebuggerFacade {
             searchPath = searchPath,
             virtualFile = virtualFile,
             rangeMarker = rangeMarker,
-            callExpression = callElement!!,
-            mode = mode
+            callExpression = callDef.second!!,
+            mode = callDef.first
         )
     }
 
@@ -89,5 +72,6 @@ class PlFacade : SqlDebuggerFacade {
     private fun checkConnection(ds: LocalDataSource): Boolean {
         return ds.dbms.isPostgres
     }
+
 
 }
