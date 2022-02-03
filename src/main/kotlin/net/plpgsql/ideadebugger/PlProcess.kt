@@ -20,6 +20,7 @@ import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
 import net.plpgsql.ideadebugger.service.PlProcessListener
+import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import net.plpgsql.ideadebugger.vfs.PlVirtualFileSystem
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -261,14 +262,15 @@ class PlProcess(
 
 
         var ready = false
-        val publisher = ApplicationManager.getApplication().messageBus.syncPublisher(PlProcessListener.PROCESS_TOPIC)
+        private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
+
         override fun onCancel() {
             console("ProxyTask canceled")
             executor.cancelAndCloseConnection()
             if (mode == DebugMode.INDIRECT) {
                 session.stop()
             }
-            publisher.finished(this@PlProcess)
+            watcher.processFinished(this@PlProcess)
         }
 
         override fun onThrowable(error: Throwable) {
@@ -292,7 +294,7 @@ class PlProcess(
                 return
             }
             ready = true
-            publisher.started(this@PlProcess)
+            watcher.processStarted(this@PlProcess)
             do {
                 val query = command.poll()
                 if (query != null) {
@@ -329,7 +331,7 @@ class PlProcess(
             ready = false
             executor.closeConnection()
             console("ProxyTask run end")
-            publisher.finished(this@PlProcess)
+            watcher.processFinished(this@PlProcess)
             executor.interrupted()
         }
 

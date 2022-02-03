@@ -20,8 +20,4 @@
                             serviceImplementation="net.plpgsql.ideadebugger.service.PlProcessWatcherImpl"/>
 
     </extensions>
-    <applicationListeners>
-        <listener class="net.plpgsql.ideadebugger.service.PlProcessWatcherImpl"
-                  topic="net.plpgsql.ideadebugger.service.PlProcessListener"/>
-    </applicationListeners>
 </idea-plugin>
