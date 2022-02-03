@@ -19,7 +19,6 @@ import com.intellij.xdebugger.breakpoints.XLineBreakpoint
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
-import net.plpgsql.ideadebugger.service.PlProcessListener
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import net.plpgsql.ideadebugger.vfs.PlVirtualFileSystem
@@ -259,7 +258,6 @@ class PlProcess(
     fun readyToAcceptBreakPoint(): Boolean = proxyTask.ready && !executor.waitingForCompletion
 
     inner class ProxyTask(project: Project, title: String, canBeCanceled: Boolean) : Task.Backgroundable(project, title, canBeCanceled) {
-
 
         var ready = false
         private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)

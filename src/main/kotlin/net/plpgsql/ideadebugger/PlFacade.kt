@@ -23,10 +23,6 @@ class PlFacade : SqlDebuggerFacade {
     private var callDef: Pair<DebugMode, PsiElement?> = Pair(DebugMode.NONE, null)
     private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
 
-    init {
-        console("PlFacade init")
-    }
-
     override fun isApplicableToDebugStatement(statement: SqlStatement): Boolean {
         if (watcher.isDebugging()) {
             return false
@@ -43,9 +39,8 @@ class PlFacade : SqlDebuggerFacade {
     }
 
     override fun canDebug(ds: LocalDataSource): Boolean{
-        return checkConnection(ds)
+        return checkDataSource(ds)
     }
-
 
     override fun createController(
         project: Project,
@@ -56,6 +51,7 @@ class PlFacade : SqlDebuggerFacade {
         rangeMarker: RangeMarker?,
         searchPath: SearchPath?,
     ): SqlDebugController {
+        logger.debug("createController")
         return PlController(
             facade = this,
             project = project,
@@ -64,15 +60,13 @@ class PlFacade : SqlDebuggerFacade {
             searchPath = searchPath,
             virtualFile = virtualFile,
             rangeMarker = rangeMarker,
+            mode = callDef.first,
             callExpression = callDef.second!!,
-            mode = callDef.first
         )
     }
 
-    //(disableMe as LocalDataSource).localDataSource.schemaMapping 54724
-    private fun checkConnection(ds: LocalDataSource): Boolean {
+    private fun checkDataSource(ds: LocalDataSource): Boolean {
         return ds.dbms.isPostgres
     }
-
 
 }
