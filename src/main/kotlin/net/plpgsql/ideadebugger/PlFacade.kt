@@ -15,6 +15,7 @@ import com.intellij.psi.PsiElement
 import com.intellij.sql.psi.*
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
+import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 
 class PlFacade : SqlDebuggerFacade {
 

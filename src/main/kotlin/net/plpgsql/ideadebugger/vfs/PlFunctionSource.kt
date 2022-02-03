@@ -2,7 +2,7 @@
  * Copyright (c) 2022. Alexandre Boyer
  */
 
-package net.plpgsql.ideadebugger
+package net.plpgsql.ideadebugger.vfs
 
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.project.Project
@@ -10,15 +10,16 @@ import com.intellij.openapi.vfs.VirtualFileSystem
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
-import com.intellij.psi.util.PsiElementFilter
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.psi.*
 import com.intellij.sql.psi.impl.SqlTokenElement
 import com.intellij.testFramework.LightVirtualFile
+import net.plpgsql.ideadebugger.PlApiFunctionDef
+import net.plpgsql.ideadebugger.getPlLanguage
 import java.nio.charset.Charset
 
 class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFile(
-    "${def.schema}.${def.name}",
+    "${def.schema}.${def.name}[${def.oid}]",
     getPlLanguage(),
     def.source
 ) {

@@ -11,6 +11,7 @@ import com.intellij.xdebugger.XSourcePosition
 import com.intellij.xdebugger.frame.*
 import com.intellij.xdebugger.frame.presentation.XValuePresentation
 import icons.DatabaseIcons
+import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import javax.swing.Icon
 import kotlin.math.min
 

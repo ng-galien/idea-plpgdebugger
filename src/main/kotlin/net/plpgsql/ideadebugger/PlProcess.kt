@@ -20,6 +20,8 @@ import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
 import net.plpgsql.ideadebugger.service.PlProcessListener
+import net.plpgsql.ideadebugger.vfs.PlFunctionSource
+import net.plpgsql.ideadebugger.vfs.PlVirtualFileSystem
 import java.util.concurrent.ConcurrentLinkedQueue
 
 class PlProcess(

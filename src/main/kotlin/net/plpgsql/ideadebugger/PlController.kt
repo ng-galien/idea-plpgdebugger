@@ -19,7 +19,6 @@ import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.ProgressManagerListener
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
@@ -30,12 +29,12 @@ import com.intellij.openapi.wm.ex.ToolWindowManagerListener
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
-import com.intellij.sql.psi.SqlFunctionCallExpression
 import com.intellij.ui.content.Content
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugSession
 import kotlinx.coroutines.*
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
+import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 
 class PlController(
     val facade: PlFacade,
