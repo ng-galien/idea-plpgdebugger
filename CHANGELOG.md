@@ -3,13 +3,15 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+
+## [1.2.0]
 ### Added
 - Prevent running debugger twice
 - Manage quoted identifier and schema
 - Experimental support of indirect debugging
 
 ## [1.2.0-beta2]
-### Fix 
+### Fix
 - Sessions issues
 - NULL handling with array and composite types
 
@@ -20,7 +22,7 @@
 - Inline variable display
   - User can see variable in code
   - Variable with long value are truncated
-  
+
 ## [1.1.1]
 ### Added
 - Plugin configuration:
@@ -31,7 +33,7 @@
 - Fix call identification
 - Fix breakpoint support for PROCEDURE
 - Improved breakpoint management
-  
+
 ## [1.0.3]
 ### Added
 - Plugin configuration:
@@ -67,7 +69,6 @@
 - Progress on A routine with an enum in arg fails #13
 - Fix compatibility with last DatabaseTool implementation
 
-
 ## [1.0.0-beta]
 ### Added
 - Support for breakpoint
@@ -79,7 +80,7 @@
 ## [1.0.0-alpha1]
 ### Added
 - Fix procedure identification on specific schema
-- Gracefully handle debug connection  
+- Gracefully handle debug connection
 
 ## [1.0.0-alpha]
 ### Added
