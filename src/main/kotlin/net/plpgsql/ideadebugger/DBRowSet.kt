@@ -78,6 +78,7 @@ class DBRowSet<R>(
         } else {
             String.format("SELECT * FROM %s;", sanitizeQuery(path))
         }
+        console(internalSql)
         initializers.forEach {
             val statement = connection.remoteConnection.createStatement()
             statement.execute(it)

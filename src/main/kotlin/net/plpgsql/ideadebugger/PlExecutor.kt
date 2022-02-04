@@ -200,8 +200,7 @@ class PlExecutor(private val controller: PlController): Disposable {
 
         val query = vars.joinToString(separator = "\nUNION ALL\n", postfix = ";") {
             // Fix array type prefixed with underscore and NULL
-            val realType = if (it.value.isArray) "${it.value.type.substring(1)}[]" else it.value.type
-            val realValue = "('${it.value.value.replace("'", "''")}'::${realType})"
+            val realValue = "('${it.value.value.replace("'", "''")}'::${it.value.type})"
             var jsonValue: String
             var prettyValue: String
             // Transform to jsonb
@@ -216,7 +215,7 @@ class PlExecutor(private val controller: PlController): Disposable {
                 jsonValue = "'NULL'"
                 prettyValue = "'NULL'"
             }
-            "SELECT ${it.isArg},${it.line},${it.value.oid},'${it.value.name}','$realType','${it.value.kind}'," +
+            "SELECT ${it.isArg},${it.line},${it.value.oid},'${it.value.name}','${it.value.type}','${it.value.kind}'," +
                     "${it.value.isArray},'${it.value.arrayType}',$jsonValue, $prettyValue"
 
         }
@@ -240,7 +239,7 @@ class PlExecutor(private val controller: PlController): Disposable {
             value.value.replace("'", "''"),
             "${value.oid}"
         )
-        return executeQuery(ApiQuery.EXPLODE, listOf(query))
+        return executeQuery(query = ApiQuery.EXPLODE, args = listOf(query), ignoreError = true)
     }
 
     fun getBreakPoints(): List<PlApiStep>{
@@ -284,6 +283,7 @@ class PlExecutor(private val controller: PlController): Disposable {
         args: List<String> = listOf(),
         dc: DatabaseConnection = internalConnection,
         additionalCommand: String? = null,
+        ignoreError: Boolean = false
     ): List<T> {
         console("executeQuery ${query.name}")
         if (query.print) {
@@ -305,24 +305,12 @@ class PlExecutor(private val controller: PlController): Disposable {
                 additionalCommand?.let {
                     initializers.add(additionalCommand)
                 }
-
                 fetch(args)
-
             }
         }.onFailure { throwable ->
-            when (throwable) {
-                is SQLException -> {
-                    if ("08006" != throwable.sqlState && "57P01" != throwable.sqlState) {
-                        setError("Query failed ${query.name} ${throwable.message}", throwable)
-                        println(throwable.message)
-                    }
-                }
-                else -> {
-                    setError("Query failed ${query.name} ${throwable.message}", throwable)
-                    println(throwable.message)
-                }
-            }
-            ready = false
+            setError("Query failed ${query.name} ${throwable.message}", throwable)
+            println(throwable.message)
+            ready = ignoreError
         }
         waitingForCompletion = false
         rowset?.let {

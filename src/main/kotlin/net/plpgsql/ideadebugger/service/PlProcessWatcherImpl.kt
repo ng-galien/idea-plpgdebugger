@@ -5,13 +5,17 @@
 package net.plpgsql.ideadebugger.service
 
 import com.intellij.openapi.components.Service
-import net.plpgsql.ideadebugger.PlProcess
+import com.intellij.openapi.util.registry.Registry
 import net.plpgsql.ideadebugger.console
+import net.plpgsql.ideadebugger.run.PlProcess
 
 @Service
 class PlProcessWatcherImpl: PlProcessWatcher {
 
     private var currentProcess: PlProcess? = null
+
+    init {
+    }
 
     override fun isDebugging(): Boolean {
         return currentProcess != null

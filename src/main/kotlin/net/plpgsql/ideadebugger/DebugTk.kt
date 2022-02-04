@@ -4,6 +4,8 @@
 
 package net.plpgsql.ideadebugger
 
+import com.intellij.database.dialects.postgres.model.PgRoutine
+import com.intellij.database.psi.DbRoutine
 import com.intellij.lang.Language
 import com.intellij.openapi.application.runReadAction
 import com.intellij.psi.PsiElement
@@ -11,11 +13,9 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.PgDialect
 import com.intellij.sql.dialects.postgres.psi.PgParameterDefinitionImpl
 import com.intellij.sql.psi.*
-import com.intellij.sql.psi.impl.SqlCreateFunctionStatementImpl
-import com.intellij.sql.psi.impl.SqlCreateProcedureStatementImpl
 import net.plpgsql.ideadebugger.settings.PlPluginSettings
 
-const val CONSOLE = true
+const val CONSOLE = false
 const val SELECT_NULL = "SELECT NULL;"
 const val DEFAULT_SCHEMA = "public"
 const val DEBUGGER_EXTENSION = "pldbgapi"
@@ -37,6 +37,9 @@ fun console(msg: String, throwable: Throwable? = null) {
     }
 }
 
+/**
+ *
+ */
 fun getCallStatement(statement: SqlStatement, settings: PlPluginSettings): Pair<DebugMode, PsiElement?> {
     return when (statement) {
         is SqlCreateProcedureStatement -> {
@@ -54,6 +57,20 @@ fun getCallStatement(statement: SqlStatement, settings: PlPluginSettings): Pair<
 }
 
 /**
+ * Database Tool implementation
+ */
+fun getFunctionOid(statement: PsiElement?): Long {
+    PsiTreeUtil.collectElements(statement) { it.reference != null }.firstOrNull()?.references?.forEach { ref ->
+        ref.resolve()?.let { dbroutine ->
+            val delegate = (dbroutine as DbRoutine).delegate
+            val id = (delegate as PgRoutine).objectId
+            console("$id")
+        }
+    }
+    return 0L
+}
+
+/**
  * Returns a pair of function definition / arguments
  * @param psi
  */
@@ -62,7 +79,7 @@ fun parseFunctionCall(psi: PsiElement, mode: DebugMode): Pair<List<String>, List
         val funcEl = PsiTreeUtil.findChildOfType(psi, SqlReferenceExpression::class.java)
         val func = funcEl?.let {
             PsiTreeUtil.findChildrenOfType(funcEl, SqlIdentifier::class.java).map {
-                it.text.trim()
+                it.text.trim().removeSurrounding("\"")
             }
         } ?: listOf()
         val values = if (mode == DebugMode.DIRECT) PsiTreeUtil.findChildOfType(
@@ -94,6 +111,16 @@ fun sanitizeQuery(sql: String): String {
     }
     return res
 }
+
+fun unquote(s: String): String = s.removeSurrounding("\"")
+
+/*
+
+
+DbElement element = DbNavigationUtils.extractDbElementFromPsi(o);
+DataGrid grid = element == null ? null : DataGridPomTarget.unwrapDataGrid(o);
+return element != null && DbNavigationUtils.canNavigateToData(element) ? DbNavigationUtils.createToDataNavigatable(element) : null;
+ */
 
 
 

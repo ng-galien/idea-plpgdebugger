@@ -4,7 +4,7 @@
 
 package net.plpgsql.ideadebugger.service
 
-import net.plpgsql.ideadebugger.PlProcess
+import net.plpgsql.ideadebugger.run.PlProcess
 
 interface PlProcessWatcher {
     fun isDebugging(): Boolean

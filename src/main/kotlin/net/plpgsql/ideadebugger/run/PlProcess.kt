@@ -2,7 +2,7 @@
  * Copyright (c) 2022. Alexandre Boyer
  */
 
-package net.plpgsql.ideadebugger
+package net.plpgsql.ideadebugger.run
 
 import com.intellij.database.debugger.SqlDebugProcess
 import com.intellij.openapi.application.ApplicationManager
@@ -10,6 +10,7 @@ import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
+import com.intellij.openapi.progress.TaskInfo
 import com.intellij.openapi.progress.impl.BackgroundableProcessIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.xdebugger.XSourcePosition
@@ -19,6 +20,7 @@ import com.intellij.xdebugger.breakpoints.XLineBreakpoint
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
+import net.plpgsql.ideadebugger.*
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import net.plpgsql.ideadebugger.vfs.PlVirtualFileSystem
@@ -36,7 +38,7 @@ class PlProcess(
     internal val command = ConcurrentLinkedQueue<ApiQuery>()
     val mode: DebugMode = controller.mode
     private val proxyTask = ProxyTask(controller.project, "PL/pg Debug", mode == DebugMode.DIRECT)
-    private var proxyProgress: BackgroundableProcessIndicator? = null
+    private var proxyProgress: ProxyIndicator? = null
 
     override fun startStepOver(context: XSuspendContext?) {
         console("User request: startStepOver")
@@ -56,7 +58,7 @@ class PlProcess(
     fun startDebug() {
         console("Process startDebug")
         executor.setInfo("From auxiliary request: startDebug")
-        proxyProgress = BackgroundableProcessIndicator(proxyTask)
+        proxyProgress = ProxyIndicator(proxyTask)
         ProgressManager.getInstance().runProcessWithProgressAsynchronously(proxyTask, proxyProgress!!)
         command.add(ApiQuery.VOID)
     }
@@ -281,6 +283,7 @@ class PlProcess(
             if (executor.entryPoint == 0L) {
                 return
             }
+            indicator.text = "Waiting for target invocation"
             indicator.isIndeterminate = false
             kotlin.runCatching {
                 executor.createListener()
@@ -289,6 +292,8 @@ class PlProcess(
             }.onFailure {
                 console("Run failed to start", it)
                 indicator.cancel()
+            }
+            if (executor.interrupted()) {
                 return
             }
             ready = true
@@ -334,6 +339,8 @@ class PlProcess(
         }
 
     }
+
+    inner class ProxyIndicator(task: ProxyTask): BackgroundableProcessIndicator(task) {}
 
     data class StepInfo(val pos: Int, val total: Int, val ratio: Double)
 

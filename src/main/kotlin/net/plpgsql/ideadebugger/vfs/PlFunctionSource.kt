@@ -16,6 +16,7 @@ import com.intellij.sql.psi.impl.SqlTokenElement
 import com.intellij.testFramework.LightVirtualFile
 import net.plpgsql.ideadebugger.PlApiFunctionDef
 import net.plpgsql.ideadebugger.getPlLanguage
+import net.plpgsql.ideadebugger.unquote
 import java.nio.charset.Charset
 
 class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFile(
@@ -41,12 +42,12 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
             PsiManager.getInstance(project).findFile(this)?.let { psi ->
                 PsiTreeUtil.findChildOfType(psi, SqlParameterList::class.java).let { params ->
                     PsiTreeUtil.findChildrenOfType(params, SqlIdentifier::class.java).toList().forEach { arg ->
-                        psiArgs[arg.text] = arg
+                        psiArgs[unquote(arg.text)] = arg
                     }
                 }
                 PsiTreeUtil.findChildrenOfType(psi, SqlVariableDefinition::class.java).forEach{ params ->
                     PsiTreeUtil.findChildrenOfType(params, SqlIdentifier::class.java).toList().forEach { v ->
-                        psiVariables[v.text] = v
+                        psiVariables[unquote(v.text)] = v
                     }
                 }
                 PsiTreeUtil.findChildOfType(psi, SqlBlockStatement::class.java)?.let { block ->
@@ -75,15 +76,16 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
                             doc.getLineNumber(it.textOffset) >= codeRange.first
                         }.forEach { set ->
                             PsiTreeUtil.findChildrenOfType(set, SqlIdentifier::class.java).filter{ id ->
-                                psiArgs.containsKey(id.text) || psiVariables.containsKey(id.text)
+                                psiArgs.containsKey(unquote(id.text)) || psiVariables.containsKey(unquote(id.text))
                             }.forEach { el ->
                                 val toAdd = Pair(doc.getLineNumber(el.textOffset), el)
-                                psiUse[el.text]?.let {
+                                psiUse[unquote(el.text)]?.let {
                                     it.find { test ->
-                                        test.first == toAdd.first && test.second.text == toAdd.second.text
+                                        test.first == toAdd.first
+                                                && unquote(test.second.text) == unquote(toAdd.second.text)
                                     } ?: it.add(toAdd)
                                 } ?: kotlin.run {
-                                    psiUse[el.text] = mutableListOf(toAdd)
+                                    psiUse[unquote(el.text)] = mutableListOf(toAdd)
                                 }
                             }
                         }
