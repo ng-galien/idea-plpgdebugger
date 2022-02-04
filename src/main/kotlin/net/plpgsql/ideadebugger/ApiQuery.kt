@@ -93,20 +93,20 @@ enum class ApiQuery(val sql: String,
     ),
     GET_RAW_VARIABLES(
         """
-            SELECT
-                   varclass = 'A' as is_arg,
-                   linenumber as line,
-                   t_type.oid as oid,
-                   t_var.name as name,
-                   coalesce(t_type.typname, 'unknown') as type,
-                   coalesce(t_type.typtype, 'b') as kind,
-                   t_type.typarray = 0 as is_array,
-                   coalesce(t_sub.typname, 'unknown') as array_type,
-                   t_var.value as value,
-                   '' as pretty
-            FROM pldbg_get_variables(%s) t_var
-            LEFT JOIN pg_type t_type ON t_var.dtype = t_type.oid
-            LEFT JOIN pg_type t_sub ON t_type.typelem = t_sub.oid;
+        SELECT
+            varclass = 'A' as is_arg,
+            linenumber as line,
+            t_type.oid as oid,
+            t_var.name as name,
+            coalesce(t_type.oid::regtype::TEXT, 'text') as type,
+            coalesce(t_type.typtype, 'b') as kind,
+            t_type.typarray = 0 as is_array,
+            coalesce(t_sub.oid::regtype::TEXT, 'text') as array_type,
+            t_var.value as value,
+            '' as pretty
+        FROM pldbg_get_variables(%s) t_var
+             LEFT JOIN pg_type t_type ON t_var.dtype = t_type.oid
+             LEFT JOIN pg_type t_sub ON t_type.typelem = t_sub.oid;
         """, Producer<Any> {
             PlApiStackVariable(
                 it.bool(),

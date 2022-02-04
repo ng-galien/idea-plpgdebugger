@@ -2,66 +2,48 @@ package net.plpgsql.ideadebugger
 
 import com.intellij.database.dataSource.DatabaseConnectionPoint
 import com.intellij.database.dataSource.LocalDataSource
+import com.intellij.database.datagrid.DataGridPomTarget
 import com.intellij.database.datagrid.DataRequest
 import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.debugger.SqlDebuggerFacade
+import com.intellij.database.dialects.postgres.model.PgRoutine
 import com.intellij.database.model.basic.BasicSourceAware
+import com.intellij.database.psi.DbElement
+import com.intellij.database.psi.DbRoutine
 import com.intellij.database.util.SearchPath
+import com.intellij.database.view.DbNavigationUtils
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiManager
 import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.sql.dialects.postgres.psi.PgCreateFunctionStatementImpl
-import com.intellij.sql.dialects.postgres.psi.PgCreateProcedureStatementImpl
 import com.intellij.sql.psi.*
+import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
-import kotlin.test.assertNotNull
+import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 
 class PlFacade : SqlDebuggerFacade {
 
     private val logger = getLogger(PlFacade::class)
-    private var callElement: PsiElement? = null
-    private var mode: DebugMode = DebugMode.DIRECT
-
-    init {
-        logger.debug("PlFacade init")
-    }
+    private var callDef: Pair<DebugMode, PsiElement?> = Pair(DebugMode.NONE, null)
+    private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
 
     override fun isApplicableToDebugStatement(statement: SqlStatement): Boolean {
-
-        callElement = null
-        if (statement.containingFile.virtualFile is PlFunctionSource) {
+        if (watcher.isDebugging()) {
             return false
         }
-        //Procedure is discarded here
-        when (statement) {
-            is PgCreateFunctionStatementImpl,
-            is PgCreateProcedureStatementImpl -> {
-                val settings = PlDebuggerSettingsState.getInstance().state
-                if (settings.enableIndirect){
-                    callElement = statement
-                    mode = DebugMode.INDIRECT
-                }
-            }
-            is SqlSelectStatement,
-            is SqlCallStatement -> {
-                callElement = PsiTreeUtil.findChildrenOfAnyType(statement, SqlFunctionCallExpression::class.java)
-                    .firstOrNull()
-                mode = DebugMode.DIRECT
-            }
-
-        }
-        return callElement != null
+        callDef = getCallStatement(statement, PlDebuggerSettingsState.getInstance().state)
+        return callDef.first != DebugMode.NONE && callDef.second != null
     }
 
     override fun isApplicableToDebugRoutine(basicSourceAware: BasicSourceAware): Boolean {
         return true
     }
 
-    override fun canDebug(ds: LocalDataSource): Boolean = checkConnection(ds)
-
+    override fun canDebug(ds: LocalDataSource): Boolean{
+        return checkDataSource(ds)
+    }
 
     override fun createController(
         project: Project,
@@ -72,6 +54,7 @@ class PlFacade : SqlDebuggerFacade {
         rangeMarker: RangeMarker?,
         searchPath: SearchPath?,
     ): SqlDebugController {
+        logger.debug("createController")
         return PlController(
             facade = this,
             project = project,
@@ -80,13 +63,15 @@ class PlFacade : SqlDebuggerFacade {
             searchPath = searchPath,
             virtualFile = virtualFile,
             rangeMarker = rangeMarker,
-            callExpression = callElement!!,
-            mode = mode
+            mode = callDef.first,
+            callExpression = callDef.second!!,
         )
     }
 
-    //(disableMe as LocalDataSource).localDataSource.schemaMapping 54724
-    private fun checkConnection(ds: LocalDataSource): Boolean {
+    /**
+     * Only check it's postgres
+     */
+    private fun checkDataSource(ds: LocalDataSource): Boolean {
         return ds.dbms.isPostgres
     }
 

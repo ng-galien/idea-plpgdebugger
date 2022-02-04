@@ -3,6 +3,10 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+### Added
+- Prevent running debugger twice
+- Manage quoted identifier and schema
+- Experimental support of indirect debugging
 
 ## [1.2.0-beta2]
 ### Fix 

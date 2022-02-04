@@ -1,14 +1,21 @@
 # Intellij PL/pg SQL debugger
 
 ![Build](https://github.com/ng-galien/idea-plpgdebugger/workflows/Build/badge.svg)
-[![Version](https://img.shields.io/jetbrains/plugin/v/PLUGIN_ID.svg)](https://plugins.jetbrains.com/plugin/PLUGIN_ID)
-[![Downloads](https://img.shields.io/jetbrains/plugin/d/PLUGIN_ID.svg)](https://plugins.jetbrains.com/plugin/PLUGIN_ID)
+[![Version](https://img.shields.io/jetbrains/plugin/v/PLUGIN_ID.svg)](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger)
+[![Downloads](https://img.shields.io/jetbrains/plugin/d/PLUGIN_ID.svg)](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger)
 
 <!-- Plugin description -->
-Debug PL/pg SQL in Intellij with Database Tool module to speed up and improve productivity with PostgreSQL<br/>
-Allow to debug a query from the console like you run it normally: inspect variables and set breakpoints<br/>
-The pldbgapi extension must be enabled on the target database.<br/>
-This plugin is in early stage of development.  
+Debug PL/pg SQL in Intellij with Database Tools<br/>
+
+### Top features
+- Direct debug a statement
+- Breakpoint persistence
+- Variable inspection in debugger tree and inlined in code
+- Inspect arrays and composite types
+- Experimental support for indirect debugging
+
+
+Note that the legacy extension only returns composite type in arrays, try the [modified debugger](https://github.com/ng-galien/pldebugger/blob/print-vars-14/INSTALL.md) for composite support 
 
 Submit features => [Production ready task list](https://github.com/ng-galien/idea-plpgdebugger/issues/17)  
 Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea-plpgdebugger/issues/new/choose)

@@ -11,6 +11,8 @@ import com.intellij.xdebugger.XSourcePosition
 import com.intellij.xdebugger.frame.*
 import com.intellij.xdebugger.frame.presentation.XValuePresentation
 import icons.DatabaseIcons
+import net.plpgsql.ideadebugger.run.PlProcess
+import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import javax.swing.Icon
 import kotlin.math.min
 
@@ -138,13 +140,13 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
                 0,
                 PlApiValue(
                     0,
-                    "Level",
+                    "Line",
                     "int4",
                     'b',
                     false,
                     "",
-                    "${plFrame.level}",
-                    "${plFrame.level}",
+                    "${getSourceLine()}",
+                    "${getSourceLine()}",
                 )
             ),
             PlApiStackVariable(
@@ -152,13 +154,27 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
                 0,
                 PlApiValue(
                     0,
-                    "Position",
+                    "Range Start",
                     "int4",
                     'b',
                     false,
                     "",
-                    "${plFrame.line}",
-                    "${plFrame.line}",
+                    "${file.codeRange.first}",
+                    "${file.codeRange.first}",
+                )
+            ),
+            PlApiStackVariable(
+                false,
+                0,
+                PlApiValue(
+                    0,
+                    "Range End",
+                    "int4",
+                    'b',
+                    false,
+                    "",
+                    "${file.codeRange.second}",
+                    "${file.codeRange.second}",
                 )
             ),
         )
@@ -225,6 +241,25 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
             explode(node, executor.explode(plVar))
             executor.displayInfo()
         }
+
+        /*
+        override fun computeSourcePosition(navigatable: XNavigatable) {
+            xFrame?.file?.let { fs ->
+                (if (plStackVar.isArg) fs.psiArgs else fs.psiVariables).let { map ->
+                    map[plVar.name]?.let {
+                        val pos = XDebuggerUtil.getInstance().createPositionByElement(it)
+                        navigatable.setSourcePosition(pos)
+                    }
+                }
+                fs.psiUse[plVar.name]?.filter { p ->
+                    xFrame.getSourceLine() >= p.first
+                }?.forEach { p ->
+                    val pos = XDebuggerUtil.getInstance().createPositionByElement(p.second)
+                    navigatable.setSourcePosition(pos)
+                }
+            }
+        }
+         */
 
         override fun computeInlineDebuggerData(callback: XInlineDebuggerDataCallback): ThreeState {
 

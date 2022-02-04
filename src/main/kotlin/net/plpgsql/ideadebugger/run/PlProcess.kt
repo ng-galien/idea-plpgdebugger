@@ -2,21 +2,28 @@
  * Copyright (c) 2022. Alexandre Boyer
  */
 
-package net.plpgsql.ideadebugger
+package net.plpgsql.ideadebugger.run
 
 import com.intellij.database.debugger.SqlDebugProcess
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
+import com.intellij.openapi.progress.TaskInfo
 import com.intellij.openapi.progress.impl.BackgroundableProcessIndicator
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.canShowMacSheetPanel
 import com.intellij.xdebugger.XSourcePosition
-import com.intellij.xdebugger.breakpoints.*
+import com.intellij.xdebugger.breakpoints.XBreakpointHandler
+import com.intellij.xdebugger.breakpoints.XBreakpointListener
+import com.intellij.xdebugger.breakpoints.XLineBreakpoint
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
+import net.plpgsql.ideadebugger.*
+import net.plpgsql.ideadebugger.service.PlProcessWatcher
+import net.plpgsql.ideadebugger.vfs.PlFunctionSource
+import net.plpgsql.ideadebugger.vfs.PlVirtualFileSystem
 import java.util.concurrent.ConcurrentLinkedQueue
 
 class PlProcess(
@@ -31,7 +38,7 @@ class PlProcess(
     internal val command = ConcurrentLinkedQueue<ApiQuery>()
     val mode: DebugMode = controller.mode
     private val proxyTask = ProxyTask(controller.project, "PL/pg Debug", mode == DebugMode.DIRECT)
-    private var proxyProgress: BackgroundableProcessIndicator? = null
+    private var proxyProgress: ProxyIndicator? = null
 
     override fun startStepOver(context: XSuspendContext?) {
         console("User request: startStepOver")
@@ -51,7 +58,7 @@ class PlProcess(
     fun startDebug() {
         console("Process startDebug")
         executor.setInfo("From auxiliary request: startDebug")
-        proxyProgress = BackgroundableProcessIndicator(proxyTask)
+        proxyProgress = ProxyIndicator(proxyTask)
         ProgressManager.getInstance().runProcessWithProgressAsynchronously(proxyTask, proxyProgress!!)
         command.add(ApiQuery.VOID)
     }
@@ -84,9 +91,15 @@ class PlProcess(
 
         val plStacks = executor.getStack()
         // If we reach this frame for the first time
-        val first = stack.topFrame?.let {
+        var first = stack.topFrame?.let {
             (it as XStack.XFrame).file.oid != plStacks.firstOrNull()?.oid
         } ?: true
+        // In case of indirect debugging check it's first line
+        if (!first && mode == DebugMode.INDIRECT && stack.topFrame != null) {
+            (stack.topFrame as XStack.XFrame).let {
+                first = it.getSourceLine() == it.file.codeRange.first + 1
+            }
+        }
         executor.setDebug("Reach frame ${plStacks.firstOrNull()?.oid}, first=$first")
 
         stack.clear()
@@ -249,12 +262,15 @@ class PlProcess(
     inner class ProxyTask(project: Project, title: String, canBeCanceled: Boolean) : Task.Backgroundable(project, title, canBeCanceled) {
 
         var ready = false
+        private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
+
         override fun onCancel() {
             console("ProxyTask canceled")
             executor.cancelAndCloseConnection()
             if (mode == DebugMode.INDIRECT) {
                 session.stop()
             }
+            watcher.processFinished(this@PlProcess)
         }
 
         override fun onThrowable(error: Throwable) {
@@ -267,6 +283,7 @@ class PlProcess(
             if (executor.entryPoint == 0L) {
                 return
             }
+            indicator.text = "Waiting for target invocation"
             indicator.isIndeterminate = false
             kotlin.runCatching {
                 executor.createListener()
@@ -275,9 +292,12 @@ class PlProcess(
             }.onFailure {
                 console("Run failed to start", it)
                 indicator.cancel()
+            }
+            if (executor.interrupted()) {
                 return
             }
             ready = true
+            watcher.processStarted(this@PlProcess)
             do {
                 val query = command.poll()
                 if (query != null) {
@@ -314,10 +334,13 @@ class PlProcess(
             ready = false
             executor.closeConnection()
             console("ProxyTask run end")
+            watcher.processFinished(this@PlProcess)
             executor.interrupted()
         }
 
     }
+
+    inner class ProxyIndicator(task: ProxyTask): BackgroundableProcessIndicator(task) {}
 
     data class StepInfo(val pos: Int, val total: Int, val ratio: Double)
 
