@@ -2,7 +2,7 @@
 <idea-plugin>
     <id>net.plpgsql.ideadebugger</id>
     <name>PostgreSQL Debugger</name>
-    <vendor email="courriel.alexandre.boyer@hotmail.fr" url="https://github.com/ng-galien/idea-plpgdebugger">Alexandre Boyer</vendor>
+    <vendor email="courriel.alexandre.boyer@hotmail.fr" url="https://github.com/ng-galien">Alexandre Boyer</vendor>
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.database</depends>
     <extensions defaultExtensionNs="com.intellij.database">
@@ -10,22 +10,12 @@
     </extensions>
     <extensions defaultExtensionNs="com.intellij">
         <xdebugger.breakpointType implementation="net.plpgsql.ideadebugger.PlLineBreakpointType"/>
-        <virtualFileSystem key="plpgsql"  implementationClass="net.plpgsql.ideadebugger.vfs.PlVirtualFileSystem"/>
+        <virtualFileSystem key="plpgsql"  implementationClass="net.plpgsql.ideadebugger.PlVirtualFileSystem"/>
         <applicationConfigurable parentId="tools"
                              instance="net.plpgsql.ideadebugger.settings.PlDebuggerSettingsConfigurable"
                              id="net.plpgsql.ideadebugger.settings.PlSettingsConfigurable"
                              displayName="PL/pg Debugger"/>
         <applicationService serviceImplementation="net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState"/>
-        <applicationService serviceInterface="net.plpgsql.ideadebugger.service.PlProcessWatcher"
-                            serviceImplementation="net.plpgsql.ideadebugger.service.PlProcessWatcherImpl"/>
 
     </extensions>
-    <!--actions>
-        <action id="net.plpgsql.ideadebugger.run.PlIndirectDebugAction"
-                class="net.plpgsql.ideadebugger.run.PlIndirectDebugAction"
-                text="Debug PG">
-            <add-to-group group-id="DatabaseViewPopupMenu" anchor="before"
-                          relative-to-action="DatabaseView.DebugRoutine"/>
-        </action>
-    </actions-->
 </idea-plugin>

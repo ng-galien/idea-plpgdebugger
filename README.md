@@ -5,7 +5,7 @@
 [![Downloads](https://img.shields.io/jetbrains/plugin/d/PLUGIN_ID.svg)](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger)
 
 <!-- Plugin description -->
-Debug PL/pg SQL in Intellij with Database Tools<br/>
+Debug PL/pg SQL in Intellij with Database Tools<br/><br/>
 
 ### Top features
 - Direct debug a statement
