@@ -15,7 +15,7 @@ Debug PL/pg SQL in Intellij with Database Tools<br/><br/>
 - Experimental support for indirect debugging
 
 
-Note that the legacy extension only returns composite type in arrays, try the [modified debugger](https://github.com/ng-galien/pldebugger/blob/print-vars-14/INSTALL.md) for composite support 
+Note that the legacy extension only returns composite type in arrays, try the [modified debugger](https://github.com/ng-galien/pldebugger/blob/print-vars-14/INSTALL.md) for composite support.<br/>
 
 Submit features => [Production ready task list](https://github.com/ng-galien/idea-plpgdebugger/issues/17)  
 Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea-plpgdebugger/issues/new/choose)
