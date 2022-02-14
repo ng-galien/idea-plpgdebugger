@@ -18,16 +18,12 @@ import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManagerListener
-import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
 import com.intellij.psi.PsiDocumentManager
-import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
 import com.intellij.ui.content.Content
 import com.intellij.xdebugger.XDebugProcess
@@ -45,8 +41,7 @@ class PlController(
     val virtualFile: VirtualFile?,
     val rangeMarker: RangeMarker?,
     val searchPath: SearchPath?,
-    val callExpression: PsiElement,
-    val mode: DebugMode,
+    val callDefinition: CallDefinition,
 ) : SqlDebugController() {
 
     private lateinit var plProcess: PlProcess
@@ -107,26 +102,6 @@ class PlController(
         console("Controller: getReady")
         Disposer.register(xSession.consoleView, executor)
         project.messageBus.connect(xSession.consoleView).subscribe(ToolWindowManagerListener.TOPIC, windowLister)
-        if (mode == DebugMode.INDIRECT) {
-            project.messageBus.connect(xSession.consoleView).subscribe(ProgressManagerListener.TOPIC,
-            object : ProgressManagerListener{
-                override fun beforeTaskStart(task: Task, indicator: ProgressIndicator) {
-                    console("beforeTaskStart")
-                }
-
-                override fun afterTaskStart(task: Task, indicator: ProgressIndicator) {
-                    console("afterTaskStart")
-                }
-
-                override fun beforeTaskFinished(task: Task) {
-                    console("beforeTaskFinished")
-                }
-
-                override fun afterTaskFinished(task: Task) {
-                    console("afterTaskFinished")
-                }
-            })
-        }
     }
 
 
@@ -148,12 +123,29 @@ class PlController(
             return plProcess
         }
 
-        val callDef = parseFunctionCall(callExpression, mode)
-        assert(callDef.first.isNotEmpty() && callDef.first.size <= 2) { "Error while parsing ${callExpression.text}" }
-        executor.searchCallee(callDef.first, callDef.second, mode)
+        if (settings.failDetection) {
+            executor.setError("[FAKE]Function not found: schema=${callDefinition.schema}, name=${callDefinition.routine}")
+        }
+
         if (executor.interrupted()) {
             return plProcess
         }
+
+        // DatabaseTools identification
+        callDefinition.identify()
+
+        if (!callDefinition.canStartDebug()) {
+            callDefinition.identify(executor)
+        }
+
+        if (!callDefinition.canStartDebug()) {
+            executor.setError("[FAKE]Function not found: schema=${callDefinition.schema}, name=${callDefinition.routine}")
+        }
+
+        if (executor.interrupted()) {
+            return plProcess
+        }
+
         plProcess.startDebug()
         return plProcess
     }
@@ -195,14 +187,14 @@ class PlController(
 
     override fun debugEnd() {
         console("controller: debugEnd")
-        if (mode == DebugMode.DIRECT) {
+        if (callDefinition.debugMode == DebugMode.DIRECT) {
             xSession.stop()
         }
     }
 
     override fun close() {
         console("Controller: close")
-        if (mode == DebugMode.DIRECT) {
+        if (callDefinition.debugMode == DebugMode.DIRECT) {
             windowLister.close()
             Disposer.dispose(DatabaseSessionManager.getSession(project, connectionPoint))
         }

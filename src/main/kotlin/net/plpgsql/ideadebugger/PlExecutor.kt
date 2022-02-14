@@ -9,8 +9,6 @@ import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.ui.Messages
-import com.jetbrains.rd.util.first
-import java.sql.SQLException
 
 /**
  *
@@ -53,86 +51,21 @@ class PlExecutor(private val controller: PlController): Disposable {
 
     private fun invalidSession(): Boolean = (session == 0)
 
-    fun searchCallee(callFunc: List<String>, callValues: List<String>, mode: DebugMode) {
-
-        val schema = if (callFunc.size > 1) callFunc[0] else DEFAULT_SCHEMA
-        val procedure = if (callFunc.size > 1) callFunc[1] else callFunc[0]
-
-        if (controller.settings.failDetection) {
-            setError("[FAKE]Function not found: schema=$schema, name=$procedure")
-            return
-        }
-
-        val functions = executeQuery<PlApiFunctionArg>(
+    fun getCallArgs(schema: String, routine: String): List<PlApiFunctionArg> {
+        return executeQuery<PlApiFunctionArg>(
             query = ApiQuery.GET_FUNCTION_CALL_ARGS,
-            args = listOf(schema, procedure),
-        ).filter {
-            if (callValues.isEmpty()) {
-                it.nb == 0 || it.default
-            }
-            else {
-                if (mode==DebugMode.DIRECT) it.nb >= callValues.size else it.nb == callValues.size
-            }
-        }
+            args = listOf(schema, routine),
+        )
+    }
 
-        if (functions.isEmpty()) {
-            setError("Function not found: schema=$schema, name=$procedure")
-            return
-        }
-
-        val plArgs = functions.groupBy {
-            it.oid
-        }
-
-        if (plArgs.size == 1) {
-            entryPoint = plArgs.first().key
-            return
-        }
-        if (mode == DebugMode.DIRECT) {
-            entryPoint = plArgs.filter {
-                //Check args length
-                val minimalCount = it.value.count { arg -> !arg.default }
-                callValues.size >= minimalCount && callValues.size <= it.value.size
-            }.filterValues { args ->
-                //Map call values
-
-                val namedValues = callValues.mapIndexed { index, s ->
-                    if (s.contains(":=")) s.split(":=")[1].trim() to s.split(":=")[2].trim()
-                    else args[index].name to s.trim()
-                }
-                //Build the test query like SELECT [(cast([value] AS [type]) = [value])] [ AND ...]
-                val query = namedValues.joinToString(prefix = "(SELECT (", separator = " AND ", postfix = ")) t") {
-                    val type = args.find { plFunctionArg -> plFunctionArg.name == it.first }?.type
-                    "(cast(${it.second} as ${type}) = ${it.second})"
-                }
-                query.let {
-                    try {
-                        executeQuery<PlApiBoolean>(
-                            ApiQuery.RAW_BOOL,
-                            listOf(schema, procedure)
-                        ).firstOrNull()?.value ?: false
-                    } catch (e: Exception) {
-                        false
-                    }
-                }
-            }.map { it.key }.firstOrNull() ?: entryPoint
-        } else {
-            entryPoint = plArgs.filter { f ->
-                val names = f.value.map { a ->
-                    a.name
-                }
-                if (names.size != callValues.size)
-                    false
-                val pairList = names.zip(callValues)
-                pairList.all { (elt1, elt2) ->
-                    elt1 == elt2
-                }
-            }.map { it.key }.firstOrNull() ?: entryPoint
-        }
-
-
-        if (entryPoint == 0L) {
-            setError("Function not found: schema=$schema, name=$procedure")
+    fun testBooleanStatement(statement: String): Boolean {
+        return try {
+            executeQuery<PlApiBoolean>(
+                ApiQuery.RAW_BOOL,
+                listOf(statement)
+            ).firstOrNull()?.value ?: false
+        } catch (e: Exception) {
+            false
         }
     }
 

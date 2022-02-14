@@ -7,11 +7,9 @@ package net.plpgsql.ideadebugger
 import com.intellij.database.dialects.postgres.model.PgRoutine
 import com.intellij.database.psi.DbRoutine
 import com.intellij.lang.Language
-import com.intellij.openapi.application.runReadAction
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.PgDialect
-import com.intellij.sql.dialects.postgres.psi.PgParameterDefinitionImpl
 import com.intellij.sql.psi.*
 import net.plpgsql.ideadebugger.settings.PlPluginSettings
 
@@ -74,30 +72,7 @@ fun getFunctionOid(statement: PsiElement?): Long {
  * Returns a pair of function definition / arguments
  * @param psi
  */
-fun parseFunctionCall(psi: PsiElement, mode: DebugMode): Pair<List<String>, List<String>> {
-    val (func, args) = runReadAction {
-        val funcEl = PsiTreeUtil.findChildOfType(psi, SqlReferenceExpression::class.java)
-        val func = funcEl?.let {
-            PsiTreeUtil.findChildrenOfType(funcEl, SqlIdentifier::class.java).map {
-                it.text.trim().removeSurrounding("\"")
-            }
-        } ?: listOf()
-        val values = if (mode == DebugMode.DIRECT) PsiTreeUtil.findChildOfType(
-            psi,
-            SqlExpressionList::class.java
-        )?.children?.map {
-            it.text.trim()
-        }?.filter {
-            it != "" && it != "," && !it.startsWith("--")
-        }
-        else PsiTreeUtil.findChildrenOfType(psi, PgParameterDefinitionImpl::class.java).mapNotNull { p ->
-            PsiTreeUtil.findChildOfType(p, SqlIdentifier::class.java)?.text
-        }
 
-        Pair(first = func, second = values ?: listOf())
-    }
-    return Pair(func, args)
-}
 
 
 /**
