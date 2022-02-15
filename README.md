@@ -1,8 +1,8 @@
 # Intellij PL/pg SQL debugger
 
 ![Build](https://github.com/ng-galien/idea-plpgdebugger/workflows/Build/badge.svg)
-[![Version](https://img.shields.io/jetbrains/plugin/v/PLUGIN_ID.svg)](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger)
-[![Downloads](https://img.shields.io/jetbrains/plugin/d/PLUGIN_ID.svg)](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger)
+[![Version](https://img.shields.io/jetbrains/plugin/v/18419-postgresql-debugger.svg)](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger)
+[![Downloads](https://img.shields.io/jetbrains/plugin/d/18419-postgresql-debugger.svg)](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger)
 
 <!-- Plugin description -->
 Debug PL/pg SQL in Intellij with Database Tools<br/><br/>
@@ -15,7 +15,7 @@ Debug PL/pg SQL in Intellij with Database Tools<br/><br/>
 - Experimental support for indirect debugging
 
 
-Note that the legacy extension only returns composite type in arrays, try the [modified debugger](https://github.com/ng-galien/pldebugger/blob/print-vars-14/INSTALL.md) for composite support 
+Note that the legacy extension only returns composite type in arrays, try the [modified debugger](https://github.com/ng-galien/pldebugger/blob/print-vars-14/INSTALL.md) for composite support.<br/>
 
 Submit features => [Production ready task list](https://github.com/ng-galien/idea-plpgdebugger/issues/17)  
 Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea-plpgdebugger/issues/new/choose)
