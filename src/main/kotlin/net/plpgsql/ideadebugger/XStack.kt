@@ -25,8 +25,8 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
     private val frames = mutableListOf<XFrame>()
     private val variableRegistry = mutableMapOf<Long, List<PlApiStackVariable>>()
 
-    val executor: PlExecutor = process.controller.executor
-    val project = process.controller.project
+    val executor: PlExecutor = process.executor
+    val project = process.session.project
 
     override fun getTopFrame(): XStackFrame? {
         return frames.firstOrNull()
@@ -239,7 +239,7 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
 
         override fun computeChildren(node: XCompositeNode) {
             explode(node, executor.explode(plVar))
-            executor.displayInfo()
+            executor.printStack()
         }
 
         /*
@@ -263,8 +263,7 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
 
         override fun computeInlineDebuggerData(callback: XInlineDebuggerDataCallback): ThreeState {
 
-
-            if (!process.controller.settings.showInlineVariable) {
+            if (!getSettings().showInlineVariable) {
                 return ThreeState.NO
             }
             var compute = false

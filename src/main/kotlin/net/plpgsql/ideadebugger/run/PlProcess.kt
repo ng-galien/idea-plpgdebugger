@@ -10,9 +10,9 @@ import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
-import com.intellij.openapi.progress.TaskInfo
 import com.intellij.openapi.progress.impl.BackgroundableProcessIndicator
 import com.intellij.openapi.project.Project
+import com.intellij.xdebugger.XDebugSession
 import com.intellij.xdebugger.XSourcePosition
 import com.intellij.xdebugger.breakpoints.XBreakpointHandler
 import com.intellij.xdebugger.breakpoints.XBreakpointListener
@@ -24,21 +24,22 @@ import net.plpgsql.ideadebugger.*
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import net.plpgsql.ideadebugger.vfs.PlVirtualFileSystem
-import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.LinkedBlockingQueue
 
 class PlProcess(
-    var controller: PlController
-) : SqlDebugProcess(controller.xSession) {
+    session: XDebugSession,
+    val executor: PlExecutor
+) : SqlDebugProcess(session) {
 
     private val breakpoints = mutableMapOf<String, MutableList<XLineBreakpoint<PlLineBreakpointProperties>>>()
     private val context = XContext()
-    val executor = controller.executor
     private var stack: XStack = XStack(this)
     private var breakPointHandler = BreakPointHandler()
-    internal val command = ConcurrentLinkedQueue<ApiQuery>()
-    val mode: DebugMode = controller.mode
-    private val proxyTask = ProxyTask(controller.project, "PL/pg Debug", mode == DebugMode.DIRECT)
+    internal val command = LinkedBlockingQueue<ApiQuery>()
+    var mode: DebugMode = DebugMode.NONE
+    private val proxyTask = ProxyTask(session.project, "PL/pg Debug")
     private var proxyProgress: ProxyIndicator? = null
+    private val fileManager = PlSourceManager(session.project)
 
     override fun startStepOver(context: XSuspendContext?) {
         console("User request: startStepOver")
@@ -55,8 +56,10 @@ class PlProcess(
         command.add(ApiQuery.STEP_CONTINUE)
     }
 
-    fun startDebug() {
+    fun startDebug(call : CallDefinition) {
         console("Process startDebug")
+        executor.entryPoint = call.oid
+        mode = call.debugMode
         executor.setInfo("From auxiliary request: startDebug")
         proxyProgress = ProxyIndicator(proxyTask)
         ProgressManager.getInstance().runProcessWithProgressAsynchronously(proxyTask, proxyProgress!!)
@@ -76,17 +79,16 @@ class PlProcess(
 
     override fun stop() {
         console("Process stop")
-        if (executor.waitingForCompletion) {
-            executor.cancelConnection()
-        } else {
-            proxyProgress?.cancel()
-        }
+        proxyProgress?.cancel()
     }
 
     override fun runToPosition(position: XSourcePosition, context: XSuspendContext?) {
         command.add(ApiQuery.VOID)
     }
 
+    /**
+     *
+     */
     fun updateStack(): StepInfo {
 
         val plStacks = executor.getStack()
@@ -108,13 +110,13 @@ class PlProcess(
             var existing = PlVirtualFileSystem.getInstance().findFileByPath("${it.oid}")
             val reload = (existing == null) || (existing.md5 != it.md5)
             if (reload) {
-                controller.closeFile(existing)
+                fileManager.closeFile(existing)
                 val def = executor.getFunctionDef(it.oid)
                 existing = PlVirtualFileSystem.getInstance().registerNewDefinition(
                     PlFunctionSource(session.project, def)
                 )
             } else {
-                controller.checkFile(existing)
+                fileManager.checkFile(existing)
             }
             if (existing != null) {
                 stack.append(it, existing)
@@ -181,7 +183,6 @@ class PlProcess(
         ) {
             session.setBreakpointVerified(breakpoint)
         }
-
     }
 
     fun dropBreakpoint(file: PlFunctionSource, breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
@@ -257,90 +258,95 @@ class PlProcess(
             }
         }
     }
-    fun readyToAcceptBreakPoint(): Boolean = proxyTask.ready && !executor.waitingForCompletion
+    fun readyToAcceptBreakPoint(): Boolean = proxyTask.running && !executor.waitingForCompletion
 
-    inner class ProxyTask(project: Project, title: String, canBeCanceled: Boolean) : Task.Backgroundable(project, title, canBeCanceled) {
+    inner class ProxyTask(project: Project, title: String) : Task.Backgroundable(project, title, true) {
 
-        var ready = false
+        var running = false
         private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
+        private val innerThread = InnerThread()
 
-        override fun onCancel() {
-            console("ProxyTask canceled")
-            executor.cancelAndCloseConnection()
-            if (mode == DebugMode.INDIRECT) {
-                session.stop()
-            }
+        override fun run(indicator: ProgressIndicator) {
+
+            indicator.text = "Waiting for target invocation"
+            indicator.isIndeterminate = false
+            running = true
+            innerThread.start()
+            watcher.processStarted(this@PlProcess)
+            do {
+                Thread.sleep(100)
+            } while (!indicator.isCanceled)
+            running = false
+            innerThread.cancel()
+            console("ProxyTask run end")
             watcher.processFinished(this@PlProcess)
         }
 
-        override fun onThrowable(error: Throwable) {
-            console("Proxy task throws", error)
-            executor.cancelAndCloseConnection()
+    }
+
+    inner class ProxyIndicator(task: ProxyTask): BackgroundableProcessIndicator(task) {
+        fun displayInfo(query: ApiQuery, step: PlApiStep, info: StepInfo) {
+            fraction = info.ratio
+            if (step.line < 0) {
+                proxyProgress?.text2 = "Waiting for step [${info.pos} / ${info.total}]"
+            } else {
+                proxyProgress?.text2 = "Last step ${query.name} [${info.pos} / ${info.total}]"
+            }
+        }
+    }
+
+    inner class InnerThread(): Thread() {
+
+        fun cancel() {
+            executor.cancelStatement()
+            command.add(ApiQuery.ABORT)
         }
 
-        override fun run(indicator: ProgressIndicator) {
+        override fun run() {
 
             if (executor.entryPoint == 0L) {
                 return
             }
-            indicator.text = "Waiting for target invocation"
-            indicator.isIndeterminate = false
             kotlin.runCatching {
                 executor.createListener()
                 executor.setGlobalBreakPoint()
                 executor.waitForTarget()
             }.onFailure {
                 console("Run failed to start", it)
-                indicator.cancel()
+                proxyProgress?.cancel()
             }
             if (executor.interrupted()) {
                 return
             }
-            ready = true
-            watcher.processStarted(this@PlProcess)
-            do {
-                val query = command.poll()
-                if (query != null) {
-                    var step: PlApiStep? = null
-                    when (query) {
-                        ApiQuery.VOID -> {
-                            step = PlApiStep(executor.entryPoint, -1, "")
-                        }
-                        ApiQuery.STEP_OVER,
-                        ApiQuery.STEP_CONTINUE,
-                        ApiQuery.STEP_INTO -> {
-                            step = executor.runStep(query)
-                            indicator.text2 = "Last step ${query.name}"
-                        }
-                        else -> {
-                            indicator.cancel()
-                        }
+            while (proxyTask.running) {
+                val query = command.take()
+                var step: PlApiStep? = null
+                when (query) {
+                    ApiQuery.ABORT -> {
+                        executor.abort()
                     }
-                    if (step != null) {
-                        val info = updateStack()
-                        indicator.fraction = info.ratio
-                        if (step.line < 0) {
-                            indicator.text2 = "Waiting for step [${info.pos} / ${info.total}]"
-                        } else {
-                            indicator.text2 = "Last step ${query.name} [${info.pos} / ${info.total}]"
-                        }
-                        executor.displayInfo()
+                    ApiQuery.VOID -> {
+                        step = PlApiStep(executor.entryPoint, -1, "")
                     }
-                } else {
-                    Thread.sleep(200)
+                    ApiQuery.STEP_OVER,
+                    ApiQuery.STEP_CONTINUE,
+                    ApiQuery.STEP_INTO -> {
+                        step = executor.runStep(query)
+                    }
+                    else -> {
+                        proxyProgress?.cancel()
+                    }
                 }
-                indicator.checkCanceled()
-            } while (executor.ready())
-            ready = false
-            executor.closeConnection()
-            console("ProxyTask run end")
-            watcher.processFinished(this@PlProcess)
-            executor.interrupted()
+                if (step != null) {
+                    val info = updateStack()
+                    proxyProgress?.displayInfo(query, step, info)
+                    executor.printStack()
+                }
+            }
+            executor.cancelAndCloseConnection()
         }
 
     }
-
-    inner class ProxyIndicator(task: ProxyTask): BackgroundableProcessIndicator(task) {}
 
     data class StepInfo(val pos: Int, val total: Int, val ratio: Double)
 

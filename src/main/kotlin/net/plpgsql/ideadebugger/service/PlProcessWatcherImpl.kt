@@ -14,9 +14,6 @@ class PlProcessWatcherImpl: PlProcessWatcher {
 
     private var currentProcess: PlProcess? = null
 
-    init {
-    }
-
     override fun isDebugging(): Boolean {
         return currentProcess != null
     }

@@ -12,6 +12,7 @@ import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiManager
 import com.intellij.sql.psi.SqlStatement
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
@@ -21,7 +22,7 @@ class PlFacade : SqlDebuggerFacade {
     private val logger = getLogger(PlFacade::class)
     private var callDef: Pair<DebugMode, PsiElement?> = Pair(DebugMode.NONE, null)
 
-    private var call = CallDefinition(DebugMode.NONE, null)
+    private var callDefinition = CallDefinition(DebugMode.NONE, null)
 
     private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
 
@@ -30,9 +31,9 @@ class PlFacade : SqlDebuggerFacade {
             return false
         }
         callDef = getCallStatement(statement, PlDebuggerSettingsState.getInstance().state)
-        call.debugMode = callDef.first
-        call.psi = callDef.second
-        return call.canDebug()
+        callDefinition.debugMode = callDef.first
+        callDefinition.psi = callDef.second
+        return callDefinition.canDebug()
     }
 
     override fun isApplicableToDebugRoutine(basicSourceAware: BasicSourceAware): Boolean {
@@ -53,6 +54,14 @@ class PlFacade : SqlDebuggerFacade {
         searchPath: SearchPath?,
     ): SqlDebugController {
         logger.debug("createController")
+        val selectedElement = rangeMarker?.let {
+            PsiManager.getInstance(project)
+                .findFile(virtualFile as VirtualFile)
+                ?.findElementAt(it.startOffset)?.parent
+        }
+        if (selectedElement != callDefinition.psi?.parent) {
+            throw Exception("Invalid selection")
+        }
         return PlController(
             facade = this,
             project = project,
@@ -61,7 +70,7 @@ class PlFacade : SqlDebuggerFacade {
             searchPath = searchPath,
             virtualFile = virtualFile,
             rangeMarker = rangeMarker,
-            callDefinition = call,
+            callDefinition = callDefinition,
         )
     }
 

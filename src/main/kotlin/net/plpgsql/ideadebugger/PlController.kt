@@ -47,87 +47,42 @@ class PlController(
     private lateinit var plProcess: PlProcess
     lateinit var xSession: XDebugSession
     internal val windowLister = ToolListener()
+    private val settings = PlDebuggerSettingsState.getInstance().state
+    private var executor: PlExecutor? = null
 
-    private val exceptionHandler = CoroutineExceptionHandler { _, e ->
-        executor.setError("CoroutineExceptionHandler got", e)
-        xSession.stop()
-    }
-
-    val scope = CoroutineScope(Dispatchers.Default + exceptionHandler)
-    var timeOutJob: Job? = null
-    val settings = PlDebuggerSettingsState.getInstance().state
-    val executor = PlExecutor(this)
-
-    fun getAuxiliaryConnection(): GuardedRef<DatabaseConnection> {
-        return DatabaseSessionManager.getFacade(
-            project,
-            connectionPoint,
-            null,
-            searchPath,
-            true,
-            object : ErrorHandler() {},
-            DGDepartment.DEBUGGER
-        ).connect()
-    }
-
-    fun closeFile(file: PlFunctionSource?) {
-        if (file == null) {
-            return
-        }
-        runInEdt {
-            val editorManager = FileEditorManagerEx.getInstanceEx(project)
-            editorManager.closeFile(file)
-        }
-    }
-
-    fun checkFile(file: PlFunctionSource?) {
-        file?.let { source ->
-            runReadAction {
-                PsiManager.getInstance(project).findFile(source)?.let { psi ->
-                    PsiDocumentManager.getInstance(project).getDocument(psi)?.let { doc ->
-                        if (doc.text != source.content) {
-                            runInEdt {
-                                runWriteAction {
-                                    doc.setText(source.content)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     override fun getReady() {
         console("Controller: getReady")
-        Disposer.register(xSession.consoleView, executor)
+        executor?.let { Disposer.register(xSession.consoleView, it) }
         project.messageBus.connect(xSession.consoleView).subscribe(ToolWindowManagerListener.TOPIC, windowLister)
     }
 
 
     override fun initLocal(session: XDebugSession): XDebugProcess {
         xSession = session
-        plProcess = PlProcess(this)
+        executor = PlExecutor(getAuxiliaryConnection(project, connectionPoint, searchPath))
+
+        plProcess = PlProcess(session, executor!!)
 
         if (settings.enableDebuggerCommand) {
-            executor.executeSessionCommand(settings.debuggerCommand)
-            if (executor.interrupted()) {
+            executor!!.executeSessionCommand(settings.debuggerCommand)
+            if (executor!!.interrupted()) {
                 return plProcess
             }
         }
 
-        val diag = executor.checkDebugger()
+        val diag = executor!!.checkDebugger()
         if (settings.failExtension || !extensionOk(diag)) {
             showExtensionDiagnostic(project, diag)
-            executor.cancelAndCloseConnection()
+            executor!!.cancelAndCloseConnection()
             return plProcess
         }
 
         if (settings.failDetection) {
-            executor.setError("[FAKE]Function not found: schema=${callDefinition.schema}, name=${callDefinition.routine}")
+            executor!!.setError("[FAKE]Function not found: schema=${callDefinition.schema}, name=${callDefinition.routine}")
         }
 
-        if (executor.interrupted()) {
+        if (executor!!.interrupted()) {
             return plProcess
         }
 
@@ -135,50 +90,25 @@ class PlController(
         callDefinition.identify()
 
         if (!callDefinition.canStartDebug()) {
-            callDefinition.identify(executor)
+            callDefinition.identify(executor!!)
         }
 
         if (!callDefinition.canStartDebug()) {
-            executor.setError("[FAKE]Function not found: schema=${callDefinition.schema}, name=${callDefinition.routine}")
+            executor!!.setError("[FAKE]Function not found: schema=${callDefinition.schema}, name=${callDefinition.routine}")
         }
 
-        if (executor.interrupted()) {
+        if (executor!!.interrupted()) {
             return plProcess
         }
 
-        plProcess.startDebug()
+        plProcess.startDebug(callDefinition)
         return plProcess
     }
 
     override fun initRemote(connection: DatabaseConnection) {
-        executor.setDebug("Controller: initRemote")
-    }
-
-    private suspend fun waitForPort(ownerConnection: DatabaseConnection) {
-        kotlin.runCatching {
-            withTimeout(settings.attachTimeOut.toLong()) {
-                repeat(3) {
-                    delay(settings.attachTimeOut.toLong())
-                }
-            }
-        }.onFailure {
-            when (it) {
-                is TimeoutCancellationException -> {
-                    //executor.abort()
-                    executor.setError("Attachment timeout reached (${settings.attachTimeOut}ms)")
-                    executor.interrupted()
-                    xSession.stop()
-                    kotlin.runCatching {
-                        ownerConnection.remoteConnection.close()
-                    }.onFailure { e ->
-                        println("$e")
-                    }
-                }
-                else -> executor.setInfo("Port reached, discard timeout")
-            }
-        }
 
     }
+
 
     override fun debugBegin() {
         console("Controller: debugBegin")
@@ -221,7 +151,6 @@ class PlController(
                 }
                 first = false
                 hasShown = true
-                executor.displayInfo()
             }
         }
 

@@ -4,13 +4,22 @@
 
 package net.plpgsql.ideadebugger
 
+import com.intellij.database.console.session.DatabaseSessionManager
+import com.intellij.database.dataSource.DatabaseConnection
+import com.intellij.database.dataSource.DatabaseConnectionPoint
+import com.intellij.database.dataSource.connection.DGDepartment
 import com.intellij.database.dialects.postgres.model.PgRoutine
 import com.intellij.database.psi.DbRoutine
+import com.intellij.database.util.ErrorHandler
+import com.intellij.database.util.GuardedRef
+import com.intellij.database.util.SearchPath
 import com.intellij.lang.Language
+import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.PgDialect
 import com.intellij.sql.psi.*
+import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 import net.plpgsql.ideadebugger.settings.PlPluginSettings
 
 const val CONSOLE = false
@@ -35,20 +44,41 @@ fun console(msg: String, throwable: Throwable? = null) {
     }
 }
 
+fun getSettings(): PlPluginSettings {
+    return PlDebuggerSettingsState.getInstance().state
+}
+
+fun getAuxiliaryConnection(
+    project: Project,
+    connectionPoint: DatabaseConnectionPoint,
+    searchPath: SearchPath?
+): GuardedRef<DatabaseConnection> {
+    return DatabaseSessionManager.getFacade(
+        project,
+        connectionPoint,
+        null,
+        searchPath,
+        true,
+        object : ErrorHandler() {},
+        DGDepartment.DEBUGGER
+    ).connect()
+}
+
 /**
  *
  */
 fun getCallStatement(statement: SqlStatement, settings: PlPluginSettings): Pair<DebugMode, PsiElement?> {
     return when (statement) {
         is SqlCreateProcedureStatement -> {
-            if (settings.enableIndirect){
+            if (settings.enableIndirect) {
                 Pair(DebugMode.INDIRECT, statement)
             } else {
                 Pair(DebugMode.NONE, null)
             }
         }
         else -> {
-            val callElement = PsiTreeUtil.findChildrenOfType(statement, SqlFunctionCallExpression::class.java).firstOrNull()
+            val callElement =
+                PsiTreeUtil.findChildrenOfType(statement, SqlFunctionCallExpression::class.java).firstOrNull()
             Pair(DebugMode.DIRECT, callElement)
         }
     }
@@ -72,7 +102,6 @@ fun getFunctionOid(statement: PsiElement?): Long {
  * Returns a pair of function definition / arguments
  * @param psi
  */
-
 
 
 /**

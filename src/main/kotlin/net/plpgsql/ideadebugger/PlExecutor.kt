@@ -5,15 +5,17 @@
 package net.plpgsql.ideadebugger
 
 import com.intellij.database.dataSource.DatabaseConnection
+import com.intellij.database.util.GuardedRef
 import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.ui.Messages
+import com.intellij.xdebugger.XDebugSession
 
 /**
  *
  */
-class PlExecutor(private val controller: PlController): Disposable {
+class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Disposable {
 
     var entryPoint = 0L
     private var ready = true
@@ -22,9 +24,10 @@ class PlExecutor(private val controller: PlController): Disposable {
     private var lastError: Message? = null
     private val messages = mutableListOf<Message>()
 
-    private var guardedRef = controller.getAuxiliaryConnection()
     private var internalConnection: DatabaseConnection = guardedRef.get()
-    private var session = 0
+    var xSession: XDebugSession? = null
+    private var plSession = 0
+    private val settings = getSettings()
 
     /**
      * Checks the ability to debug and returns diagnostic
@@ -49,7 +52,7 @@ class PlExecutor(private val controller: PlController): Disposable {
         )
     }
 
-    private fun invalidSession(): Boolean = (session == 0)
+    private fun invalidSession(): Boolean = (plSession == 0)
 
     fun getCallArgs(schema: String, routine: String): List<PlApiFunctionArg> {
         return executeQuery<PlApiFunctionArg>(
@@ -70,7 +73,7 @@ class PlExecutor(private val controller: PlController): Disposable {
     }
 
     fun createListener() {
-        session = executeQuery<PlApiInt>(
+        plSession = executeQuery<PlApiInt>(
             query = ApiQuery.CREATE_LISTENER
         ).first().value
     }
@@ -81,17 +84,17 @@ class PlExecutor(private val controller: PlController): Disposable {
         }
         return executeQuery<PlApiInt>(
             query = ApiQuery.WAIT_FOR_TARGET,
-            args = listOf("$session")
+            args = listOf("$plSession")
         ).firstOrNull()?.value ?: 0
     }
 
-    private fun abort() {
+    public fun abort() {
         if (invalidSession()) {
             return
         }
         executeQuery<PlApiBoolean>(
             query = ApiQuery.ABORT,
-            args = listOf("$session")
+            args = listOf("$plSession")
         )
     }
 
@@ -104,7 +107,7 @@ class PlExecutor(private val controller: PlController): Disposable {
             ApiQuery.STEP_INTO,
             ApiQuery.STEP_CONTINUE -> executeQuery<PlApiStep>(
                 query = step,
-                args = listOf("$session")
+                args = listOf("$plSession")
             ).firstOrNull()
             else -> {
                 setError("Invalid step command: $step")
@@ -117,7 +120,7 @@ class PlExecutor(private val controller: PlController): Disposable {
         if (invalidSession()) {
             return listOf()
         }
-        return executeQuery(query = ApiQuery.GET_STACK, args = listOf("$session"))
+        return executeQuery(query = ApiQuery.GET_STACK, args = listOf("$plSession"))
     }
 
     fun getFunctionDef(oid: Long): PlApiFunctionDef =
@@ -127,7 +130,7 @@ class PlExecutor(private val controller: PlController): Disposable {
         if (invalidSession()) {
             return listOf()
         }
-        val vars = executeQuery<PlApiStackVariable>(ApiQuery.GET_RAW_VARIABLES, listOf("$session"))
+        val vars = executeQuery<PlApiStackVariable>(ApiQuery.GET_RAW_VARIABLES, listOf("$plSession"))
 
         if (vars.isEmpty()) return vars
 
@@ -179,7 +182,7 @@ class PlExecutor(private val controller: PlController): Disposable {
         if (invalidSession()) {
             return listOf()
         }
-        return executeQuery(query = ApiQuery.LIST_BREAKPOINT, args = listOf("$session"))
+        return executeQuery(query = ApiQuery.LIST_BREAKPOINT, args = listOf("$plSession"))
     }
 
 
@@ -189,7 +192,7 @@ class PlExecutor(private val controller: PlController): Disposable {
         }
         executeQuery<PlApiBoolean>(
             ApiQuery.SET_GLOBAL_BREAKPOINT,
-            listOf("$session", "$entryPoint")
+            listOf("$plSession", "$entryPoint")
         )
     }
 
@@ -201,7 +204,7 @@ class PlExecutor(private val controller: PlController): Disposable {
             ApiQuery.SET_BREAKPOINT,
             ApiQuery.DROP_BREAKPOINT -> executeQuery<PlApiBoolean>(
                 cmd,
-                listOf("$session", "$oid", "$line")
+                listOf("$plSession", "$oid", "$line")
             ).firstOrNull()?.value ?: false
             else -> {
                 setError("Invalid Breakpoint command: $cmd")
@@ -263,19 +266,20 @@ class PlExecutor(private val controller: PlController): Disposable {
     }
 
     private fun customQuery(cmd: ApiQuery): String {
-        if (!controller.settings.customQuery) {
+
+        if (settings.customQuery) {
             return cmd.sql
         }
         return when (cmd) {
-            ApiQuery.GET_FUNCTION_CALL_ARGS -> return controller.settings.queryFuncArgs
-            ApiQuery.GET_RAW_VARIABLES -> return controller.settings.queryRawVars
-            ApiQuery.EXPLODE_COMPOSITE -> return controller.settings.queryExplodeComposite
-            ApiQuery.EXPLODE_ARRAY -> return controller.settings.queryExplodeArray
+            ApiQuery.GET_FUNCTION_CALL_ARGS -> return settings.queryFuncArgs
+            ApiQuery.GET_RAW_VARIABLES -> return settings.queryRawVars
+            ApiQuery.EXPLODE_COMPOSITE -> return settings.queryExplodeComposite
+            ApiQuery.EXPLODE_ARRAY -> return settings.queryExplodeArray
             else -> cmd.sql
         }
     }
 
-    fun ready(): Boolean = ready && session != 0
+    fun ready(): Boolean = ready && plSession != 0
 
     fun setInfo(msg: String) = addMessage(Message(level = Level.INFO, content = msg))
 
@@ -296,19 +300,19 @@ class PlExecutor(private val controller: PlController): Disposable {
         lastError = err
     }
 
-    fun displayInfo() {
-        controller.xSession.consoleView?.let {
+    fun printStack() {
+        xSession?.consoleView?.let {
             val copy = ArrayList(messages)
             runInEdt {
                 copy.forEach {
                     if (canPrint(it.level)) {
                         if (it.cause != null) {
-                            controller.xSession.consoleView?.print(
+                            xSession?.consoleView?.print(
                                 "[${it.level.name}] ${it.content} (${it.cause})\n",
                                 it.level.ct
                             )
                         } else {
-                            controller.xSession.consoleView?.print("[${it.level.name}] ${it.content}\n", it.level.ct)
+                            xSession?.consoleView?.print("[${it.level.name}] ${it.content}\n", it.level.ct)
                         }
                     }
                 }
@@ -318,11 +322,11 @@ class PlExecutor(private val controller: PlController): Disposable {
     }
 
     private fun canPrint(level: Level): Boolean = when (level) {
-        Level.CMD -> controller.settings.showCmd
-        Level.DEBUG -> controller.settings.showDebug
-        Level.NOTICE -> controller.settings.showNotice
-        Level.INFO -> controller.settings.showInfo
-        Level.SQL -> controller.settings.showSQL
+        Level.CMD -> settings.showCmd
+        Level.DEBUG -> settings.showDebug
+        Level.NOTICE -> settings.showNotice
+        Level.INFO -> settings.showInfo
+        Level.SQL -> settings.showSQL
         else -> true
     }
 
@@ -343,7 +347,7 @@ class PlExecutor(private val controller: PlController): Disposable {
             }
             runInEdt {
                 Messages.showMessageDialog(
-                    controller.project,
+                    xSession?.project,
                     msg?.content ?: "Unknown error",
                     "PostgresSQL Debugger",
                     Messages.getErrorIcon()
@@ -355,27 +359,24 @@ class PlExecutor(private val controller: PlController): Disposable {
         return false
     }
 
-    fun cancelConnection() {
+    fun cancelStatement() {
         console("cancelConnection")
         if (!internalConnection.remoteConnection.isClosed) {
             console("cancelAll")
             internalConnection.remoteConnection.cancelAll()
-            abort()
         }
     }
 
     fun closeConnection() {
         console("cancelConnection")
         if (!internalConnection.remoteConnection.isClosed) {
-            console("cancelAll")
-            internalConnection.remoteConnection.cancelAll()
             console("close")
             internalConnection.remoteConnection.close()
         }
     }
 
     fun cancelAndCloseConnection() {
-        cancelConnection()
+        cancelStatement()
         closeConnection()
     }
 

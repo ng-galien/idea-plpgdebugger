@@ -30,15 +30,23 @@ class CallDefinition(
             runReadAction {
                 PsiTreeUtil.collectElements(psi) { it.reference != null }.firstOrNull()?.references?.forEach { ref ->
                     ref.resolve()?.let { it ->
-                        val delegate = (it as DbRoutine).delegate
-                        val pgRoutine = (delegate as PgRoutine)
-                        oid = pgRoutine.objectId
-                        schema = pgRoutine.schemaName ?: DEFAULT_SCHEMA
-                        routine = pgRoutine.name
+                        if (it is DbRoutine) {
+                            val delegate = it.delegate
+                            if (delegate is PgRoutine) {
+                                oid = delegate.objectId
+                                schema = delegate.schemaName ?: DEFAULT_SCHEMA
+                                routine = delegate.name
+                            }
+                        }
+
                     }
                 }
             }
         }
+    }
+
+    constructor(routine: PgRoutine) : this(DebugMode.INDIRECT, null) {
+        this.oid = routine.objectId
     }
 
     fun identify(executor: PlExecutor) {
