@@ -16,8 +16,8 @@ import javax.swing.JComponent
 @Suppress("UnstableApiUsage")
 class PlDebuggerSettingsConfigurable : Configurable {
 
-    var panel: DialogPanel? = null
-    val formData = PlDebuggerSettingsState.getInstance().data
+    private var panel: DialogPanel? = null
+    private val formData = PlDebuggerSettingsState.getInstance().data
 
     override fun createComponent(): JComponent? {
         panel = plParametersPanel()
@@ -34,7 +34,6 @@ class PlDebuggerSettingsConfigurable : Configurable {
     override fun reset() {
         panel?.reset()
     }
-
 
     override fun getDisplayName(): String = "PostgreSQL Debugger"
 

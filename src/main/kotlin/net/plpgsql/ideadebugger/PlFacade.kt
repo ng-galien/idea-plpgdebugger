@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2022. Alexandre Boyer
+ */
+
 package net.plpgsql.ideadebugger
 
 import com.intellij.database.dataSource.DatabaseConnectionPoint
@@ -17,15 +21,22 @@ import com.intellij.sql.psi.SqlStatement
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 
+/**
+ *
+ */
 class PlFacade : SqlDebuggerFacade {
 
     private val logger = getLogger(PlFacade::class)
+
     private var callDef: Pair<DebugMode, PsiElement?> = Pair(DebugMode.NONE, null)
 
     private var callDefinition = CallDefinition(DebugMode.NONE, null)
 
     private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
 
+    /**
+     *
+     */
     override fun isApplicableToDebugStatement(statement: SqlStatement): Boolean {
         if (watcher.isDebugging()) {
             return false
@@ -36,6 +47,9 @@ class PlFacade : SqlDebuggerFacade {
         return callDefinition.canDebug()
     }
 
+    /**
+     *
+     */
     override fun isApplicableToDebugRoutine(basicSourceAware: BasicSourceAware): Boolean {
         return true
     }

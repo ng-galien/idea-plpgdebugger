@@ -5,7 +5,6 @@
 package net.plpgsql.ideadebugger.service
 
 import com.intellij.openapi.components.Service
-import com.intellij.openapi.util.registry.Registry
 import net.plpgsql.ideadebugger.console
 import net.plpgsql.ideadebugger.run.PlProcess
 
@@ -26,5 +25,9 @@ class PlProcessWatcherImpl: PlProcessWatcher {
     override fun processFinished(process: PlProcess) {
         console("Watcher: finished")
         currentProcess = null
+    }
+
+    override fun getProcess(): PlProcess? {
+        return currentProcess
     }
 }

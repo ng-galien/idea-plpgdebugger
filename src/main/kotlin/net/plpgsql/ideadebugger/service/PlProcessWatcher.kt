@@ -10,4 +10,5 @@ interface PlProcessWatcher {
     fun isDebugging(): Boolean
     fun processStarted(process: PlProcess)
     fun processFinished(process: PlProcess)
+    fun getProcess(): PlProcess?
 }

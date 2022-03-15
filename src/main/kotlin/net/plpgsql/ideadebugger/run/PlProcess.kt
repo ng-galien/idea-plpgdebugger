@@ -39,7 +39,8 @@ class PlProcess(
     var mode: DebugMode = DebugMode.NONE
     private val proxyTask = ProxyTask(session.project, "PL/pg Debug")
     private var proxyProgress: ProxyIndicator? = null
-    private val fileManager = PlSourceManager(session.project)
+    private val fileManager = PlSourceManager(session.project, executor)
+    private var callDef: CallDefinition? = null
 
     override fun startStepOver(context: XSuspendContext?) {
         console("User request: startStepOver")
@@ -58,8 +59,9 @@ class PlProcess(
 
     fun startDebug(call : CallDefinition) {
         console("Process startDebug")
-        executor.entryPoint = call.oid
-        mode = call.debugMode
+        this.callDef = call
+        executor.entryPoint = callDef!!.oid
+        mode = callDef!!.debugMode
         executor.setInfo("From auxiliary request: startDebug")
         proxyProgress = ProxyIndicator(proxyTask)
         ProgressManager.getInstance().runProcessWithProgressAsynchronously(proxyTask, proxyProgress!!)
@@ -103,23 +105,10 @@ class PlProcess(
             }
         }
         executor.setDebug("Reach frame ${plStacks.firstOrNull()?.oid}, first=$first")
-
         stack.clear()
-
         plStacks.forEach {
-            var existing = PlVirtualFileSystem.getInstance().findFileByPath("${it.oid}")
-            val reload = (existing == null) || (existing.md5 != it.md5)
-            if (reload) {
-                fileManager.closeFile(existing)
-                val def = executor.getFunctionDef(it.oid)
-                existing = PlVirtualFileSystem.getInstance().registerNewDefinition(
-                    PlFunctionSource(session.project, def)
-                )
-            } else {
-                fileManager.checkFile(existing)
-            }
-            if (existing != null) {
-                stack.append(it, existing)
+            fileManager.update(it)?.let {
+                source -> stack.append(it, source)
             }
         }
         return (stack.topFrame as XStack.XFrame).let { frame ->
@@ -268,7 +257,7 @@ class PlProcess(
 
         override fun run(indicator: ProgressIndicator) {
 
-            indicator.text = "Waiting for target invocation"
+            indicator.text = "PL/pg Debug (${callDef?.routine})"
             indicator.isIndeterminate = false
             running = true
             innerThread.start()
@@ -280,6 +269,9 @@ class PlProcess(
             innerThread.cancel()
             console("ProxyTask run end")
             watcher.processFinished(this@PlProcess)
+            if (mode == DebugMode.INDIRECT) {
+                session.stop()
+            }
         }
 
     }
@@ -299,6 +291,9 @@ class PlProcess(
 
         fun cancel() {
             executor.cancelStatement()
+            if (!command.isEmpty()) {
+                command.clear()
+            }
             command.add(ApiQuery.ABORT)
         }
 
@@ -307,6 +302,7 @@ class PlProcess(
             if (executor.entryPoint == 0L) {
                 return
             }
+
             kotlin.runCatching {
                 executor.createListener()
                 executor.setGlobalBreakPoint()
@@ -315,9 +311,11 @@ class PlProcess(
                 console("Run failed to start", it)
                 proxyProgress?.cancel()
             }
+
             if (executor.interrupted()) {
                 return
             }
+
             while (proxyTask.running) {
                 val query = command.take()
                 var step: PlApiStep? = null
@@ -337,6 +335,7 @@ class PlProcess(
                         proxyProgress?.cancel()
                     }
                 }
+
                 if (step != null) {
                     val info = updateStack()
                     proxyProgress?.displayInfo(query, step, info)

@@ -38,7 +38,6 @@ class CallDefinition(
                                 routine = delegate.name
                             }
                         }
-
                     }
                 }
             }
@@ -47,6 +46,8 @@ class CallDefinition(
 
     constructor(routine: PgRoutine) : this(DebugMode.INDIRECT, null) {
         this.oid = routine.objectId
+        this.routine = routine.name
+        this.schema = routine.schemaName?: "public"
     }
 
     fun identify(executor: PlExecutor) {
@@ -103,7 +104,7 @@ class CallDefinition(
     }
 
     fun searchCallee(executor: PlExecutor) {
-        val rt = routine?: "";
+        val rt = routine?: ""
         val functions = executor.getCallArgs(schema, rt).filter {
             if (args.isEmpty()) {
                 it.nb == 0 || it.default

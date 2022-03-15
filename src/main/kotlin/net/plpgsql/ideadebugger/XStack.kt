@@ -20,7 +20,7 @@ import kotlin.math.min
  * During a debugging session the code definition does not change
  * The function definition have not to be reevaluated
  */
-class XStack(private var process: PlProcess) : XExecutionStack("") {
+class XStack(process: PlProcess) : XExecutionStack("") {
 
     private val frames = mutableListOf<XFrame>()
     private val variableRegistry = mutableMapOf<Long, List<PlApiStackVariable>>()
@@ -44,15 +44,16 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
         frames.add(XFrame(frame, file))
     }
 
-
     enum class GroupType(val title: String, val icon: Icon) {
         STACK("Stack", AllIcons.Nodes.Method),
         PARAMETER("Parameters", AllIcons.Nodes.Parameter),
         VALUE("Values", DatabaseIcons.Table)
     }
 
-    inner class XFrame(val plFrame: PlApiStackFrame, val file: PlFunctionSource) :
-        XStackFrame() {
+    /**
+     * Debugger frame, per function call in the execution stack
+     */
+    inner class XFrame(val plFrame: PlApiStackFrame, val file: PlFunctionSource) : XStackFrame() {
 
         private val oid: Long
             get() = plFrame.oid
@@ -180,13 +181,14 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
         )
     }
 
-
+    /**
+     * Group of stack values
+     */
     inner class XValGroup(
         private val type: GroupType,
         private val plVars: List<PlApiStackVariable>,
         private val xFrame: XFrame? = null
-    ) :
-        XValueGroup(type.title) {
+    ) : XValueGroup(type.title) {
         override fun computeChildren(node: XCompositeNode) {
             val list = XValueChildrenList()
             plVars.forEach {
@@ -204,10 +206,13 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
         }
     }
 
-    inner class XVal(
-
+    /**
+     * Named Value from stack var
+     */
+    inner class XVal (
         private val plStackVar: PlApiStackVariable,
-        private val xFrame: XFrame? = null) : XNamedValue(plStackVar.value.name) {
+        private val xFrame: XFrame? = null
+    ) : XNamedValue(plStackVar.value.name) {
 
         private val plVar: PlApiValue = plStackVar.value
 
@@ -242,7 +247,7 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
             executor.printStack()
         }
 
-        /*
+
         override fun computeSourcePosition(navigatable: XNavigatable) {
             xFrame?.file?.let { fs ->
                 (if (plStackVar.isArg) fs.psiArgs else fs.psiVariables).let { map ->
@@ -259,7 +264,7 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
                 }
             }
         }
-         */
+
 
         override fun computeInlineDebuggerData(callback: XInlineDebuggerDataCallback): ThreeState {
 
@@ -267,6 +272,7 @@ class XStack(private var process: PlProcess) : XExecutionStack("") {
                 return ThreeState.NO
             }
             var compute = false
+
             xFrame?.file?.let { fs ->
                 (if (plStackVar.isArg) fs.psiArgs else fs.psiVariables).let { map ->
                     map[plVar.name]?.let {

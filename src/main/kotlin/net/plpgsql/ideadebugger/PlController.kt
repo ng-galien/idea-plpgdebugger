@@ -7,31 +7,21 @@ package net.plpgsql.ideadebugger
 import com.intellij.database.console.session.DatabaseSessionManager
 import com.intellij.database.dataSource.DatabaseConnection
 import com.intellij.database.dataSource.DatabaseConnectionPoint
-import com.intellij.database.dataSource.connection.DGDepartment
 import com.intellij.database.datagrid.DataRequest
 import com.intellij.database.debugger.SqlDebugController
-import com.intellij.database.util.ErrorHandler
-import com.intellij.database.util.GuardedRef
 import com.intellij.database.util.SearchPath
 import com.intellij.openapi.application.runInEdt
-import com.intellij.openapi.application.runReadAction
-import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.editor.RangeMarker
-import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
-import com.intellij.psi.PsiDocumentManager
-import com.intellij.psi.PsiManager
 import com.intellij.ui.content.Content
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugSession
-import kotlinx.coroutines.*
 import net.plpgsql.ideadebugger.run.PlProcess
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
-import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 
 class PlController(
     val facade: PlFacade,
@@ -109,11 +99,9 @@ class PlController(
 
     }
 
-
     override fun debugBegin() {
         console("Controller: debugBegin")
     }
-
 
     override fun debugEnd() {
         console("controller: debugEnd")

@@ -4,86 +4,112 @@
 
 package net.plpgsql.ideadebugger.run
 
-import com.intellij.database.DatabaseBundle
-import com.intellij.database.console.JdbcConsole
 import com.intellij.database.dataSource.LocalDataSource
-import com.intellij.database.datagrid.DataRequest
-import com.intellij.database.debugger.SqlDebugSessionRunner
 import com.intellij.database.dialects.postgres.model.PgRoutine
-import com.intellij.database.editor.PerformRoutineFromFileActionBase
-import com.intellij.database.model.basic.BasicRoutine
+import com.intellij.database.psi.DbRoutine
 import com.intellij.database.util.DbImplUtilCore
-import com.intellij.execution.ExecutionManager
-import com.intellij.execution.configurations.RunProfile
-import com.intellij.execution.executors.DefaultDebugExecutor
-import com.intellij.execution.runners.ExecutionEnvironment
-import com.intellij.execution.runners.ProgramRunner
-import com.intellij.execution.ui.RunContentDescriptor
-import com.intellij.icons.AllIcons
+import com.intellij.database.view.getSelectedDbElements
+import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugProcessStarter
 import com.intellij.xdebugger.XDebugSession
 import com.intellij.xdebugger.XDebuggerManager
-import net.plpgsql.ideadebugger.CallDefinition
-import net.plpgsql.ideadebugger.DebugMode
-import net.plpgsql.ideadebugger.PlExecutor
-import net.plpgsql.ideadebugger.getAuxiliaryConnection
-import org.jetbrains.concurrency.*
-import javax.swing.Icon
+import icons.PlDebuggerIcons
+import net.plpgsql.ideadebugger.*
+import net.plpgsql.ideadebugger.service.PlProcessWatcher
 
 
-class PlDebugRoutineAction : PerformRoutineFromFileActionBase(
-    DatabaseBundle.messagePointer("action.DatabaseView.DebugRoutine.procedure.text", arrayOfNulls<Any>(0)),
-    DatabaseBundle.messagePointer("action.DatabaseView.DebugRoutine.function.text", *arrayOfNulls(0))
-) {
+class PlDebugRoutineAction : AnAction() {
 
-    var routineToDebug: PgRoutine? = null
-    var localDataSource: LocalDataSource? = null
+    private var routineToDebug: PgRoutine? = null
+
+    private var localDataSource: LocalDataSource? = null
+
+    private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
+
 
     override fun update(e: AnActionEvent) {
         val p = e.presentation
-        val routine = getDbRoutine(e)
-        routineToDebug = (routine?.delegate as PgRoutine)
-        e.project?.let { project ->
-            val ds = DbImplUtilCore.getDbDataSource(project, routine.dataSource)
-            localDataSource = DbImplUtilCore.getMaybeLocalDataSource(ds)
+        var ready = !watcher.isDebugging()
+        if (ready) {
+            val routine = getDbRoutine(e)
+
+            routineToDebug = (routine?.delegate as PgRoutine)
+            e.project?.let { project ->
+                val ds = DbImplUtilCore.getDbDataSource(project, routine.dataSource)
+                localDataSource = DbImplUtilCore.getMaybeLocalDataSource(ds)
+            }
         }
-        val ready = localDataSource != null && routineToDebug != null
+        ready = localDataSource != null && localDataSource!!.dbms.isPostgres && routineToDebug != null
         p.isVisible = ready
         p.isEnabled = ready
-        p.text = "Debug"
-        p.icon = getIcon(e, null)
+        p.text = "Debug Routine"
+        p.icon = PlDebuggerIcons.DebugAction
     }
 
-    override fun getIcon(e: AnActionEvent, routine: BasicRoutine?): Icon? {
-        return AllIcons.Actions.StartDebugger
+    private fun getDbRoutine(event: AnActionEvent): DbRoutine? {
+        return event.dataContext.getSelectedDbElements(DbRoutine::class.java).single()
     }
+
 
     override fun actionPerformed(e: AnActionEvent) {
+        val settings = getSettings()
         val project = e.project
         val ds = localDataSource
-        val r = routineToDebug
-        if (project != null && ds != null && r != null) {
+        val routine = routineToDebug
+        if (project != null && ds != null && routine != null) {
 
-            val callDef = CallDefinition(r)
+            val callDef = CallDefinition(routine)
+            val watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
+
+            // Just open source file
+            if (watcher.isDebugging()) {
+                watcher.getProcess()?.executor?.let {
+                    openFile(project, it, callDef)
+                }
+                return
+            }
+
+            //Starts the debugger
             if (callDef.canStartDebug()) {
                 val executor = PlExecutor(getAuxiliaryConnection(
                     project = project,
                     connectionPoint = ds,
                     searchPath = null)
                 )
+
+                val diag = executor.checkDebugger()
+                if (settings.failExtension || !extensionOk(diag)) {
+                    showExtensionDiagnostic(project, diag)
+                    executor.cancelAndCloseConnection()
+                    return
+                }
+
                 val manager = XDebuggerManager.getInstance(project)
-                val session = manager.startSessionAndShowTab("Test", null, object : XDebugProcessStarter() {
+                manager.startSessionAndShowTab(
+                    "${routine.name}[${routine.objectId}]",
+                    null,
+                    object : XDebugProcessStarter() {
                     override fun start(session: XDebugSession): XDebugProcess {
                         val process = PlProcess(session = session, executor = executor)
                         process.startDebug(callDef)
+                        openFile(project, executor, callDef)
                         return process
                     }
                 })
-
             }
+        }
+    }
+
+    fun openFile(project: Project, executor: PlExecutor, callDef: CallDefinition) {
+        val sourceManager = PlSourceManager(project, executor)
+        val vfs = sourceManager.update(PlApiStackFrame(0, callDef.oid, 0, ""))
+        vfs?.let {
+            FileEditorManager.getInstance(project).openFile(vfs, true)
         }
     }
 }
