@@ -7,6 +7,7 @@ package net.plpgsql.ideadebugger.run
 import com.intellij.database.debugger.SqlDebugProcess
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
@@ -25,12 +26,17 @@ import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import net.plpgsql.ideadebugger.vfs.PlVirtualFileSystem
 import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.atomic.AtomicBoolean
 
+/**
+ * Process handle debugging session
+ */
 class PlProcess(
     session: XDebugSession,
     val executor: PlExecutor
 ) : SqlDebugProcess(session) {
 
+    private val LOGGER = logger<PlProcess>()
     private val breakpoints = mutableMapOf<String, MutableList<XLineBreakpoint<PlLineBreakpointProperties>>>()
     private val context = XContext()
     private var stack: XStack = XStack(this)
@@ -43,22 +49,22 @@ class PlProcess(
     private var callDef: CallDefinition? = null
 
     override fun startStepOver(context: XSuspendContext?) {
-        console("User request: startStepOver")
+        LOGGER.debug("User request: startStepOver")
         command.add(ApiQuery.STEP_OVER)
     }
 
     override fun startStepInto(context: XSuspendContext?) {
-        console("User request: startStepInto")
+        LOGGER.debug("User request: startStepInto")
         command.add(ApiQuery.STEP_INTO)
     }
 
     override fun resume(context: XSuspendContext?) {
-        console("User request: resume")
+        LOGGER.debug("User request: resume")
         command.add(ApiQuery.STEP_CONTINUE)
     }
 
     fun startDebug(call : CallDefinition) {
-        console("Process startDebug")
+        LOGGER.debug("Process startDebug")
         this.callDef = call
         executor.entryPoint = callDef!!.oid
         mode = callDef!!.debugMode
@@ -69,22 +75,22 @@ class PlProcess(
     }
 
     override fun startForceStepInto(context: XSuspendContext?) {
-        console("User request mot supported: use startStepInto")
+        LOGGER.debug("User request not supported: use startStepInto")
         command.add(ApiQuery.STEP_INTO)
-
     }
 
     override fun startStepOut(context: XSuspendContext?) {
-        console("User request mot supported: use resume")
+        LOGGER.debug("User request not supported: use resume")
         command.add(ApiQuery.STEP_OVER)
     }
 
     override fun stop() {
-        console("Process stop")
+        LOGGER.debug("Process stop")
         proxyProgress?.cancel()
     }
 
     override fun runToPosition(position: XSourcePosition, context: XSuspendContext?) {
+        LOGGER.debug("User request: runToPosition")
         command.add(ApiQuery.VOID)
     }
 
@@ -93,6 +99,7 @@ class PlProcess(
      */
     fun updateStack(): StepInfo {
 
+        LOGGER.debug("User request: updateStack")
         val plStacks = executor.getStack()
         // If we reach this frame for the first time
         var first = stack.topFrame?.let {
@@ -164,6 +171,7 @@ class PlProcess(
     }
 
     fun addBreakpoint(file: PlFunctionSource, breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
+        LOGGER.debug("addBreakpoint: file=${file.name}, line=${breakpoint.line}")
         if (executor.updateBreakPoint(
                 ApiQuery.SET_BREAKPOINT,
                 file.oid,
@@ -175,6 +183,7 @@ class PlProcess(
     }
 
     fun dropBreakpoint(file: PlFunctionSource, breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
+        LOGGER.debug("dropBreakpoint: file=${file.name}, line=${breakpoint.line}")
         executor.updateBreakPoint(
             ApiQuery.DROP_BREAKPOINT,
             file.oid,
@@ -191,7 +200,7 @@ class PlProcess(
     }
 
     override fun checkCanPerformCommands(): Boolean {
-        return true
+        return proxyTask.running.get()
     }
 
     override fun getBreakpointHandlers(): Array<XBreakpointHandler<*>> {
@@ -247,29 +256,38 @@ class PlProcess(
             }
         }
     }
-    fun readyToAcceptBreakPoint(): Boolean = proxyTask.running && !executor.waitingForCompletion
+
+    fun readyToAcceptBreakPoint(): Boolean = proxyTask.running.get() && !executor.waitingForCompletion
 
     inner class ProxyTask(project: Project, title: String) : Task.Backgroundable(project, title, true) {
 
-        var running = false
+        private val LOGGER = logger<ProxyTask>()
+        val running = AtomicBoolean(false)
+
         private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
         private val innerThread = InnerThread()
 
         override fun run(indicator: ProgressIndicator) {
 
+            LOGGER.debug("Run proxy Task")
+
             indicator.text = "PL/pg Debug (${callDef?.routine})"
             indicator.isIndeterminate = false
-            running = true
+
+            running.set(true)
             innerThread.start()
             watcher.processStarted(this@PlProcess)
             do {
                 Thread.sleep(100)
             } while (!indicator.isCanceled)
-            running = false
+            running.set(false)
+
             innerThread.cancel()
-            console("ProxyTask run end")
+            LOGGER.debug("ProxyTask run end")
             watcher.processFinished(this@PlProcess)
+
             if (mode == DebugMode.INDIRECT) {
+                LOGGER.debug("Stops session for indirect debugging")
                 session.stop()
             }
         }
@@ -287,9 +305,15 @@ class PlProcess(
         }
     }
 
+    /**
+     * Thread for debugging commands
+     */
     inner class InnerThread(): Thread() {
 
+        private val LOGGER = logger<InnerThread>()
+
         fun cancel() {
+            LOGGER.debug("cancel")
             executor.cancelStatement()
             if (!command.isEmpty()) {
                 command.clear()
@@ -299,7 +323,9 @@ class PlProcess(
 
         override fun run() {
 
+            LOGGER.debug("Thread run")
             if (executor.entryPoint == 0L) {
+                LOGGER.warn("Invalid entry point")
                 return
             }
 
@@ -308,16 +334,19 @@ class PlProcess(
                 executor.setGlobalBreakPoint()
                 executor.waitForTarget()
             }.onFailure {
-                console("Run failed to start", it)
+                LOGGER.error("Run failed to start", it)
                 proxyProgress?.cancel()
             }
 
             if (executor.interrupted()) {
+                LOGGER.debug("Executor is interrupted")
                 return
             }
+            //Loop while proxy task is not interrupted
+            while (proxyTask.running.get()) {
 
-            while (proxyTask.running) {
                 val query = command.take()
+                LOGGER.debug("Command was taken from queue: ${query.name}")
                 var step: PlApiStep? = null
                 when (query) {
                     ApiQuery.ABORT -> {
@@ -332,6 +361,7 @@ class PlProcess(
                         step = executor.runStep(query)
                     }
                     else -> {
+                        LOGGER.warn("Unsupported command, canceling")
                         proxyProgress?.cancel()
                     }
                 }
@@ -343,6 +373,7 @@ class PlProcess(
                 }
             }
             executor.cancelAndCloseConnection()
+            LOGGER.debug("Thread end")
         }
 
     }
