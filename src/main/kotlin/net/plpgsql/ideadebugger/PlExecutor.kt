@@ -11,6 +11,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.ui.Messages
 import com.intellij.xdebugger.XDebugSession
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  *
@@ -28,6 +29,7 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
     var xSession: XDebugSession? = null
     private var plSession = 0
     private val settings = getSettings()
+    var waiting = AtomicBoolean(false)
 
     /**
      * Checks the ability to debug and returns diagnostic
@@ -82,10 +84,13 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         if (invalidSession()) {
             return 0
         }
-        return executeQuery<PlApiInt>(
+        waiting.set(true)
+        val res = executeQuery<PlApiInt>(
             query = ApiQuery.WAIT_FOR_TARGET,
             args = listOf("$plSession")
         ).firstOrNull()?.value ?: 0
+        waiting.set(false)
+        return res
     }
 
     public fun abort() {
@@ -102,7 +107,8 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         if (invalidSession()) {
             return null
         }
-        return when (step) {
+        waiting.set(true)
+        val res = when (step) {
             ApiQuery.STEP_OVER,
             ApiQuery.STEP_INTO,
             ApiQuery.STEP_CONTINUE -> executeQuery<PlApiStep>(
@@ -114,6 +120,8 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
                 null
             }
         }
+        waiting.set(false)
+        return res
     }
 
     fun getStack(): List<PlApiStackFrame> {
@@ -123,8 +131,8 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         return executeQuery(query = ApiQuery.GET_STACK, args = listOf("$plSession"))
     }
 
-    fun getFunctionDef(oid: Long): PlApiFunctionDef =
-        executeQuery<PlApiFunctionDef>(query = ApiQuery.GET_FUNCTION_DEF, args = listOf("$oid")).first()
+    fun getFunctionDef(oid: Long): PlApiFunctionDef? =
+        executeQuery<PlApiFunctionDef>(query = ApiQuery.GET_FUNCTION_DEF, args = listOf("$oid")).firstOrNull()
 
     fun getVariables(): List<PlApiStackVariable> {
         if (invalidSession()) {
@@ -186,14 +194,18 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
     }
 
 
-    fun setGlobalBreakPoint() {
+    fun setGlobalBreakPoint(oid: Long) {
         if (invalidSession()) {
             return
         }
         executeQuery<PlApiBoolean>(
             ApiQuery.SET_GLOBAL_BREAKPOINT,
-            listOf("$plSession", "$entryPoint")
+            listOf("$plSession", "$oid")
         )
+    }
+
+    fun setGlobalBreakPoint() {
+        setGlobalBreakPoint(entryPoint)
     }
 
     fun updateBreakPoint(cmd: ApiQuery, oid: Long, line: Int): Boolean {

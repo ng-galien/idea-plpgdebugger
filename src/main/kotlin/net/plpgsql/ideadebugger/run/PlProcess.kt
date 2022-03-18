@@ -24,6 +24,7 @@ import com.intellij.xdebugger.frame.XSuspendContext
 import net.plpgsql.ideadebugger.*
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
+import net.plpgsql.ideadebugger.vfs.PlSourceManager
 import net.plpgsql.ideadebugger.vfs.PlVirtualFileSystem
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -45,7 +46,7 @@ class PlProcess(
     var mode: DebugMode = DebugMode.NONE
     private val proxyTask = ProxyTask(session.project, "PL/pg Debug")
     private var proxyProgress: ProxyIndicator? = null
-    private val fileManager = PlSourceManager(session.project, executor)
+    val fileManager = PlSourceManager(session.project, executor)
     private var callDef: CallDefinition? = null
 
     override fun startStepOver(context: XSuspendContext?) {
@@ -165,7 +166,6 @@ class PlProcess(
                 session.positionReached(context)
             }
             StepInfo(frame.getSourceLine() + 1, frame.file.codeRange.second, frame.getSourceRatio())
-
         }
 
     }
@@ -276,7 +276,7 @@ class PlProcess(
 
             running.set(true)
             innerThread.start()
-            watcher.processStarted(this@PlProcess)
+            watcher.processStarted(this@PlProcess, mode, callDef?.oid ?: 0L)
             do {
                 Thread.sleep(100)
             } while (!indicator.isCanceled)
