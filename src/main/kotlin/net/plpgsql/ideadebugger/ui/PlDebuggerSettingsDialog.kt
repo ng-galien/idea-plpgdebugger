@@ -2,7 +2,7 @@
  * Copyright (c) 2022. Alexandre Boyer
  */
 
-package net.plpgsql.ideadebugger.settings
+package net.plpgsql.ideadebugger.ui
 
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.DialogPanel
@@ -11,10 +11,11 @@ import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.dsl.gridLayout.HorizontalAlign
+import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 import javax.swing.JComponent
 
 @Suppress("UnstableApiUsage")
-class PlDebuggerSettingsConfigurable : Configurable {
+class PlDebuggerSettingsDialog : Configurable {
 
     private var panel: DialogPanel? = null
     private val formData = PlDebuggerSettingsState.getInstance().data

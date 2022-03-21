@@ -24,11 +24,11 @@
                             serviceImplementation="net.plpgsql.ideadebugger.service.PlProcessWatcherImpl" />
     </extensions>
     <actions>
-        <action id="DatabaseView.PlDebugRoutine"
-                class="net.plpgsql.ideadebugger.run.PlDebugRoutineAction">
-            <add-to-group group-id="DatabaseViewPopupMenu"
-                          relative-to-action="DatabaseView.ExecuteRoutine" anchor="after"/>
+        <action id="net.plpgsql.ideadebugger.run.PlDebugRoutineAction"
+                class="net.plpgsql.ideadebugger.run.PlDebugRoutineAction" text="Debug PG routine"
+                description="Debug PG routine">
+            <add-to-group group-id="DatabaseViewPopupMenu" anchor="after"
+                          relative-to-action="DatabaseView.DebugRoutine"/>
         </action>
-        
     </actions>
 </idea-plugin>

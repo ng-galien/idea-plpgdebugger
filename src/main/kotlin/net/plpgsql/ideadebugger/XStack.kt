@@ -11,6 +11,10 @@ import com.intellij.xdebugger.XSourcePosition
 import com.intellij.xdebugger.frame.*
 import com.intellij.xdebugger.frame.presentation.XValuePresentation
 import icons.DatabaseIcons
+import net.plpgsql.ideadebugger.command.PlApiStackFrame
+import net.plpgsql.ideadebugger.command.PlApiStackVariable
+import net.plpgsql.ideadebugger.command.PlApiValue
+import net.plpgsql.ideadebugger.command.PlExecutor
 import net.plpgsql.ideadebugger.run.PlProcess
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import javax.swing.Icon

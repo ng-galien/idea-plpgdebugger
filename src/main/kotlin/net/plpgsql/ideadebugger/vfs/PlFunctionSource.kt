@@ -14,7 +14,7 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.psi.*
 import com.intellij.sql.psi.impl.SqlTokenElement
 import com.intellij.testFramework.LightVirtualFile
-import net.plpgsql.ideadebugger.PlApiFunctionDef
+import net.plpgsql.ideadebugger.command.PlApiFunctionDef
 import net.plpgsql.ideadebugger.getPlLanguage
 import net.plpgsql.ideadebugger.unquote
 import java.nio.charset.Charset

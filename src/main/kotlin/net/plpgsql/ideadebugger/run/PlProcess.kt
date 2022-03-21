@@ -22,6 +22,9 @@ import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
 import net.plpgsql.ideadebugger.*
+import net.plpgsql.ideadebugger.command.ApiQuery
+import net.plpgsql.ideadebugger.command.PlApiStep
+import net.plpgsql.ideadebugger.command.PlExecutor
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import net.plpgsql.ideadebugger.vfs.PlSourceManager
@@ -98,7 +101,7 @@ class PlProcess(
     /**
      *
      */
-    fun updateStack(): StepInfo {
+    fun updateStack(): StepInfo? {
 
         LOGGER.debug("User request: updateStack")
         val plStacks = executor.getStack()
@@ -119,7 +122,7 @@ class PlProcess(
                 source -> stack.append(it, source)
             }
         }
-        return (stack.topFrame as XStack.XFrame).let { frame ->
+        return (stack.topFrame as XStack.XFrame?)?.let { frame ->
 
             // Get stack and file breakpoint list for merge
             val stackBreakPoints = executor.getBreakPoints().filter {
@@ -367,9 +370,10 @@ class PlProcess(
                 }
 
                 if (step != null) {
-                    val info = updateStack()
-                    proxyProgress?.displayInfo(query, step, info)
-                    executor.printStack()
+                    updateStack()?.let {
+                        proxyProgress?.displayInfo(query, step, it)
+                        executor.printStack()
+                    }
                 }
             }
             executor.cancelAndCloseConnection()

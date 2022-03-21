@@ -14,6 +14,7 @@ import com.intellij.sql.psi.SqlExpressionList
 import com.intellij.sql.psi.SqlIdentifier
 import com.intellij.sql.psi.SqlReferenceExpression
 import com.jetbrains.rd.util.first
+import net.plpgsql.ideadebugger.command.PlExecutor
 
 class CallDefinition(
     var debugMode: DebugMode,
@@ -23,7 +24,7 @@ class CallDefinition(
     var schema: String = DEFAULT_SCHEMA
     var routine: String? = null
     var oid: Long = 0L
-    val args = mutableMapOf<String, String?>()
+    private val args = mutableMapOf<String, String?>()
 
     fun identify() {
         psi?.let {
@@ -149,11 +150,13 @@ class CallDefinition(
                     val names = f.value.map { a ->
                         a.name
                     }
-                    if (names.size != args.size)
+                    if (names.size != args.size) {
                         false
-                    val pairList = names.zip(args.keys)
-                    pairList.all { (elt1, elt2) ->
-                        elt1 == elt2
+                    } else {
+                        val pairList = names.zip(args.keys)
+                        pairList.all { (elt1, elt2) ->
+                            elt1 == elt2
+                        }
                     }
                 }.map { it.key }.firstOrNull() ?: oid
             }

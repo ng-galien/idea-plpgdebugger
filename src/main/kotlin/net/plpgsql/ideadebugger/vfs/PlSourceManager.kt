@@ -11,8 +11,8 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiManager
-import net.plpgsql.ideadebugger.PlApiStackFrame
-import net.plpgsql.ideadebugger.PlExecutor
+import net.plpgsql.ideadebugger.command.PlApiStackFrame
+import net.plpgsql.ideadebugger.command.PlExecutor
 
 class PlSourceManager(private val project: Project, private val executor: PlExecutor) {
 

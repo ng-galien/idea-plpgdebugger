@@ -19,11 +19,14 @@ import com.intellij.xdebugger.XDebugSession
 import com.intellij.xdebugger.XDebuggerManager
 import icons.PlDebuggerIcons
 import net.plpgsql.ideadebugger.*
+import net.plpgsql.ideadebugger.command.PlApiStackFrame
+import net.plpgsql.ideadebugger.command.PlExecutor
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
+import net.plpgsql.ideadebugger.vfs.PlSourceManager
 
 /**
- * Run debug action
- * TODO manage when executor is waiting
+ * Run debug action from the database tree view
+ * This action is not available when
  */
 class PlDebugRoutineAction : AnAction() {
 
@@ -37,7 +40,6 @@ class PlDebugRoutineAction : AnAction() {
 
         val p = e.presentation
         val ready = watcher.getDebugMode() != DebugMode.DIRECT
-                && !((watcher.getProcess()?.executor?.waiting?.get()) ?: false)
 
         if (ready) {
             val routine = getDbRoutine(e)
@@ -55,7 +57,7 @@ class PlDebugRoutineAction : AnAction() {
                 && routineToDebug != null
                 && routineToDebug!!.objectId != watcher.getFunctionOid()
 
-        p.text = "Debug Routine"
+        p.text = if (debugWaiting()) "Open Routine" else "Debug Routine"
         p.icon = PlDebuggerIcons.DebugAction
     }
 
@@ -63,6 +65,8 @@ class PlDebugRoutineAction : AnAction() {
     private fun getDbRoutine(event: AnActionEvent): DbRoutine? {
         return event.dataContext.getSelectedDbElements(DbRoutine::class.java).single()
     }
+
+    private fun debugWaiting(): Boolean = watcher.getProcess()?.executor?.waiting?.get() ?: false
 
 
     override fun actionPerformed(e: AnActionEvent) {
@@ -82,8 +86,21 @@ class PlDebugRoutineAction : AnAction() {
         if (watcher.isDebugging()) {
             if(watcher.getFunctionOid() != callDef.oid) {
                 watcher.getProcess()?.let { process ->
-                    process.executor.setGlobalBreakPoint(callDef.oid)
-                    process.fileManager.update(PlApiStackFrame(1, callDef.oid, 0, ""))
+                    val frame = PlApiStackFrame(1, callDef.oid, 0, "")
+                    if (debugWaiting()) {
+                        val executor = PlExecutor(
+                            getAuxiliaryConnection(
+                                project = project,
+                                connectionPoint = dataSource,
+                                searchPath = null
+                            )
+                        )
+                        PlSourceManager(project, executor).update(frame)
+                        executor.cancelAndCloseConnection()
+                    } else {
+                        process.executor.setGlobalBreakPoint(callDef.oid)
+                        process.fileManager.update(frame)
+                    }
                 }
             }
             return
@@ -108,7 +125,7 @@ class PlDebugRoutineAction : AnAction() {
             }
 
             val manager = XDebuggerManager.getInstance(project)
-            val session = manager.startSessionAndShowTab(
+            manager.startSessionAndShowTab(
                 "${routine.name}[${routine.objectId}]",
                 null,
                 object : XDebugProcessStarter() {
