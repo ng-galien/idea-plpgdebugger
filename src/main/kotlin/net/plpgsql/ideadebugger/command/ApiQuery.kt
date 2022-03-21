@@ -2,7 +2,11 @@
  * Copyright (c) 2022. Alexandre Boyer
  */
 
-package net.plpgsql.ideadebugger
+package net.plpgsql.ideadebugger.command
+
+import net.plpgsql.ideadebugger.DEBUGGER_SESSION_NAME
+import net.plpgsql.ideadebugger.Producer
+import net.plpgsql.ideadebugger.SELECT_NULL
 
 /**
  *
@@ -21,6 +25,23 @@ enum class ApiQuery(val sql: String,
     RAW_STRING(
         "%s",
         Producer<Any> { PlApiString(it.string()) }),
+    PG_ACTIVITY(
+        """
+        SELECT pid,
+               application_name,
+               usename,
+               client_addr
+        FROM pg_stat_activity
+        WHERE application_name = '$DEBUGGER_SESSION_NAME'
+        AND pid <> pg_backend_pid();
+        """,
+        Producer<Any> { PlActivity(it.long(), it.string(), it.string(), it.string()) }),
+    PG_CANCEL(
+        """
+        SELECT pg_terminate_backend(%s);
+        """,
+        Producer<Any> { PlApiBoolean(it.bool()) }
+    ),
     CREATE_LISTENER(
         "pldbg_create_listener()",
         Producer<Any> { PlApiInt(it.int()) }),

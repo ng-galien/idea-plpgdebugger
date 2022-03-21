@@ -2,7 +2,7 @@
  * Copyright (c) 2022. Alexandre Boyer
  */
 
-package net.plpgsql.ideadebugger
+package net.plpgsql.ideadebugger.command
 
 import com.intellij.database.dataSource.DatabaseConnection
 import com.intellij.database.util.GuardedRef
@@ -11,6 +11,7 @@ import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.ui.Messages
 import com.intellij.xdebugger.XDebugSession
+import net.plpgsql.ideadebugger.*
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -46,15 +47,35 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
             query = ApiQuery.GET_EXTENSION
         )
 
+        var activities = getActivities()
+
+        if (activities.isNotEmpty()) {
+            executeQuery<PlApiBoolean>(
+                query = ApiQuery.PG_CANCEL,
+                args = listOf("${activities.first().pid}"),
+                ignoreError = true
+            )
+            activities = getActivities()
+        }
+
         return ExtensionDiagnostic(
             sharedLibraries = sharedLibraries.joinToString(separator = ", ") { it.value },
             sharedLibraryOk = sharedLibraries.any { it.value.contains(DEBUGGER_SHARED_LIBRARY) },
             extensions = extensions.joinToString(separator = ", ") { it.name },
-            extensionOk = extensions.any { it.name == DEBUGGER_EXTENSION }
+            extensionOk = extensions.any { it.name == DEBUGGER_EXTENSION },
+            activities = activities,
+            activityOk = activities.isEmpty()
         )
     }
 
     private fun invalidSession(): Boolean = (plSession == 0)
+
+    private fun getActivities(): List<PlActivity> {
+        return executeQuery<PlActivity>(
+            query = ApiQuery.PG_ACTIVITY,
+            args = listOf(),
+        )
+    }
 
     fun getCallArgs(schema: String, routine: String): List<PlApiFunctionArg> {
         return executeQuery<PlApiFunctionArg>(
@@ -250,6 +271,7 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
             ) {
                 rowset = this
                 initializers.add("SET CLIENT_ENCODING TO 'UTF8';")
+                initializers.add("SET application_name TO $DEBUGGER_SESSION_NAME;")
                 additionalCommand?.let {
                     initializers.add(additionalCommand)
                 }

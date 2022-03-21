@@ -2,7 +2,7 @@
  * Copyright (c) 2022. Alexandre Boyer
  */
 
-package net.plpgsql.ideadebugger
+package net.plpgsql.ideadebugger.command
 
 /**
  *
@@ -37,6 +37,16 @@ data class PlApiLong(
  */
 data class PlApiString(
     val value: String
+)
+
+/**
+ *
+ */
+data class PlActivity(
+    val pid: Long,
+    val application: String,
+    val user: String,
+    val address: String
 )
 
 /**
