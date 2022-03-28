@@ -13,7 +13,6 @@ import com.intellij.database.util.GuardedRef
 import com.intellij.database.util.SearchPath
 import com.intellij.lang.Language
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.PgDialect
 import com.intellij.sql.psi.SqlCreateProcedureStatement
@@ -68,19 +67,19 @@ fun getAuxiliaryConnection(
 /**
  *
  */
-fun getCallStatement(statement: SqlStatement, settings: PlPluginSettings): Pair<DebugMode, PsiElement?> {
+fun getCallStatement(statement: SqlStatement, settings: PlPluginSettings): CallDefinition {
     return when (statement) {
         is SqlCreateProcedureStatement -> {
             if (settings.enableIndirect) {
-                Pair(DebugMode.INDIRECT, statement)
+                CallDefinition(DebugMode.INDIRECT, statement)
             } else {
-                Pair(DebugMode.NONE, null)
+                CallDefinition(DebugMode.NONE, null)
             }
         }
         else -> {
             val callElement =
                 PsiTreeUtil.findChildrenOfType(statement, SqlFunctionCallExpression::class.java).firstOrNull()
-            Pair(DebugMode.DIRECT, callElement)
+            CallDefinition(DebugMode.DIRECT, callElement)
         }
     }
 }

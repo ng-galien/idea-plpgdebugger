@@ -24,7 +24,7 @@ class CallDefinition(
     var schema: String = DEFAULT_SCHEMA
     var routine: String? = null
     var oid: Long = 0L
-    private val args = mutableMapOf<String, String?>()
+    val args = mutableMapOf<String, String?>()
 
     fun identify() {
         psi?.let {
@@ -52,14 +52,15 @@ class CallDefinition(
     }
 
     fun identify(executor: PlExecutor) {
-        val callDef = parseFunctionCall()
+        parseFunctionCall()
+        searchCallee(executor)
     }
 
     fun canDebug(): Boolean = debugMode != DebugMode.NONE && psi != null
 
     fun canStartDebug(): Boolean = oid != 0L
 
-    private fun parseFunctionCall() {
+    fun parseFunctionCall() {
         runReadAction {
             val funcEl = PsiTreeUtil.findChildOfType(psi, SqlReferenceExpression::class.java)
             val func = funcEl?.let {
