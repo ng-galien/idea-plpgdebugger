@@ -17,6 +17,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiManager
+import com.intellij.psi.util.PsiTreeUtil
+import com.intellij.sql.psi.SqlSelectStatement
 import com.intellij.sql.psi.SqlStatement
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
@@ -41,9 +43,7 @@ class PlFacade : SqlDebuggerFacade {
         if (watcher.isDebugging()) {
             return false
         }
-        callDef = getCallStatement(statement, PlDebuggerSettingsState.getInstance().state)
-        callDefinition.debugMode = callDef.first
-        callDefinition.psi = callDef.second
+        callDefinition = getCallStatement(statement, PlDebuggerSettingsState.getInstance().state)
         return callDefinition.canDebug()
     }
 
@@ -68,12 +68,21 @@ class PlFacade : SqlDebuggerFacade {
         searchPath: SearchPath?,
     ): SqlDebugController {
         logger.debug("createController")
-        val selectedElement = rangeMarker?.let {
+        val rangeElement = rangeMarker?.let {
             PsiManager.getInstance(project)
                 .findFile(virtualFile as VirtualFile)
                 ?.findElementAt(it.startOffset)?.parent
         }
-        if (selectedElement != callDefinition.psi?.parent) {
+
+        val selectedRange = PsiTreeUtil.findFirstParent(rangeElement) {
+                el -> el is SqlSelectStatement
+        }
+
+        val selectedElement = PsiTreeUtil.findFirstParent(callDefinition.psi) {
+                el -> el is SqlSelectStatement
+        }
+
+        if (selectedRange?.text != selectedElement?.text) {
             throw Exception("Invalid selection")
         }
         return PlController(
