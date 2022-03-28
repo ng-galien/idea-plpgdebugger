@@ -25,8 +25,14 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
     def.source
 ) {
 
+    companion object {
+        val triggerArgs = listOf("NEW", "OLD", "TG_NAME", "TG_WHEN", "TG_LEVEL", "TG_OP", "TG_RELID", "TG_RELNAME",
+        "TG_TABLE_NAME", "TG_TABLE_SCHEMA", "TG_NARGS", "TG_ARGV")
+    }
+
     val oid: Long = def.oid
     val md5 = def.md5
+    var isTrigger = false
     var start: Int = 0
     var end: Int = 0
     var codeRange = Pair(0, 0)
@@ -37,9 +43,13 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
     val psiVariables = mutableMapOf<String, PsiElement>()
     val psiUse = mutableMapOf<String, MutableList<Pair<Int, PsiElement>>>()
 
+
     init {
         runReadAction {
             PsiManager.getInstance(project).findFile(this)?.let { psi ->
+
+                PsiTreeUtil.findChildOfType(psi, SqlCreateTriggerStatement::class.java).let { isTrigger = true }
+
                 PsiTreeUtil.findChildOfType(psi, SqlParameterList::class.java).let { params ->
                     PsiTreeUtil.findChildrenOfType(params, SqlIdentifier::class.java).toList().forEach { arg ->
                         psiArgs[unquote(arg.text)] = arg
@@ -76,7 +86,9 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
                             doc.getLineNumber(it.textOffset) >= codeRange.first
                         }.forEach { set ->
                             PsiTreeUtil.findChildrenOfType(set, SqlIdentifier::class.java).filter{ id ->
-                                psiArgs.containsKey(unquote(id.text)) || psiVariables.containsKey(unquote(id.text))
+                                psiArgs.containsKey(unquote(id.text))
+                                        || psiVariables.containsKey(unquote(id.text))
+                                        || (isTrigger && triggerArgs.contains(id.text.uppercase()))
                             }.forEach { el ->
                                 val toAdd = Pair(doc.getLineNumber(el.textOffset), el)
                                 psiUse[unquote(el.text)]?.let {
