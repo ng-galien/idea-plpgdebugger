@@ -7,14 +7,13 @@ package net.plpgsql.ideadebugger
 import com.intellij.database.console.session.DatabaseSessionManager
 import com.intellij.database.dataSource.DatabaseConnection
 import com.intellij.database.dataSource.DatabaseConnectionPoint
-import com.intellij.database.datagrid.DataRequest
 import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.util.SearchPath
+import com.intellij.notification.Notification
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.runInEdt
-import com.intellij.openapi.editor.RangeMarker
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
 import com.intellij.ui.content.Content
@@ -25,12 +24,8 @@ import net.plpgsql.ideadebugger.run.PlProcess
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 
 class PlController(
-    val facade: PlFacade,
     val project: Project,
     val connectionPoint: DatabaseConnectionPoint,
-    val ownerEx: DataRequest.OwnerEx,
-    val virtualFile: VirtualFile?,
-    val rangeMarker: RangeMarker?,
     val searchPath: SearchPath?,
     val callDefinition: CallDefinition,
 ) : SqlDebugController() {
@@ -54,6 +49,17 @@ class PlController(
         executor = PlExecutor(getAuxiliaryConnection(project, connectionPoint, searchPath))
 
         plProcess = PlProcess(session, executor!!)
+
+        if (!callDefinition.canDebug()) {
+            val notification = Notification(
+                "PL/pg Notifications",
+                "PL/pg Debugger",
+                String.format("You must select only one valid query"),
+                NotificationType.WARNING
+            )
+            notification.notify(project)
+            return plProcess
+        }
 
         if (settings.enableDebuggerCommand) {
             executor!!.executeSessionCommand(settings.debuggerCommand)
@@ -118,8 +124,6 @@ class PlController(
             Disposer.dispose(DatabaseSessionManager.getSession(project, connectionPoint))
         }
     }
-
-    inner class PortReached : Exception("Port reached")
 
     inner class ToolListener : ToolWindowManagerListener {
 

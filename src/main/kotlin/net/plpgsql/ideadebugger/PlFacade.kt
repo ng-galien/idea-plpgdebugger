@@ -13,12 +13,10 @@ import com.intellij.database.model.basic.BasicSourceAware
 import com.intellij.database.util.SearchPath
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.RangeMarker
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiManager
-import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.sql.psi.SqlSelectStatement
 import com.intellij.sql.psi.SqlStatement
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
@@ -30,9 +28,7 @@ class PlFacade : SqlDebuggerFacade {
 
     private val logger = getLogger(PlFacade::class)
 
-    private var callDef: Pair<DebugMode, PsiElement?> = Pair(DebugMode.NONE, null)
-
-    private var callDefinition = CallDefinition(DebugMode.NONE, null)
+    private var callDefinition = CallDefinition(DebugMode.NONE, null, "")
 
     private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
 
@@ -44,7 +40,7 @@ class PlFacade : SqlDebuggerFacade {
             return false
         }
         callDefinition = getCallStatement(statement, PlDebuggerSettingsState.getInstance().state)
-        return callDefinition.canDebug()
+        return callDefinition.canSelect()
     }
 
     /**
@@ -68,31 +64,18 @@ class PlFacade : SqlDebuggerFacade {
         searchPath: SearchPath?,
     ): SqlDebugController {
         logger.debug("createController")
-        val rangeElement = rangeMarker?.let {
-            PsiManager.getInstance(project)
-                .findFile(virtualFile as VirtualFile)
-                ?.findElementAt(it.startOffset)?.parent
+
+        if (rangeMarker != null && virtualFile != null) {
+            FileDocumentManager.getInstance().getDocument(virtualFile)?.let { doc ->
+                val text = doc.getText(TextRange(rangeMarker.startOffset, rangeMarker.endOffset))
+                callDefinition.selectionOk = (text == callDefinition.query)
+            }
         }
 
-        val selectedRange = PsiTreeUtil.findFirstParent(rangeElement) {
-                el -> el is SqlSelectStatement
-        }
-
-        val selectedElement = PsiTreeUtil.findFirstParent(callDefinition.psi) {
-                el -> el is SqlSelectStatement
-        }
-
-        if (selectedRange?.text != selectedElement?.text) {
-            throw Exception("Invalid selection")
-        }
-        return PlController(
-            facade = this,
+        return PlController (
             project = project,
             connectionPoint = connection,
-            ownerEx = owner,
             searchPath = searchPath,
-            virtualFile = virtualFile,
-            rangeMarker = rangeMarker,
             callDefinition = callDefinition,
         )
     }

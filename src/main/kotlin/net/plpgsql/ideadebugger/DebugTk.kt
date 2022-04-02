@@ -71,15 +71,15 @@ fun getCallStatement(statement: SqlStatement, settings: PlPluginSettings): CallD
     return when (statement) {
         is SqlCreateProcedureStatement -> {
             if (settings.enableIndirect) {
-                CallDefinition(DebugMode.INDIRECT, statement)
+                CallDefinition(DebugMode.INDIRECT, statement, statement.text)
             } else {
-                CallDefinition(DebugMode.NONE, null)
+                CallDefinition(DebugMode.NONE, null, "")
             }
         }
         else -> {
             val callElement =
                 PsiTreeUtil.findChildrenOfType(statement, SqlFunctionCallExpression::class.java).firstOrNull()
-            CallDefinition(DebugMode.DIRECT, callElement)
+            CallDefinition(DebugMode.DIRECT, callElement, statement.text)
         }
     }
 }

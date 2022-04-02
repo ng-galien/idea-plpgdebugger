@@ -4,6 +4,9 @@
 
 ## [Unreleased]
 
+### Added
+- Debug a routine from the database tree
+
 ## [1.2.0]
 ### Added
 - Prevent running debugger twice

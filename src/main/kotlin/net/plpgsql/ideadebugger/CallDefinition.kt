@@ -19,12 +19,14 @@ import net.plpgsql.ideadebugger.command.PlExecutor
 class CallDefinition(
     var debugMode: DebugMode,
     var psi: PsiElement?,
+    var query: String
 ) {
 
     var schema: String = DEFAULT_SCHEMA
     var routine: String? = null
     var oid: Long = 0L
     val args = mutableMapOf<String, String?>()
+    var selectionOk: Boolean = false
 
     fun identify() {
         psi?.let {
@@ -45,10 +47,11 @@ class CallDefinition(
         }
     }
 
-    constructor(routine: PgRoutine) : this(DebugMode.INDIRECT, null) {
+    constructor(routine: PgRoutine) : this(DebugMode.INDIRECT, null, "") {
         this.oid = routine.objectId
         this.routine = routine.name
         this.schema = routine.schemaName?: "public"
+        this.selectionOk = true
     }
 
     fun identify(executor: PlExecutor) {
@@ -56,9 +59,12 @@ class CallDefinition(
         searchCallee(executor)
     }
 
-    fun canDebug(): Boolean = debugMode != DebugMode.NONE && psi != null
 
-    fun canStartDebug(): Boolean = oid != 0L
+    fun canSelect(): Boolean =debugMode != DebugMode.NONE && psi != null
+
+    fun canDebug(): Boolean = canSelect() && selectionOk
+
+    fun canStartDebug(): Boolean = selectionOk && oid != 0L
 
     fun parseFunctionCall() {
         runReadAction {
