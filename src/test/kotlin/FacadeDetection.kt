@@ -1,15 +1,10 @@
-import com.intellij.psi.util.PsiTreeUtil
-import com.intellij.sql.SqlFileType
 import com.intellij.sql.dialects.postgres.PgDialect
-import com.intellij.sql.psi.SqlFile
-import com.intellij.sql.psi.SqlSelectStatement
 import com.intellij.sql.psi.SqlStatement
 import com.intellij.testFramework.TestDataPath
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import com.intellij.util.PsiErrorElementUtil
+import net.plpgsql.ideadebugger.DEFAULT_SCHEMA
 import net.plpgsql.ideadebugger.DebugMode
 import net.plpgsql.ideadebugger.getCallStatement
-import net.plpgsql.ideadebugger.parseFunctionCall
 import net.plpgsql.ideadebugger.settings.PlPluginSettings
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
@@ -25,13 +20,13 @@ class FacadeDetection : BasePlatformTestCase() {
     @Test
     fun testSelectDetection() {
         val testSuite = mapOf(
-            "SELECT\n * \nFROM \nfunc();" to Pair("func()",  Pair(listOf("func"), listOf<String>())),
-            "SELECT * FROM func();" to Pair("func()",  Pair(listOf("func"), listOf<String>())),
-            "SELECT func();" to Pair("func()",  Pair(listOf("func"), listOf<String>())),
-            "SELECT sch.func();" to Pair("sch.func()",  Pair(listOf("sch", "func"), listOf<String>())),
-            "SELECT sch.func('arg');" to Pair("sch.func('arg')",  Pair(listOf("sch", "func"), listOf<String>("'arg'"))),
-            "SELECT sch.func('arg', 123);" to Pair("sch.func('arg', 123)",  Pair(listOf("sch", "func"), listOf<String>("'arg'", "123"))),
-            "SELECT sch.func(\n'arg', \n123);" to Pair("sch.func(\n'arg', \n123)",  Pair(listOf("sch", "func"), listOf<String>("'arg'", "123"))),
+            "SELECT\n * \nFROM \nfunc();" to Function(DEFAULT_SCHEMA, "func", mapOf()),
+            "SELECT * FROM func();" to Function(DEFAULT_SCHEMA, "func", mapOf()),
+            "SELECT func();" to Function(DEFAULT_SCHEMA, "func", mapOf()),
+            "SELECT sch.func();" to Function("sch", "func", mapOf()),
+            "SELECT sch.func('arg');" to Function("sch", "func", mapOf("arg_0" to "'arg'")),
+            "SELECT sch.func('arg', 123);" to Function("sch", "func", mapOf("arg_0" to "'arg'", "arg_1" to "123")),
+            "SELECT sch.func(\n'arg', \n123);" to Function("sch", "func", mapOf("arg_0" to "'arg'", "arg_1" to "123")),
         )
         Assertions.assertNotNull(myFixture)
 
@@ -39,28 +34,24 @@ class FacadeDetection : BasePlatformTestCase() {
             val psiFile = createLightFile("dummy.sql", PgDialect.INSTANCE, it.key)
             val stmt = psiFile.children.first() as SqlStatement
             val call = getCallStatement(stmt, PlPluginSettings())
+            call.parseFunctionCall()
             Assertions.assertNotNull(call)
-            Assertions.assertEquals(DebugMode.DIRECT, call.first)
-            Assertions.assertEquals(it.value.first, call.second?.text)
-
-            val parsed = call.second?.let { parseFunctionCall(call.second!!, call.first) }
-            Assertions.assertNotNull(parsed)
-            if (parsed != null) {
-                Assertions.assertEquals(it.value.second.first, parsed.first)
-                Assertions.assertEquals(it.value.second.second, parsed.second)
-            }
+            Assertions.assertEquals(DebugMode.DIRECT, call.debugMode)
+            Assertions.assertEquals(it.value.schema, call.schema)
+            Assertions.assertEquals(it.value.routine, call.routine)
+            Assertions.assertEquals(it.value.args, call.args)
         }
     }
 
     @Test
     fun testCallDetection() {
         val testSuite = mapOf(
-            "CALL\nfunc();" to Pair("func()",  Pair(listOf("func"), listOf<String>())),
-            "CALL func();" to Pair("func()",  Pair(listOf("func"), listOf<String>())),
-            "CALL sch.func();" to Pair("sch.func()",  Pair(listOf("sch", "func"), listOf<String>())),
-            "CALL sch.func('arg');" to Pair("sch.func('arg')",  Pair(listOf("sch", "func"), listOf<String>("'arg'"))),
-            "CALL sch.func('arg', 123);" to Pair("sch.func('arg', 123)",  Pair(listOf("sch", "func"), listOf<String>("'arg'", "123"))),
-            "CALL sch.func(\n'arg', \n123);" to Pair("sch.func(\n'arg', \n123)",  Pair(listOf("sch", "func"), listOf<String>("'arg'", "123"))),
+            "CALL\nfunc();" to Function(DEFAULT_SCHEMA, "func", mapOf()),
+            "CALL func();" to Function(DEFAULT_SCHEMA, "func", mapOf()),
+            "CALL sch.func();" to Function("sch", "func", mapOf()),
+            "CALL sch.func('arg');" to Function("sch", "func", mapOf("arg_0" to "'arg'")),
+            "CALL sch.func('arg', 123);" to Function("sch", "func", mapOf("arg_0" to "'arg'", "arg_1" to "123")),
+            "CALL sch.func(\n'arg', \n123);" to Function("sch", "func", mapOf("arg_0" to "'arg'", "arg_1" to "123")),
         )
         Assertions.assertNotNull(myFixture)
 
@@ -68,17 +59,15 @@ class FacadeDetection : BasePlatformTestCase() {
             val psiFile = createLightFile("dummy.sql", PgDialect.INSTANCE, it.key)
             val stmt = psiFile.children.first() as SqlStatement
             val call = getCallStatement(stmt, PlPluginSettings())
+            call.parseFunctionCall()
             Assertions.assertNotNull(call)
-            Assertions.assertEquals(DebugMode.DIRECT, call.first)
-            Assertions.assertEquals(it.value.first, call.second?.text)
-
-            val parsed = call.second?.let { parseFunctionCall(call.second!!, call.first) }
-            Assertions.assertNotNull(parsed)
-            if (parsed != null) {
-                Assertions.assertEquals(it.value.second.first, parsed.first)
-                Assertions.assertEquals(it.value.second.second, parsed.second)
-            }
+            Assertions.assertEquals(DebugMode.DIRECT, call.debugMode)
+            Assertions.assertEquals(it.value.schema, call.schema)
+            Assertions.assertEquals(it.value.routine, call.routine)
+            Assertions.assertEquals(it.value.args, call.args)
         }
     }
+
+    data class Function(val schema: String, val routine: String, val args: Map<String,  String>);
 
 }

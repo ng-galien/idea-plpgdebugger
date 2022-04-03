@@ -4,7 +4,7 @@
 
 package net.plpgsql.ideadebugger.settings
 
-import net.plpgsql.ideadebugger.ApiQuery
+import net.plpgsql.ideadebugger.command.ApiQuery
 import org.jetbrains.annotations.ApiStatus
 
 

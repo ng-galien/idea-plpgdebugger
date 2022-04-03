@@ -7,184 +7,102 @@ package net.plpgsql.ideadebugger
 import com.intellij.database.console.session.DatabaseSessionManager
 import com.intellij.database.dataSource.DatabaseConnection
 import com.intellij.database.dataSource.DatabaseConnectionPoint
-import com.intellij.database.dataSource.connection.DGDepartment
-import com.intellij.database.datagrid.DataRequest
 import com.intellij.database.debugger.SqlDebugController
-import com.intellij.database.util.ErrorHandler
-import com.intellij.database.util.GuardedRef
 import com.intellij.database.util.SearchPath
+import com.intellij.notification.Notification
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.runInEdt
-import com.intellij.openapi.application.runReadAction
-import com.intellij.openapi.application.runWriteAction
-import com.intellij.openapi.editor.RangeMarker
-import com.intellij.openapi.fileEditor.ex.FileEditorManagerEx
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManagerListener
-import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
-import com.intellij.psi.PsiDocumentManager
-import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiManager
 import com.intellij.ui.content.Content
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugSession
-import kotlinx.coroutines.*
+import net.plpgsql.ideadebugger.command.PlExecutor
 import net.plpgsql.ideadebugger.run.PlProcess
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
-import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 
 class PlController(
-    val facade: PlFacade,
     val project: Project,
     val connectionPoint: DatabaseConnectionPoint,
-    val ownerEx: DataRequest.OwnerEx,
-    val virtualFile: VirtualFile?,
-    val rangeMarker: RangeMarker?,
     val searchPath: SearchPath?,
-    val callExpression: PsiElement,
-    val mode: DebugMode,
+    val callDefinition: CallDefinition,
 ) : SqlDebugController() {
 
     private lateinit var plProcess: PlProcess
     lateinit var xSession: XDebugSession
     internal val windowLister = ToolListener()
+    private val settings = PlDebuggerSettingsState.getInstance().state
+    private var executor: PlExecutor? = null
 
-    private val exceptionHandler = CoroutineExceptionHandler { _, e ->
-        executor.setError("CoroutineExceptionHandler got", e)
-        xSession.stop()
-    }
-
-    val scope = CoroutineScope(Dispatchers.Default + exceptionHandler)
-    var timeOutJob: Job? = null
-    val settings = PlDebuggerSettingsState.getInstance().state
-    val executor = PlExecutor(this)
-
-    fun getAuxiliaryConnection(): GuardedRef<DatabaseConnection> {
-        return DatabaseSessionManager.getFacade(
-            project,
-            connectionPoint,
-            null,
-            searchPath,
-            true,
-            object : ErrorHandler() {},
-            DGDepartment.DEBUGGER
-        ).connect()
-    }
-
-    fun closeFile(file: PlFunctionSource?) {
-        if (file == null) {
-            return
-        }
-        runInEdt {
-            val editorManager = FileEditorManagerEx.getInstanceEx(project)
-            editorManager.closeFile(file)
-        }
-    }
-
-    fun checkFile(file: PlFunctionSource?) {
-        file?.let { source ->
-            runReadAction {
-                PsiManager.getInstance(project).findFile(source)?.let { psi ->
-                    PsiDocumentManager.getInstance(project).getDocument(psi)?.let { doc ->
-                        if (doc.text != source.content) {
-                            runInEdt {
-                                runWriteAction {
-                                    doc.setText(source.content)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     override fun getReady() {
         console("Controller: getReady")
-        Disposer.register(xSession.consoleView, executor)
+        executor?.let { Disposer.register(xSession.consoleView, it) }
         project.messageBus.connect(xSession.consoleView).subscribe(ToolWindowManagerListener.TOPIC, windowLister)
-        if (mode == DebugMode.INDIRECT) {
-            project.messageBus.connect(xSession.consoleView).subscribe(ProgressManagerListener.TOPIC,
-            object : ProgressManagerListener{
-                override fun beforeTaskStart(task: Task, indicator: ProgressIndicator) {
-                    console("beforeTaskStart")
-                }
-
-                override fun afterTaskStart(task: Task, indicator: ProgressIndicator) {
-                    console("afterTaskStart")
-                }
-
-                override fun beforeTaskFinished(task: Task) {
-                    console("beforeTaskFinished")
-                }
-
-                override fun afterTaskFinished(task: Task) {
-                    console("afterTaskFinished")
-                }
-            })
-        }
     }
 
 
     override fun initLocal(session: XDebugSession): XDebugProcess {
         xSession = session
-        plProcess = PlProcess(this)
+        executor = PlExecutor(getAuxiliaryConnection(project, connectionPoint, searchPath))
+
+        plProcess = PlProcess(session, executor!!)
+
+        if (!callDefinition.canDebug()) {
+            val notification = Notification(
+                "PL/pg Notifications",
+                "PL/pg Debugger",
+                String.format("You must select only one valid query"),
+                NotificationType.WARNING
+            )
+            notification.notify(project)
+            return plProcess
+        }
 
         if (settings.enableDebuggerCommand) {
-            executor.executeSessionCommand(settings.debuggerCommand)
-            if (executor.interrupted()) {
+            executor!!.executeSessionCommand(settings.debuggerCommand)
+            if (executor!!.interrupted()) {
                 return plProcess
             }
         }
 
-        val diag = executor.checkDebugger()
+        val diag = executor!!.checkDebugger()
         if (settings.failExtension || !extensionOk(diag)) {
             showExtensionDiagnostic(project, diag)
-            executor.cancelAndCloseConnection()
+            executor!!.cancelAndCloseConnection()
             return plProcess
         }
 
-        val callDef = parseFunctionCall(callExpression, mode)
-        assert(callDef.first.isNotEmpty() && callDef.first.size <= 2) { "Error while parsing ${callExpression.text}" }
-        executor.searchCallee(callDef.first, callDef.second, mode)
-        if (executor.interrupted()) {
+        if (settings.failDetection) {
+            executor!!.setError("[FAKE]Function not found: schema=${callDefinition.schema}, name=${callDefinition.routine}")
+        }
+
+        if (executor!!.interrupted()) {
             return plProcess
         }
-        plProcess.startDebug()
+
+        // DatabaseTools identification
+        callDefinition.identify()
+
+        if (!callDefinition.canStartDebug()) {
+            callDefinition.identify(executor!!)
+        }
+
+        if (!callDefinition.canStartDebug()) {
+            executor!!.setError("[FAKE]Function not found: schema=${callDefinition.schema}, name=${callDefinition.routine}")
+        }
+
+        if (executor!!.interrupted()) {
+            return plProcess
+        }
+
+        plProcess.startDebug(callDefinition)
         return plProcess
     }
 
     override fun initRemote(connection: DatabaseConnection) {
-        executor.setDebug("Controller: initRemote")
-    }
-
-    private suspend fun waitForPort(ownerConnection: DatabaseConnection) {
-        kotlin.runCatching {
-            withTimeout(settings.attachTimeOut.toLong()) {
-                repeat(3) {
-                    delay(settings.attachTimeOut.toLong())
-                }
-            }
-        }.onFailure {
-            when (it) {
-                is TimeoutCancellationException -> {
-                    //executor.abort()
-                    executor.setError("Attachment timeout reached (${settings.attachTimeOut}ms)")
-                    executor.interrupted()
-                    xSession.stop()
-                    kotlin.runCatching {
-                        ownerConnection.remoteConnection.close()
-                    }.onFailure { e ->
-                        println("$e")
-                    }
-                }
-                else -> executor.setInfo("Port reached, discard timeout")
-            }
-        }
 
     }
 
@@ -192,23 +110,20 @@ class PlController(
         console("Controller: debugBegin")
     }
 
-
     override fun debugEnd() {
         console("controller: debugEnd")
-        if (mode == DebugMode.DIRECT) {
+        if (callDefinition.debugMode == DebugMode.DIRECT) {
             xSession.stop()
         }
     }
 
     override fun close() {
         console("Controller: close")
-        if (mode == DebugMode.DIRECT) {
+        if (callDefinition.debugMode == DebugMode.DIRECT) {
             windowLister.close()
             Disposer.dispose(DatabaseSessionManager.getSession(project, connectionPoint))
         }
     }
-
-    inner class PortReached : Exception("Port reached")
 
     inner class ToolListener : ToolWindowManagerListener {
 
@@ -229,7 +144,6 @@ class PlController(
                 }
                 first = false
                 hasShown = true
-                executor.displayInfo()
             }
         }
 

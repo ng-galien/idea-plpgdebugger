@@ -46,8 +46,27 @@ class ConnectionDiagnosticDialog(project: Project, private var diagnostic: Exten
                 }.comment(
                     """
                     Extension must be created in the current database
-                """.trimIndent()
+                    """.trimIndent()
                 )
+                if (!diagnostic.activityOk) {
+                    val pids = diagnostic.activities.joinToString(
+                        prefix = "[",
+                        postfix = "]",
+                        separator = ", ") {
+                            act -> "${act.pid}"
+                    }
+                    row("Remaining debugger session") {
+                        label("Remaining session $pids")
+                        icon(AllIcons.General.Error)
+                    }
+                    row() {
+                    }.comment(
+                        """
+                        A died debugger session can't be stopped, server you be restarted or pid killed manually
+                        """.trimIndent()
+                    )
+                }
+
             }
         }
         return panel

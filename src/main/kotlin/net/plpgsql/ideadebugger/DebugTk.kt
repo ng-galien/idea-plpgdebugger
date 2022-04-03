@@ -4,15 +4,21 @@
 
 package net.plpgsql.ideadebugger
 
-import com.intellij.database.dialects.postgres.model.PgRoutine
-import com.intellij.database.psi.DbRoutine
+import com.intellij.database.console.session.DatabaseSessionManager
+import com.intellij.database.dataSource.DatabaseConnection
+import com.intellij.database.dataSource.DatabaseConnectionPoint
+import com.intellij.database.dataSource.connection.DGDepartment
+import com.intellij.database.util.ErrorHandler
+import com.intellij.database.util.GuardedRef
+import com.intellij.database.util.SearchPath
 import com.intellij.lang.Language
-import com.intellij.openapi.application.runReadAction
-import com.intellij.psi.PsiElement
+import com.intellij.openapi.project.Project
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.PgDialect
-import com.intellij.sql.dialects.postgres.psi.PgParameterDefinitionImpl
-import com.intellij.sql.psi.*
+import com.intellij.sql.psi.SqlCreateProcedureStatement
+import com.intellij.sql.psi.SqlFunctionCallExpression
+import com.intellij.sql.psi.SqlStatement
+import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 import net.plpgsql.ideadebugger.settings.PlPluginSettings
 
 const val CONSOLE = false
@@ -20,6 +26,7 @@ const val SELECT_NULL = "SELECT NULL;"
 const val DEFAULT_SCHEMA = "public"
 const val DEBUGGER_EXTENSION = "pldbgapi"
 const val DEBUGGER_SHARED_LIBRARY = "plugin_debugger"
+const val DEBUGGER_SESSION_NAME = "idea_debugger"
 
 enum class DebugMode {
     NONE, DIRECT, INDIRECT
@@ -37,68 +44,45 @@ fun console(msg: String, throwable: Throwable? = null) {
     }
 }
 
+fun getSettings(): PlPluginSettings {
+    return PlDebuggerSettingsState.getInstance().state
+}
+
+fun getAuxiliaryConnection(
+    project: Project,
+    connectionPoint: DatabaseConnectionPoint,
+    searchPath: SearchPath?
+): GuardedRef<DatabaseConnection> {
+    return DatabaseSessionManager.getFacade(
+        project,
+        connectionPoint,
+        null,
+        searchPath,
+        true,
+        object : ErrorHandler() {},
+        DGDepartment.DEBUGGER
+    ).connect()
+}
+
 /**
  *
  */
-fun getCallStatement(statement: SqlStatement, settings: PlPluginSettings): Pair<DebugMode, PsiElement?> {
+fun getCallStatement(statement: SqlStatement, settings: PlPluginSettings): CallDefinition {
     return when (statement) {
         is SqlCreateProcedureStatement -> {
-            if (settings.enableIndirect){
-                Pair(DebugMode.INDIRECT, statement)
+            if (settings.enableIndirect) {
+                CallDefinition(DebugMode.INDIRECT, statement, statement.text)
             } else {
-                Pair(DebugMode.NONE, null)
+                CallDefinition(DebugMode.NONE, null, "")
             }
         }
         else -> {
-            val callElement = PsiTreeUtil.findChildrenOfType(statement, SqlFunctionCallExpression::class.java).firstOrNull()
-            Pair(DebugMode.DIRECT, callElement)
+            val callElement =
+                PsiTreeUtil.findChildrenOfType(statement, SqlFunctionCallExpression::class.java).firstOrNull()
+            CallDefinition(DebugMode.DIRECT, callElement, statement.text)
         }
     }
 }
-
-/**
- * Database Tool implementation
- */
-fun getFunctionOid(statement: PsiElement?): Long {
-    PsiTreeUtil.collectElements(statement) { it.reference != null }.firstOrNull()?.references?.forEach { ref ->
-        ref.resolve()?.let { dbroutine ->
-            val delegate = (dbroutine as DbRoutine).delegate
-            val id = (delegate as PgRoutine).objectId
-            console("$id")
-        }
-    }
-    return 0L
-}
-
-/**
- * Returns a pair of function definition / arguments
- * @param psi
- */
-fun parseFunctionCall(psi: PsiElement, mode: DebugMode): Pair<List<String>, List<String>> {
-    val (func, args) = runReadAction {
-        val funcEl = PsiTreeUtil.findChildOfType(psi, SqlReferenceExpression::class.java)
-        val func = funcEl?.let {
-            PsiTreeUtil.findChildrenOfType(funcEl, SqlIdentifier::class.java).map {
-                it.text.trim().removeSurrounding("\"")
-            }
-        } ?: listOf()
-        val values = if (mode == DebugMode.DIRECT) PsiTreeUtil.findChildOfType(
-            psi,
-            SqlExpressionList::class.java
-        )?.children?.map {
-            it.text.trim()
-        }?.filter {
-            it != "" && it != "," && !it.startsWith("--")
-        }
-        else PsiTreeUtil.findChildrenOfType(psi, PgParameterDefinitionImpl::class.java).mapNotNull { p ->
-            PsiTreeUtil.findChildOfType(p, SqlIdentifier::class.java)?.text
-        }
-
-        Pair(first = func, second = values ?: listOf())
-    }
-    return Pair(func, args)
-}
-
 
 /**
  *

@@ -8,11 +8,11 @@
 Debug PL/pg SQL in Intellij with Database Tools<br/><br/>
 
 ### Top features
-- Direct debug a statement
+- Debug SELECT statements
+- Debug routines and triggers
 - Breakpoint persistence
 - Variable inspection in debugger tree and inlined in code
 - Inspect arrays and composite types
-- Experimental support for indirect debugging
 
 
 Note that the legacy extension only returns composite type in arrays, try the [modified debugger](https://github.com/ng-galien/pldebugger/blob/print-vars-14/INSTALL.md) for composite support.<br/>
@@ -25,7 +25,11 @@ Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea
 
 ### Direct debug from a console from a SELECT statement
 
-![](img/select-debug.png)
+![](img/direct.gif)
+
+### Debug a routine from the database explorer
+
+![](img/indirect.gif)
 
 ### Variable inspection
 

@@ -2,20 +2,22 @@
  * Copyright (c) 2022. Alexandre Boyer
  */
 
-package net.plpgsql.ideadebugger
+package net.plpgsql.ideadebugger.command
 
 import com.intellij.database.dataSource.DatabaseConnection
+import com.intellij.database.util.GuardedRef
 import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.ui.Messages
-import com.jetbrains.rd.util.first
-import java.sql.SQLException
+import com.intellij.xdebugger.XDebugSession
+import net.plpgsql.ideadebugger.*
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  *
  */
-class PlExecutor(private val controller: PlController): Disposable {
+class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Disposable {
 
     var entryPoint = 0L
     private var ready = true
@@ -24,9 +26,11 @@ class PlExecutor(private val controller: PlController): Disposable {
     private var lastError: Message? = null
     private val messages = mutableListOf<Message>()
 
-    private var guardedRef = controller.getAuxiliaryConnection()
     private var internalConnection: DatabaseConnection = guardedRef.get()
-    private var session = 0
+    var xSession: XDebugSession? = null
+    private var plSession = 0
+    private val settings = getSettings()
+    var waiting = AtomicBoolean(false)
 
     /**
      * Checks the ability to debug and returns diagnostic
@@ -43,101 +47,56 @@ class PlExecutor(private val controller: PlController): Disposable {
             query = ApiQuery.GET_EXTENSION
         )
 
+        var activities = getActivities()
+
+        if (activities.isNotEmpty()) {
+            executeQuery<PlApiBoolean>(
+                query = ApiQuery.PG_CANCEL,
+                args = listOf("${activities.first().pid}"),
+                ignoreError = true
+            )
+            activities = getActivities()
+        }
+
         return ExtensionDiagnostic(
             sharedLibraries = sharedLibraries.joinToString(separator = ", ") { it.value },
             sharedLibraryOk = sharedLibraries.any { it.value.contains(DEBUGGER_SHARED_LIBRARY) },
             extensions = extensions.joinToString(separator = ", ") { it.name },
-            extensionOk = extensions.any { it.name == DEBUGGER_EXTENSION }
+            extensionOk = extensions.any { it.name == DEBUGGER_EXTENSION },
+            activities = activities,
+            activityOk = activities.isEmpty()
         )
     }
 
-    private fun invalidSession(): Boolean = (session == 0)
+    private fun invalidSession(): Boolean = (plSession == 0)
 
-    fun searchCallee(callFunc: List<String>, callValues: List<String>, mode: DebugMode) {
+    private fun getActivities(): List<PlActivity> {
+        return executeQuery<PlActivity>(
+            query = ApiQuery.PG_ACTIVITY,
+            args = listOf(),
+        )
+    }
 
-        val schema = if (callFunc.size > 1) callFunc[0] else DEFAULT_SCHEMA
-        val procedure = if (callFunc.size > 1) callFunc[1] else callFunc[0]
-
-        if (controller.settings.failDetection) {
-            setError("[FAKE]Function not found: schema=$schema, name=$procedure")
-            return
-        }
-
-        val functions = executeQuery<PlApiFunctionArg>(
+    fun getCallArgs(schema: String, routine: String): List<PlApiFunctionArg> {
+        return executeQuery<PlApiFunctionArg>(
             query = ApiQuery.GET_FUNCTION_CALL_ARGS,
-            args = listOf(schema, procedure),
-        ).filter {
-            if (callValues.isEmpty()) {
-                it.nb == 0 || it.default
-            }
-            else {
-                if (mode==DebugMode.DIRECT) it.nb >= callValues.size else it.nb == callValues.size
-            }
-        }
+            args = listOf(schema, routine),
+        )
+    }
 
-        if (functions.isEmpty()) {
-            setError("Function not found: schema=$schema, name=$procedure")
-            return
-        }
-
-        val plArgs = functions.groupBy {
-            it.oid
-        }
-
-        if (plArgs.size == 1) {
-            entryPoint = plArgs.first().key
-            return
-        }
-        if (mode == DebugMode.DIRECT) {
-            entryPoint = plArgs.filter {
-                //Check args length
-                val minimalCount = it.value.count { arg -> !arg.default }
-                callValues.size >= minimalCount && callValues.size <= it.value.size
-            }.filterValues { args ->
-                //Map call values
-
-                val namedValues = callValues.mapIndexed { index, s ->
-                    if (s.contains(":=")) s.split(":=")[1].trim() to s.split(":=")[2].trim()
-                    else args[index].name to s.trim()
-                }
-                //Build the test query like SELECT [(cast([value] AS [type]) = [value])] [ AND ...]
-                val query = namedValues.joinToString(prefix = "(SELECT (", separator = " AND ", postfix = ")) t") {
-                    val type = args.find { plFunctionArg -> plFunctionArg.name == it.first }?.type
-                    "(cast(${it.second} as ${type}) = ${it.second})"
-                }
-                query.let {
-                    try {
-                        executeQuery<PlApiBoolean>(
-                            ApiQuery.RAW_BOOL,
-                            listOf(schema, procedure)
-                        ).firstOrNull()?.value ?: false
-                    } catch (e: Exception) {
-                        false
-                    }
-                }
-            }.map { it.key }.firstOrNull() ?: entryPoint
-        } else {
-            entryPoint = plArgs.filter { f ->
-                val names = f.value.map { a ->
-                    a.name
-                }
-                if (names.size != callValues.size)
-                    false
-                val pairList = names.zip(callValues)
-                pairList.all { (elt1, elt2) ->
-                    elt1 == elt2
-                }
-            }.map { it.key }.firstOrNull() ?: entryPoint
-        }
-
-
-        if (entryPoint == 0L) {
-            setError("Function not found: schema=$schema, name=$procedure")
+    fun testBooleanStatement(statement: String): Boolean {
+        return try {
+            executeQuery<PlApiBoolean>(
+                ApiQuery.RAW_BOOL,
+                listOf(statement)
+            ).firstOrNull()?.value ?: false
+        } catch (e: Exception) {
+            false
         }
     }
 
     fun createListener() {
-        session = executeQuery<PlApiInt>(
+        plSession = executeQuery<PlApiInt>(
             query = ApiQuery.CREATE_LISTENER
         ).first().value
     }
@@ -146,19 +105,22 @@ class PlExecutor(private val controller: PlController): Disposable {
         if (invalidSession()) {
             return 0
         }
-        return executeQuery<PlApiInt>(
+        waiting.set(true)
+        val res = executeQuery<PlApiInt>(
             query = ApiQuery.WAIT_FOR_TARGET,
-            args = listOf("$session")
+            args = listOf("$plSession")
         ).firstOrNull()?.value ?: 0
+        waiting.set(false)
+        return res
     }
 
-    private fun abort() {
+    public fun abort() {
         if (invalidSession()) {
             return
         }
         executeQuery<PlApiBoolean>(
             query = ApiQuery.ABORT,
-            args = listOf("$session")
+            args = listOf("$plSession")
         )
     }
 
@@ -166,35 +128,38 @@ class PlExecutor(private val controller: PlController): Disposable {
         if (invalidSession()) {
             return null
         }
-        return when (step) {
+        waiting.set(true)
+        val res = when (step) {
             ApiQuery.STEP_OVER,
             ApiQuery.STEP_INTO,
             ApiQuery.STEP_CONTINUE -> executeQuery<PlApiStep>(
                 query = step,
-                args = listOf("$session")
+                args = listOf("$plSession")
             ).firstOrNull()
             else -> {
                 setError("Invalid step command: $step")
                 null
             }
         }
+        waiting.set(false)
+        return res
     }
 
     fun getStack(): List<PlApiStackFrame> {
         if (invalidSession()) {
             return listOf()
         }
-        return executeQuery(query = ApiQuery.GET_STACK, args = listOf("$session"))
+        return executeQuery(query = ApiQuery.GET_STACK, args = listOf("$plSession"))
     }
 
-    fun getFunctionDef(oid: Long): PlApiFunctionDef =
-        executeQuery<PlApiFunctionDef>(query = ApiQuery.GET_FUNCTION_DEF, args = listOf("$oid")).first()
+    fun getFunctionDef(oid: Long): PlApiFunctionDef? =
+        executeQuery<PlApiFunctionDef>(query = ApiQuery.GET_FUNCTION_DEF, args = listOf("$oid")).firstOrNull()
 
     fun getVariables(): List<PlApiStackVariable> {
         if (invalidSession()) {
             return listOf()
         }
-        val vars = executeQuery<PlApiStackVariable>(ApiQuery.GET_RAW_VARIABLES, listOf("$session"))
+        val vars = executeQuery<PlApiStackVariable>(ApiQuery.GET_RAW_VARIABLES, listOf("$plSession"))
 
         if (vars.isEmpty()) return vars
 
@@ -246,18 +211,22 @@ class PlExecutor(private val controller: PlController): Disposable {
         if (invalidSession()) {
             return listOf()
         }
-        return executeQuery(query = ApiQuery.LIST_BREAKPOINT, args = listOf("$session"))
+        return executeQuery(query = ApiQuery.LIST_BREAKPOINT, args = listOf("$plSession"))
     }
 
 
-    fun setGlobalBreakPoint() {
+    fun setGlobalBreakPoint(oid: Long) {
         if (invalidSession()) {
             return
         }
         executeQuery<PlApiBoolean>(
             ApiQuery.SET_GLOBAL_BREAKPOINT,
-            listOf("$session", "$entryPoint")
+            listOf("$plSession", "$oid")
         )
+    }
+
+    fun setGlobalBreakPoint() {
+        setGlobalBreakPoint(entryPoint)
     }
 
     fun updateBreakPoint(cmd: ApiQuery, oid: Long, line: Int): Boolean {
@@ -268,7 +237,7 @@ class PlExecutor(private val controller: PlController): Disposable {
             ApiQuery.SET_BREAKPOINT,
             ApiQuery.DROP_BREAKPOINT -> executeQuery<PlApiBoolean>(
                 cmd,
-                listOf("$session", "$oid", "$line")
+                listOf("$plSession", "$oid", "$line")
             ).firstOrNull()?.value ?: false
             else -> {
                 setError("Invalid Breakpoint command: $cmd")
@@ -302,6 +271,7 @@ class PlExecutor(private val controller: PlController): Disposable {
             ) {
                 rowset = this
                 initializers.add("SET CLIENT_ENCODING TO 'UTF8';")
+                initializers.add("SET application_name TO $DEBUGGER_SESSION_NAME;")
                 additionalCommand?.let {
                     initializers.add(additionalCommand)
                 }
@@ -330,19 +300,20 @@ class PlExecutor(private val controller: PlController): Disposable {
     }
 
     private fun customQuery(cmd: ApiQuery): String {
-        if (!controller.settings.customQuery) {
+
+        if (settings.customQuery) {
             return cmd.sql
         }
         return when (cmd) {
-            ApiQuery.GET_FUNCTION_CALL_ARGS -> return controller.settings.queryFuncArgs
-            ApiQuery.GET_RAW_VARIABLES -> return controller.settings.queryRawVars
-            ApiQuery.EXPLODE_COMPOSITE -> return controller.settings.queryExplodeComposite
-            ApiQuery.EXPLODE_ARRAY -> return controller.settings.queryExplodeArray
+            ApiQuery.GET_FUNCTION_CALL_ARGS -> return settings.queryFuncArgs
+            ApiQuery.GET_RAW_VARIABLES -> return settings.queryRawVars
+            ApiQuery.EXPLODE_COMPOSITE -> return settings.queryExplodeComposite
+            ApiQuery.EXPLODE_ARRAY -> return settings.queryExplodeArray
             else -> cmd.sql
         }
     }
 
-    fun ready(): Boolean = ready && session != 0
+    fun ready(): Boolean = ready && plSession != 0
 
     fun setInfo(msg: String) = addMessage(Message(level = Level.INFO, content = msg))
 
@@ -363,19 +334,19 @@ class PlExecutor(private val controller: PlController): Disposable {
         lastError = err
     }
 
-    fun displayInfo() {
-        controller.xSession.consoleView?.let {
+    fun printStack() {
+        xSession?.consoleView?.let {
             val copy = ArrayList(messages)
             runInEdt {
                 copy.forEach {
                     if (canPrint(it.level)) {
                         if (it.cause != null) {
-                            controller.xSession.consoleView?.print(
+                            xSession?.consoleView?.print(
                                 "[${it.level.name}] ${it.content} (${it.cause})\n",
                                 it.level.ct
                             )
                         } else {
-                            controller.xSession.consoleView?.print("[${it.level.name}] ${it.content}\n", it.level.ct)
+                            xSession?.consoleView?.print("[${it.level.name}] ${it.content}\n", it.level.ct)
                         }
                     }
                 }
@@ -385,11 +356,11 @@ class PlExecutor(private val controller: PlController): Disposable {
     }
 
     private fun canPrint(level: Level): Boolean = when (level) {
-        Level.CMD -> controller.settings.showCmd
-        Level.DEBUG -> controller.settings.showDebug
-        Level.NOTICE -> controller.settings.showNotice
-        Level.INFO -> controller.settings.showInfo
-        Level.SQL -> controller.settings.showSQL
+        Level.CMD -> settings.showCmd
+        Level.DEBUG -> settings.showDebug
+        Level.NOTICE -> settings.showNotice
+        Level.INFO -> settings.showInfo
+        Level.SQL -> settings.showSQL
         else -> true
     }
 
@@ -410,7 +381,7 @@ class PlExecutor(private val controller: PlController): Disposable {
             }
             runInEdt {
                 Messages.showMessageDialog(
-                    controller.project,
+                    xSession?.project,
                     msg?.content ?: "Unknown error",
                     "PostgresSQL Debugger",
                     Messages.getErrorIcon()
@@ -422,27 +393,24 @@ class PlExecutor(private val controller: PlController): Disposable {
         return false
     }
 
-    fun cancelConnection() {
+    fun cancelStatement() {
         console("cancelConnection")
         if (!internalConnection.remoteConnection.isClosed) {
             console("cancelAll")
             internalConnection.remoteConnection.cancelAll()
-            abort()
         }
     }
 
     fun closeConnection() {
         console("cancelConnection")
         if (!internalConnection.remoteConnection.isClosed) {
-            console("cancelAll")
-            internalConnection.remoteConnection.cancelAll()
             console("close")
             internalConnection.remoteConnection.close()
         }
     }
 
     fun cancelAndCloseConnection() {
-        cancelConnection()
+        cancelStatement()
         closeConnection()
     }
 
