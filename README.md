@@ -8,8 +8,8 @@
 Debug PL/pg SQL in Intellij with Database Tools<br/><br/>
 
 ### Top features
-- Debug SELECT statements
-- Debug routines and triggers
+- Debug directly from SELECT statements
+- Debug routines and triggers from database tree
 - Breakpoint persistence
 - Variable inspection in debugger tree and inlined in code
 - Inspect arrays and composite types
