@@ -4,6 +4,7 @@
 
 ## [Unreleased]
 
+## [1.2.1]
 ### Added
 - Debug a routine from the database tree
 
