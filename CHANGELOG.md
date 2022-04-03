@@ -3,6 +3,10 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+### Added
+- Change version scheme
+### Fixed
+- NPE on database tree
 
 ## [1.2.1]
 ### Added
