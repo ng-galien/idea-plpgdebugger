@@ -42,11 +42,12 @@ class PlDebugRoutineAction : AnAction() {
         val ready = watcher.getDebugMode() != DebugMode.DIRECT
 
         if (ready) {
-            val routine = getDbRoutine(e)
-            routineToDebug = (routine?.delegate as PgRoutine)
-            e.project?.let { project ->
-                val ds = DbImplUtilCore.getDbDataSource(project, routine.dataSource)
-                localDataSource = DbImplUtilCore.getMaybeLocalDataSource(ds)
+            getDbRoutine(e)?.let { routine ->
+                routineToDebug = (routine.delegate as PgRoutine)
+                e.project?.let { project ->
+                    val ds = DbImplUtilCore.getDbDataSource(project, routine.dataSource)
+                    localDataSource = DbImplUtilCore.getMaybeLocalDataSource(ds)
+                }
             }
         }
 

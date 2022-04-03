@@ -13,7 +13,7 @@
     </extensions>
 
     <extensions defaultExtensionNs="com.intellij">
-        <xdebugger.breakpointType implementation="net.plpgsql.ideadebugger.PlLineBreakpointType"/>
+        <xdebugger.breakpointType implementation="net.plpgsql.ideadebugger.breakpoint.PlLineBreakpointType"/>
         <virtualFileSystem key="plpgsql"  implementationClass="net.plpgsql.ideadebugger.vfs.PlVirtualFileSystem"/>
         <applicationConfigurable parentId="tools"
                              instance="net.plpgsql.ideadebugger.ui.PlDebuggerSettingsDialog"

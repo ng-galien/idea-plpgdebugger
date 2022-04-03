@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [213.1.1]
+### Added
+- Change version scheme
+
+### Fixed
+- NPE on database tree
+
 ## [1.2.1]
 ### Added
 - Debug a routine from the database tree
