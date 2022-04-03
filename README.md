@@ -23,17 +23,23 @@ Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea
 
 ## Features
 
-### Direct debug from a console from a SELECT statement
+### Direct debug in a console from a SELECT statement
+
+Just write a statement using the function you want to debug
+
+> SELECT function_name(args)
 
 ![](img/direct.gif)
 
 ### Debug a routine from the database explorer
 
+Choose Debug routine action in the database tree and run it in a console
+
 ![](img/indirect.gif)
 
 ### Variable inspection
 
-(Composite types are not returned by the extension)
+(Composite types are not returned by the extension see [Limitation](#limitation))
 
   * Basic variables
   * Arrays(including array of composite)
@@ -43,6 +49,7 @@ Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea
 ### Inline values
 
 Arguments and variables are displayed in code, it can be disabled in the plugin configuration.  
+
 ![](img/inline-variables.png)
 
 ### Debug process
