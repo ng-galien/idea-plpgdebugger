@@ -2,9 +2,8 @@
  * Copyright (c) 2022. Alexandre Boyer
  */
 
-package net.plpgsql.ideadebugger
+package net.plpgsql.ideadebugger.breakpoint
 
-import com.intellij.database.debugger.SqlLineBreakpointProperties
 import com.intellij.database.debugger.SqlLineBreakpointType
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
@@ -15,13 +14,9 @@ import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import javax.swing.Icon
 
 
-class PlLineBreakpointProperties(val file: VirtualFile, val line: Int) : SqlLineBreakpointProperties() {}
-
-/*
-
- */
-class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>("plpg_line_breakpoint", "PL/pg SQL") {
-
+class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>(
+    "plpg_line_breakpoint",
+    "PL/pg SQL") {
 
     override fun createBreakpointProperties(file: VirtualFile, line: Int): PlLineBreakpointProperties {
         return PlLineBreakpointProperties(file, line)

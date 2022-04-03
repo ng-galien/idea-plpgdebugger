@@ -22,6 +22,8 @@ import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
 import net.plpgsql.ideadebugger.*
+import net.plpgsql.ideadebugger.breakpoint.PlLineBreakpointProperties
+import net.plpgsql.ideadebugger.breakpoint.PlLineBreakpointType
 import net.plpgsql.ideadebugger.command.ApiQuery
 import net.plpgsql.ideadebugger.command.PlApiStep
 import net.plpgsql.ideadebugger.command.PlExecutor

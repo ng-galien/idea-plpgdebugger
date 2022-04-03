@@ -8,7 +8,7 @@ import com.intellij.database.dataSource.DatabaseConnection
 import java.util.*
 
 /**
- *
+ * Iterate over a JDBC ResultSet
  */
 class DBIterator<R>(producer: Producer<R>,
                     connection: DatabaseConnection,
@@ -60,7 +60,7 @@ class DBIterator<R>(producer: Producer<R>,
 }
 
 /**
- *
+ * JDBC RowSet
  */
 class DBRowSet<R>(
     producer: Producer<R>,

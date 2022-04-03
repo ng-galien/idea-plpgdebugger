@@ -16,9 +16,12 @@ import com.intellij.sql.psi.SqlReferenceExpression
 import com.jetbrains.rd.util.first
 import net.plpgsql.ideadebugger.command.PlExecutor
 
+/**
+ * Encapsulate routine call information
+ */
 class CallDefinition(
     var debugMode: DebugMode,
-    var psi: PsiElement?,
+    private var psi: PsiElement?,
     var query: String
 ) {
 
@@ -28,6 +31,16 @@ class CallDefinition(
     val args = mutableMapOf<String, String?>()
     var selectionOk: Boolean = false
 
+    constructor(routine: PgRoutine) : this(DebugMode.INDIRECT, null, "") {
+        this.oid = routine.objectId
+        this.routine = routine.name
+        this.schema = routine.schemaName?: "public"
+        this.selectionOk = true
+    }
+
+    /**
+     * Get routine information from Database Tool internal API
+     */
     fun identify() {
         psi?.let {
             runReadAction {
@@ -47,25 +60,32 @@ class CallDefinition(
         }
     }
 
-    constructor(routine: PgRoutine) : this(DebugMode.INDIRECT, null, "") {
-        this.oid = routine.objectId
-        this.routine = routine.name
-        this.schema = routine.schemaName?: "public"
-        this.selectionOk = true
-    }
-
+    /**
+     * Get routine information from SQL queries
+     */
     fun identify(executor: PlExecutor) {
         parseFunctionCall()
         searchCallee(executor)
     }
 
-
+    /**
+     * If the statement is a candidate for selection
+     */
     fun canSelect(): Boolean =debugMode != DebugMode.NONE && psi != null
 
+    /**
+     * If the selected statement can be debugged
+     */
     fun canDebug(): Boolean = canSelect() && selectionOk
 
+    /**
+     * If the debugger can be started
+     */
     fun canStartDebug(): Boolean = selectionOk && oid != 0L
 
+    /**
+     * Extract information from the original statement
+     */
     fun parseFunctionCall() {
         runReadAction {
             val funcEl = PsiTreeUtil.findChildOfType(psi, SqlReferenceExpression::class.java)
@@ -111,7 +131,10 @@ class CallDefinition(
         }
     }
 
-    fun searchCallee(executor: PlExecutor) {
+    /**
+     * Execute SQL to get information from pg_catalog
+     */
+    private fun searchCallee(executor: PlExecutor) {
         val rt = routine?: ""
         val functions = executor.getCallArgs(schema, rt).filter {
             if (args.isEmpty()) {
