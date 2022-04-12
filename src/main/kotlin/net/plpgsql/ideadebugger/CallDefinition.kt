@@ -115,7 +115,7 @@ class CallDefinition(
                         it.text.trim()
                     }?.filter {
                         it != "" && it != "," && !it.startsWith("--")
-                    }?.forEachIndexed() { idx, it ->
+                    }?.forEachIndexed { idx, it ->
                         args["arg_$idx"] = it
                     }
                 }

@@ -114,7 +114,7 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         return res
     }
 
-    public fun abort() {
+    fun abort() {
         if (invalidSession()) {
             return
         }

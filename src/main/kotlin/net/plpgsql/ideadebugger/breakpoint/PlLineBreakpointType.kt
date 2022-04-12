@@ -26,7 +26,7 @@ class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>(
         if (file !is PlFunctionSource) {
             return false
         }
-        return file.codeRange.first < line && file.codeRange.second > line
+        return (file.codeRange.first < line) && (file.codeRange.second > line)
     }
 
     override fun getEditorsProvider(

@@ -313,7 +313,7 @@ class PlProcess(
     /**
      * Thread for debugging commands
      */
-    inner class InnerThread(): Thread() {
+    inner class InnerThread : Thread() {
 
         private val LOGGER = logger<InnerThread>()
 

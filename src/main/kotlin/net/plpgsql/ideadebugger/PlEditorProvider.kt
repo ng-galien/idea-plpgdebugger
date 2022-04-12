@@ -4,15 +4,11 @@
 
 package net.plpgsql.ideadebugger
 
-import com.intellij.codeInsight.documentation.DocumentationManager
-import com.intellij.lang.Language
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.fileTypes.FileType
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiManager
 import com.intellij.sql.SqlFileType
-import com.intellij.testFramework.LightVirtualFile
 import com.intellij.xdebugger.XExpression
 import com.intellij.xdebugger.XSourcePosition
 import com.intellij.xdebugger.evaluation.EvaluationMode
@@ -36,6 +32,5 @@ class PlEditorProvider : XDebuggerEditorsProvider() {
     ): Document {
         return EditorFactory.getInstance().createDocument("")
     }
-
 
 }

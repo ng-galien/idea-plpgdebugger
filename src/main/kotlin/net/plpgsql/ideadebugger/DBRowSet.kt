@@ -55,7 +55,7 @@ class DBIterator<R>(producer: Producer<R>,
 
     override fun char(): Char {
         pos++
-        return rs.getString(pos).get(0)
+        return rs.getString(pos)[0]
     }
 }
 
