@@ -3,6 +3,8 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+
+## [221.1.1]
 - Intellij 2022.1 support
 
 ## [213.1.1]
