@@ -31,7 +31,7 @@ class ConnectionDiagnosticDialog(project: Project, private var diagnostic: Exten
                     label(diagnostic.sharedLibraries)
                     icon(if (diagnostic.sharedLibraryOk) AllIcons.General.InspectionsOK else AllIcons.General.Error)
                 }
-                row() {
+                row {
                 }.comment(
                     """
                     The library plugin_debugger activated in the database server 

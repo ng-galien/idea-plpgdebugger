@@ -18,11 +18,6 @@ class PlVirtualFileSystem : DummyCachingFileSystem<PlFunctionSource>(PROTOCOL) {
         return null
     }
 
-    init {
-
-        //createRoot("root")
-    }
-
     override fun doRenameFile(vFile: VirtualFile, newName: String) {}
 
     companion object {

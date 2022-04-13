@@ -97,7 +97,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             return variableRegistry[plFrame.oid] ?: mutableListOf()
         }
 
-        private fun getFrameInfo(): List<PlApiStackVariable> = listOf<PlApiStackVariable>(
+        private fun getFrameInfo(): List<PlApiStackVariable> = listOf(
             PlApiStackVariable(
                 false,
                 0,
@@ -296,7 +296,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             return if (compute) ThreeState.YES else ThreeState.NO
         }
 
-        override fun getEvaluationExpression(): String? {
+        override fun getEvaluationExpression(): String {
             return plVar.value
         }
 
