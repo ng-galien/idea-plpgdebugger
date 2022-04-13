@@ -3,8 +3,12 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+- Intellij 2022.1 support
+
+## [213.1.1]
 ### Added
 - Change version scheme
+
 ### Fixed
 - NPE on database tree
 
