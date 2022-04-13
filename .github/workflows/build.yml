@@ -25,7 +25,7 @@ on:
       - '**/*.yml'
   # Trigger the workflow on any pull request
   pull_request:
-    branches: [maim, dev]
+    branches: ['213-dev']
 
 jobs:
 

@@ -31,10 +31,9 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
     }
 
     val oid: Long = def.oid
-    val md5 = def.md5
-    var isTrigger = false
+    private var isTrigger = false
     var start: Int = 0
-    var end: Int = 0
+    private var end: Int = 0
     var codeRange = Pair(0, 0)
     val lineRangeCount: Int by lazy {
         codeRange.second - codeRange.first

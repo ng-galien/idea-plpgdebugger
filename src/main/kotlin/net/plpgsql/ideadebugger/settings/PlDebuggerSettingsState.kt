@@ -26,8 +26,7 @@ class PlDebuggerSettingsState : PersistentStateComponent<PlPluginSettings> {
     }
 
     override fun loadState(state: PlPluginSettings) {
-        XmlSerializerUtil.copyBean(state, data);
+        XmlSerializerUtil.copyBean(state, data)
     }
-
 
 }

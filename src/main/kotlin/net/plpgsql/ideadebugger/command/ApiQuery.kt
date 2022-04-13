@@ -22,9 +22,6 @@ enum class ApiQuery(val sql: String,
     RAW_BOOL(
         "%s",
         Producer<Any> { PlApiBoolean(it.bool()) }),
-    RAW_STRING(
-        "%s",
-        Producer<Any> { PlApiString(it.string()) }),
     PG_ACTIVITY(
         """
         SELECT pid,

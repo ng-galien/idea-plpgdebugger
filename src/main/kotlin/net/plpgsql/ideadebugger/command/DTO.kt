@@ -28,13 +28,6 @@ data class PlApiInt(
 /**
  *
  */
-data class PlApiLong(
-    val value: Long
-)
-
-/**
- *
- */
 data class PlApiString(
     val value: String
 )
