@@ -16,7 +16,7 @@ name: Build
 on:
   # Trigger the workflow on pushes to only the 'main' branch (this avoids duplicate checks being run e.g. for dependabot pull requests)
   push:
-    branches: ['213']
+    branches: ['221']
     # Skip md and SQL files
     paths-ignore:
       - '**/*.md'
@@ -25,7 +25,7 @@ on:
       - '**/*.yml'
   # Trigger the workflow on any pull request
   pull_request:
-    branches: ['213-dev']
+    branches: ['221-dev']
 
 jobs:
 
