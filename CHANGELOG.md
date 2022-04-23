@@ -2,7 +2,7 @@
 
 # idea-plpgdebugger Changelog
 
-## [221.1.2]
+## [Unreleased]
 - Plugin versions upgrade
 - Images for Dockerized debugger
 
