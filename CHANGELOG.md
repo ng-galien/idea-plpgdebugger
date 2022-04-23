@@ -2,7 +2,9 @@
 
 # idea-plpgdebugger Changelog
 
-## [Unreleased]
+## [221.1.2]
+- Plugin versions upgrade
+- Images for Dockerized debugger
 
 ## [221.1.1]
 - Intellij 2022.1 support

@@ -7,7 +7,7 @@
 <!-- Plugin description -->
 Debug PL/pg SQL in Intellij with Database Tools<br/><br/>
 
-### Top features
+## Features
 - Debug directly from SELECT statements
 - Debug routines and triggers from database tree
 - Breakpoint persistence
@@ -15,13 +15,20 @@ Debug PL/pg SQL in Intellij with Database Tools<br/><br/>
 - Inspect arrays and composite types
 
 
-Note that the legacy extension only returns composite type in arrays, try the [modified debugger](https://github.com/ng-galien/pldebugger/blob/print-vars-14/INSTALL.md) for composite support.<br/>
-
 Submit features => [Production ready task list](https://github.com/ng-galien/idea-plpgdebugger/issues/17)  
 Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea-plpgdebugger/issues/new/choose)
 <!-- Plugin description end -->
 
-## Features
+### Use the enhanced debugger
+
+Try out the Docker image with the ready to use enhanced debugger (versions 13 & 14).
+
+> docker run -p 5514:5432 --name PG14-debug -e POSTGRES_PASSWORD=postgres -d galien0xffffff/postgres-debugger:14
+
+Run this script on your database
+
+> CREATE EXTENSION if not exists pldbgapi;
+
 
 ### Direct debug in a console from a SELECT statement
 

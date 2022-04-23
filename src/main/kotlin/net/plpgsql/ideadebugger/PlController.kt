@@ -130,7 +130,7 @@ class PlController(
         private var debugWindow: ToolWindow? = null
         private var first: Boolean = false
         private var acutal: Content? = null
-        var hasShown = false
+        private var hasShown = false
 
         override fun toolWindowShown(toolWindow: ToolWindow) {
             if (toolWindow.id == "Debug") {
