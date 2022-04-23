@@ -33,7 +33,7 @@ class PlFacade : SqlDebuggerFacade {
     private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
 
     /**
-     *
+     * 
      */
     override fun isApplicableToDebugStatement(statement: SqlStatement): Boolean {
         if (watcher.isDebugging()) {
@@ -44,7 +44,7 @@ class PlFacade : SqlDebuggerFacade {
     }
 
     /**
-     *
+     * Note this is not work as expected in DatabaseTools
      */
     override fun isApplicableToDebugRoutine(basicSourceAware: BasicSourceAware): Boolean {
         return true
@@ -54,6 +54,7 @@ class PlFacade : SqlDebuggerFacade {
         return checkDataSource(ds)
     }
 
+    @Deprecated("Deprecated in Java")
     override fun createController(
         project: Project,
         connection: DatabaseConnectionPoint,
