@@ -3,6 +3,8 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+
+## [221.1.2]
 - Kotlin upgrade
 - Plugin versions upgrade
 - Images for Dockerized debugger
