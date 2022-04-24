@@ -5,6 +5,7 @@ FROM postgres:${TAG}
 ARG TAG
 ENV PG_VERSION=${TAG}
 ENV PG_BRANCH=REL_${TAG}_STABLE
+ENV PLUGIN_BRANCH=print-vars-${TAG}
 
 RUN export TAG=$PG_VERSION \
     && apt --yes update  \
@@ -20,10 +21,10 @@ RUN export TAG=$PG_VERSION \
     && cd postgres \
     && git checkout $PG_BRANCH \
     && ./configure \
-    && cd contrib \
+    && cd /usr/src/postgres/contrib \
     && git clone https://github.com/ng-galien/pldebugger.git \
     && cd pldebugger \
-    && git checkout print-vars \
+    && git checkout $PLUGIN_BRANCH \
     && make clean  \
     && make USE_PGXS=1  \
     && make USE_PGXS=1 install \

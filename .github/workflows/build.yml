@@ -23,6 +23,8 @@ on:
       - '**/*.sql'
       - '**/*.xml'
       - '**/*.yml'
+      - '**/*.sh'
+      - '**/Dockerfile'
   # Trigger the workflow on any pull request
   pull_request:
     branches: ['221-dev']
