@@ -21,13 +21,15 @@ Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea
 
 ### Use the enhanced debugger
 
-Try out the Docker image with the ready to use enhanced debugger (versions 13 & 14).
+Try out the Docker image with the ready to use enhanced debugger (versions 11 to 14).
 
 > docker run -p 5514:5432 --name PG14-debug -e POSTGRES_PASSWORD=postgres -d galien0xffffff/postgres-debugger:14
 
 Run this script on your database
 
 > CREATE EXTENSION if not exists pldbgapi;
+
+To build your own image instructions are [here](docker/README.md)
 
 
 ### Direct debug in a console from a SELECT statement
