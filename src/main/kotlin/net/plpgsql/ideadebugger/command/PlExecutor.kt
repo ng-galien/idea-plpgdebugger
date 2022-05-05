@@ -27,7 +27,7 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
     private val messages = mutableListOf<Message>()
 
     private var internalConnection: DatabaseConnection = guardedRef.get()
-    var xSession: XDebugSession? = null
+    private var xSession: XDebugSession? = null
     private var plSession = 0
     private val settings = getSettings()
     var waiting = AtomicBoolean(false)
