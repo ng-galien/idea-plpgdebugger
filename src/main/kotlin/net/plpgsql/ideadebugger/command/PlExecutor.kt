@@ -68,14 +68,14 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
     private fun invalidSession(): Boolean = (plSession == 0)
 
     private fun getActivities(): List<PlActivity> {
-        return executeQuery<PlActivity>(
+        return executeQuery(
             query = ApiQuery.PG_ACTIVITY,
             args = listOf(),
         )
     }
 
     fun getCallArgs(schema: String, routine: String): List<PlApiFunctionArg> {
-        return executeQuery<PlApiFunctionArg>(
+        return executeQuery(
             query = ApiQuery.GET_FUNCTION_CALL_ARGS,
             args = listOf(schema, routine),
         )
@@ -310,8 +310,6 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         }
     }
 
-    fun ready(): Boolean = ready && plSession != 0
-
     fun setInfo(msg: String) = addMessage(Message(level = Level.INFO, content = msg))
 
     private fun setCmd(msg: String) = addMessage(Message(level = Level.CMD, content = msg))
@@ -398,7 +396,7 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         }
     }
 
-    fun closeConnection() {
+    private fun closeConnection() {
         console("cancelConnection")
         if (!internalConnection.remoteConnection.isClosed) {
             console("close")
