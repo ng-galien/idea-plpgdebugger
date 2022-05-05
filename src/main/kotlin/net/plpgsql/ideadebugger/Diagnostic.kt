@@ -9,7 +9,7 @@ import com.intellij.openapi.project.Project
 import net.plpgsql.ideadebugger.command.PlActivity
 import net.plpgsql.ideadebugger.ui.ConnectionDiagnosticDialog
 
-data class ExtensionDiagnostic (
+data class ConnectionDiagnostic (
     var sharedLibraries: String,
     var sharedLibraryOk: Boolean,
     var extensions: String,
@@ -18,10 +18,10 @@ data class ExtensionDiagnostic (
     var activityOk: Boolean
 )
 
-fun extensionOk(diag: ExtensionDiagnostic): Boolean =
+fun extensionOk(diag: ConnectionDiagnostic): Boolean =
     diag.extensionOk && diag.sharedLibraryOk && diag.activityOk
 
-fun showExtensionDiagnostic(project: Project, diag: ExtensionDiagnostic) {
+fun showExtensionDiagnostic(project: Project, diag: ConnectionDiagnostic) {
     val dialog = ConnectionDiagnosticDialog(project, diag)
     runInEdt {
         dialog.show()

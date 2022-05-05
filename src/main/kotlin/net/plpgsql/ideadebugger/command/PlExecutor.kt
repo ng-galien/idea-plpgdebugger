@@ -33,22 +33,18 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
     var waiting = AtomicBoolean(false)
 
     /**
-     * Checks the ability to debug and returns diagnostic
+     * Checks the ability to debug and returns a diagnostic
      */
-    fun checkDebugger(): ExtensionDiagnostic {
+    fun checkDebugger(): ConnectionDiagnostic {
 
         // Shared library is loaded
-        val sharedLibraries = executeQuery<PlApiString>(
-            query = ApiQuery.GET_SHARED_LIBRARIES
-        )
+        val sharedLibraries = executeQuery<PlApiString>(query = ApiQuery.GET_SHARED_LIBRARIES)
 
         // Extension is created
-        val extensions = executeQuery<PlApiExtension>(
-            query = ApiQuery.GET_EXTENSION
-        )
+        val extensions = executeQuery<PlApiExtension>(query = ApiQuery.GET_EXTENSION)
 
+        // Try to kill died debugger sessions
         var activities = getActivities()
-
         if (activities.isNotEmpty()) {
             executeQuery<PlApiBoolean>(
                 query = ApiQuery.PG_CANCEL,
@@ -58,11 +54,12 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
             activities = getActivities()
         }
 
-        return ExtensionDiagnostic(
+        // Build diagnostic
+        return ConnectionDiagnostic(
             sharedLibraries = sharedLibraries.joinToString(separator = ", ") { it.value },
-            sharedLibraryOk = sharedLibraries.any { it.value.contains(DEBUGGER_SHARED_LIBRARY) },
+            sharedLibraryOk = sharedLibraries.any { it.value.lowercase().contains(DEBUGGER_SHARED_LIBRARY) },
             extensions = extensions.joinToString(separator = ", ") { it.name },
-            extensionOk = extensions.any { it.name == DEBUGGER_EXTENSION },
+            extensionOk = extensions.any { it.name.lowercase().contains(DEBUGGER_EXTENSION) },
             activities = activities,
             activityOk = activities.isEmpty()
         )
