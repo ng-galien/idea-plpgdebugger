@@ -9,11 +9,11 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.dsl.builder.panel
-import net.plpgsql.ideadebugger.ExtensionDiagnostic
+import net.plpgsql.ideadebugger.ConnectionDiagnostic
 import javax.swing.JComponent
 
 @Suppress("UnstableApiUsage")
-class ConnectionDiagnosticDialog(project: Project, private var diagnostic: ExtensionDiagnostic) :
+class ConnectionDiagnosticDialog(project: Project, private var diagnostic: ConnectionDiagnostic) :
     DialogWrapper(project, true) {
 
     private var panel: DialogPanel? = null
@@ -42,7 +42,7 @@ class ConnectionDiagnosticDialog(project: Project, private var diagnostic: Exten
                     label(diagnostic.extensions)
                     icon(if (diagnostic.extensionOk) AllIcons.General.InspectionsOK else AllIcons.General.Error)
                 }
-                row() {
+                row {
                 }.comment(
                     """
                     Extension must be created in the current database
@@ -59,7 +59,7 @@ class ConnectionDiagnosticDialog(project: Project, private var diagnostic: Exten
                         label("Remaining session $pids")
                         icon(AllIcons.General.Error)
                     }
-                    row() {
+                    row {
                     }.comment(
                         """
                         A died debugger session can't be stopped, server you be restarted or pid killed manually
