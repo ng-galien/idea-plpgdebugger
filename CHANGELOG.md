@@ -2,7 +2,13 @@
 
 # idea-plpgdebugger Changelog
 
-## [Unreleased]
+## [221.1.3]
+### Fixed
+- Custom command to debugger session only
+- Remove depreciated API checks
+
+### Added
+- Build against Intellij 221.1.1
 
 ## [221.1.2]
 - Kotlin upgrade

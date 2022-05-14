@@ -5,15 +5,12 @@
 [![Downloads](https://img.shields.io/jetbrains/plugin/d/18419-postgresql-debugger.svg)](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger)
 
 <!-- Plugin description -->
-Debug PL/pg SQL in Intellij with Database Tools<br/><br/>
+Debug PL/pg SQL with Intellij Database Tools<br/><br/>
 
 ## Features
 - Debug directly from SELECT statements
 - Debug routines and triggers from database tree
-- Breakpoint persistence
-- Variable inspection in debugger tree and inlined in code
-- Inspect arrays and composite types
-
+- Full support for variables inspection with [Docker custom debugger](https://github.com/ng-galien/idea-plpgdebugger/blob/221/docker/README.md)
 
 Submit features => [Production ready task list](https://github.com/ng-galien/idea-plpgdebugger/issues/17)  
 Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea-plpgdebugger/issues/new/choose)
