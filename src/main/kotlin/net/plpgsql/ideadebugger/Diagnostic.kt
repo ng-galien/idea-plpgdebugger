@@ -7,6 +7,7 @@ package net.plpgsql.ideadebugger
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.project.Project
 import net.plpgsql.ideadebugger.command.PlActivity
+import net.plpgsql.ideadebugger.command.PlExecutor
 import net.plpgsql.ideadebugger.ui.ConnectionDiagnosticDialog
 
 data class ConnectionDiagnostic (

@@ -15,7 +15,8 @@ import net.plpgsql.ideadebugger.*
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- *
+ * Debugger SQL executor.
+ * Executes queries from the debugger API
  */
 class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Disposable {
 
@@ -33,10 +34,14 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
     var waiting = AtomicBoolean(false)
 
     /**
-     * Checks the ability to debug and returns a diagnostic
+     * Checks the ability to debug and returns a diagnostic.
      */
     fun checkDebugger(): ConnectionDiagnostic {
 
+        // Run the custom command at startup
+        if (settings.enableCustomCommand) {
+            executeSessionCommand(settings.customCommand)
+        }
         // Shared library is loaded
         val sharedLibraries = executeQuery<PlApiString>(query = ApiQuery.GET_SHARED_LIBRARIES)
 
@@ -286,13 +291,14 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         return res ?: listOf()
     }
 
-    fun executeSessionCommand(rawSql: String, connection: DatabaseConnection = internalConnection) {
+    private fun executeSessionCommand(rawSql: String, connection: DatabaseConnection = internalConnection) {
         setDebug("Execute session command: rawSQL=$rawSql")
         executeQuery<PlApiVoid>(
             query = ApiQuery.VOID,
             args = listOf(rawSql),
             dc = connection,
-            additionalCommand = rawSql
+            additionalCommand = rawSql,
+            ignoreError = true
         )
     }
 

@@ -14,7 +14,6 @@ import com.intellij.ui.dsl.gridLayout.HorizontalAlign
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 import javax.swing.JComponent
 
-@Suppress("UnstableApiUsage")
 class PlDebuggerSettingsDialog : Configurable {
 
     private var panel: DialogPanel? = null
@@ -66,26 +65,15 @@ class PlDebuggerSettingsDialog : Configurable {
             collapsibleGroup("Custom Commands") {
                 row {
                     checkBox("Enable session command")
-                        .bindSelected(formData::enableSessionCommand)
-                }
-                row("Session command") {
-                    textArea()
-                        .bindText(formData::sessionCommand)
-                        .resizableColumn()
-                        .horizontalAlign(HorizontalAlign.FILL)
-                        .comment(
-                            """
-                            Optional command run on the running session 
-                            """.trimIndent()
-                        )
+                        .bindSelected(formData::enableCustomCommand)
                 }
                 row {
-                    checkBox("Enable debugger command")
-                        .bindSelected(formData::enableDebuggerCommand)
+                    checkBox("Enable custom command")
+                        .bindSelected(formData::enableCustomCommand)
                 }
-                row("Debugger command") {
+                row("Custom command") {
                     textArea()
-                        .bindText(formData::debuggerCommand)
+                        .bindText(formData::customCommand)
                         .resizableColumn()
                         .horizontalAlign(HorizontalAlign.FILL)
                         .comment(

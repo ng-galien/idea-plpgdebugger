@@ -12,7 +12,6 @@ import com.intellij.ui.dsl.builder.panel
 import net.plpgsql.ideadebugger.ConnectionDiagnostic
 import javax.swing.JComponent
 
-@Suppress("UnstableApiUsage")
 class ConnectionDiagnosticDialog(project: Project, private var diagnostic: ConnectionDiagnostic) :
     DialogWrapper(project, true) {
 
