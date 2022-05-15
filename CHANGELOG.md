@@ -4,8 +4,11 @@
 
 ## [221.1.3]
 ### Fixed
+- Fix shared_preload_libraries detection
+- Fix search_path from database tree
 - Custom command to debugger session only
-- Remove depreciated API checks
+- Fix run non SELECT query
+- Remove depreciated API warnings
 
 ### Added
 - Build against Intellij 221.1.1
