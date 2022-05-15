@@ -8,6 +8,8 @@ import com.intellij.database.dataSource.LocalDataSource
 import com.intellij.database.dialects.postgres.model.PgRoutine
 import com.intellij.database.psi.DbRoutine
 import com.intellij.database.util.DbImplUtilCore
+import com.intellij.database.util.ObjectPaths
+import com.intellij.database.util.SearchPath
 import com.intellij.database.view.getSelectedDbElements
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
@@ -34,6 +36,8 @@ class PlDebugRoutineAction : AnAction() {
 
     private var localDataSource: LocalDataSource? = null
 
+    private var searchPath: SearchPath? = null
+
     private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
 
     override fun update(e: AnActionEvent) {
@@ -47,6 +51,8 @@ class PlDebugRoutineAction : AnAction() {
                 e.project?.let { project ->
                     val ds = DbImplUtilCore.getDbDataSource(project, routine.dataSource)
                     localDataSource = DbImplUtilCore.getMaybeLocalDataSource(ds)
+                    val searchPathObject = DbImplUtilCore.getSearchPathObjectForSwitch(routine.dataSource, routine)
+                    searchPath = ObjectPaths.searchPathOf(searchPathObject)
                 }
             }
         }
@@ -93,7 +99,7 @@ class PlDebugRoutineAction : AnAction() {
                             getAuxiliaryConnection(
                                 project = project,
                                 connectionPoint = dataSource,
-                                searchPath = null
+                                searchPath = searchPath
                             )
                         )
                         PlSourceManager(project, executor).update(frame)
@@ -114,7 +120,7 @@ class PlDebugRoutineAction : AnAction() {
                 getAuxiliaryConnection(
                     project = project,
                     connectionPoint = dataSource,
-                    searchPath = null
+                    searchPath = searchPath
                 )
             )
 
