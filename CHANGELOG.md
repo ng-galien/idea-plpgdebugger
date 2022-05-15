@@ -3,6 +3,8 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+
+## [221.1.3]
 ### Fixed
 - Fix shared_preload_libraries detection
 - Fix search_path from database tree
