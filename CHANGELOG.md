@@ -2,7 +2,16 @@
 
 # idea-plpgdebugger Changelog
 
-## [Unreleased]
+## [221.1.3]
+### Fixed
+- Fix shared_preload_libraries detection
+- Fix search_path from database tree
+- Custom command to debugger session only
+- Fix run non SELECT query
+- Remove depreciated API warnings
+
+### Added
+- Build against Intellij 221.1.1
 
 ## [221.1.2]
 - Kotlin upgrade

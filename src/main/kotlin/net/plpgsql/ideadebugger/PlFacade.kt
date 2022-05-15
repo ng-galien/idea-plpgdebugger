@@ -22,7 +22,7 @@ import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 
 /**
- *
+ * Implements Database Tools the debugger facade
  */
 class PlFacade : SqlDebuggerFacade {
 
@@ -33,7 +33,7 @@ class PlFacade : SqlDebuggerFacade {
     private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
 
     /**
-     * 
+     * Checks if the selected statement is a good candidate for direct debugging
      */
     override fun isApplicableToDebugStatement(statement: SqlStatement): Boolean {
         if (watcher.isDebugging()) {
@@ -50,6 +50,9 @@ class PlFacade : SqlDebuggerFacade {
         return true
     }
 
+    /**
+     * Checks if we can debug the datasource
+     */
     override fun canDebug(ds: LocalDataSource): Boolean{
         return checkDataSource(ds)
     }
@@ -82,7 +85,7 @@ class PlFacade : SqlDebuggerFacade {
     }
 
     /**
-     * Only check it's postgres
+     * Only check if it's a postgres datasource
      */
     private fun checkDataSource(ds: LocalDataSource): Boolean {
         return ds.dbms.isPostgres

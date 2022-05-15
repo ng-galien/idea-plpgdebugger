@@ -15,7 +15,8 @@ import net.plpgsql.ideadebugger.*
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- *
+ * Debugger SQL executor.
+ * Executes queries from the debugger API
  */
 class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Disposable {
 
@@ -27,28 +28,34 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
     private val messages = mutableListOf<Message>()
 
     private var internalConnection: DatabaseConnection = guardedRef.get()
-    var xSession: XDebugSession? = null
+    private var xSession: XDebugSession? = null
     private var plSession = 0
     private val settings = getSettings()
     var waiting = AtomicBoolean(false)
 
     /**
-     * Checks the ability to debug and returns diagnostic
+     * Checks the ability to debug and returns a diagnostic.
      */
-    fun checkDebugger(): ExtensionDiagnostic {
+    fun checkDebugger(): ConnectionDiagnostic {
+
+        // Run the custom command at startup
+        var customCommandOk = !settings.enableCustomCommand
+        var customCommandMessage = "Session command is disabled"
+        if (settings.enableCustomCommand) {
+            customCommandOk = executeCustomCommand(settings.customCommand)
+            if (!customCommandOk) {
+                customCommandMessage = lastError?.content.toString()
+            }
+        }
 
         // Shared library is loaded
-        val sharedLibraries = executeQuery<PlApiString>(
-            query = ApiQuery.GET_SHARED_LIBRARIES
-        )
+        val sharedLibraries = executeQuery<PlApiString>(query = ApiQuery.GET_SHARED_LIBRARIES)
 
         // Extension is created
-        val extensions = executeQuery<PlApiExtension>(
-            query = ApiQuery.GET_EXTENSION
-        )
+        val extensions = executeQuery<PlApiExtension>(query = ApiQuery.GET_EXTENSION)
 
+        // Try to kill died debugger sessions
         var activities = getActivities()
-
         if (activities.isNotEmpty()) {
             executeQuery<PlApiBoolean>(
                 query = ApiQuery.PG_CANCEL,
@@ -58,11 +65,14 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
             activities = getActivities()
         }
 
-        return ExtensionDiagnostic(
+        // Build diagnostic
+        return ConnectionDiagnostic(
+            customCommandOk = customCommandOk,
+            customCommandMessage = customCommandMessage,
             sharedLibraries = sharedLibraries.joinToString(separator = ", ") { it.value },
-            sharedLibraryOk = sharedLibraries.any { it.value.contains(DEBUGGER_SHARED_LIBRARY) },
+            sharedLibraryOk = sharedLibraries.any { it.value.lowercase().contains(DEBUGGER_SHARED_LIBRARY) },
             extensions = extensions.joinToString(separator = ", ") { it.name },
-            extensionOk = extensions.any { it.name == DEBUGGER_EXTENSION },
+            extensionOk = extensions.any { it.name.lowercase().contains(DEBUGGER_EXTENSION) },
             activities = activities,
             activityOk = activities.isEmpty()
         )
@@ -71,14 +81,14 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
     private fun invalidSession(): Boolean = (plSession == 0)
 
     private fun getActivities(): List<PlActivity> {
-        return executeQuery<PlActivity>(
+        return executeQuery(
             query = ApiQuery.PG_ACTIVITY,
             args = listOf(),
         )
     }
 
     fun getCallArgs(schema: String, routine: String): List<PlApiFunctionArg> {
-        return executeQuery<PlApiFunctionArg>(
+        return executeQuery(
             query = ApiQuery.GET_FUNCTION_CALL_ARGS,
             args = listOf(schema, routine),
         )
@@ -289,14 +299,15 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         return res ?: listOf()
     }
 
-    fun executeSessionCommand(rawSql: String, connection: DatabaseConnection = internalConnection) {
+    private fun executeCustomCommand(rawSql: String, connection: DatabaseConnection = internalConnection): Boolean {
         setDebug("Execute session command: rawSQL=$rawSql")
         executeQuery<PlApiVoid>(
-            query = ApiQuery.VOID,
+            query = ApiQuery.RAW_VOID,
             args = listOf(rawSql),
             dc = connection,
-            additionalCommand = rawSql
+            ignoreError = false
         )
+        return lastError == null
     }
 
     private fun customQuery(cmd: ApiQuery): String {
@@ -312,8 +323,6 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
             else -> cmd.sql
         }
     }
-
-    fun ready(): Boolean = ready && plSession != 0
 
     fun setInfo(msg: String) = addMessage(Message(level = Level.INFO, content = msg))
 
@@ -401,7 +410,7 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         }
     }
 
-    fun closeConnection() {
+    private fun closeConnection() {
         console("cancelConnection")
         if (!internalConnection.remoteConnection.isClosed) {
             console("close")

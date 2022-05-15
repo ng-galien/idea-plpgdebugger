@@ -61,13 +61,6 @@ class PlController(
             return plProcess
         }
 
-        if (settings.enableDebuggerCommand) {
-            executor!!.executeSessionCommand(settings.debuggerCommand)
-            if (executor!!.interrupted()) {
-                return plProcess
-            }
-        }
-
         val diag = executor!!.checkDebugger()
         if (settings.failExtension || !extensionOk(diag)) {
             showExtensionDiagnostic(project, diag)
