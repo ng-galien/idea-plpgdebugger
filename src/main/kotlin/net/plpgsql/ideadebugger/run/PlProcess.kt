@@ -35,7 +35,7 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Process handle debugging session
+ * SQL runner for the debugger session
  */
 class PlProcess(
     session: XDebugSession,
