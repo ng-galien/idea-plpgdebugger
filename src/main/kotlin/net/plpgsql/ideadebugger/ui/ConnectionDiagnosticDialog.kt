@@ -26,6 +26,16 @@ class ConnectionDiagnosticDialog(project: Project, private var diagnostic: Conne
     override fun createCenterPanel(): JComponent? {
         panel = panel {
             group(title = "Plugin Diagnostic") {
+                row("Custom command") {
+                    label(diagnostic.customCommandMessage)
+                    icon(if (diagnostic.customCommandOk) AllIcons.General.InspectionsOK else AllIcons.General.Error)
+                }
+                row {
+                }.comment(
+                    """
+                    The custom command from plugin configuration
+                    """.trimIndent()
+                )
                 row("Shared libraries") {
                     label(diagnostic.sharedLibraries)
                     icon(if (diagnostic.sharedLibraryOk) AllIcons.General.InspectionsOK else AllIcons.General.Error)
@@ -33,7 +43,7 @@ class ConnectionDiagnosticDialog(project: Project, private var diagnostic: Conne
                 row {
                 }.comment(
                     """
-                    The library plugin_debugger activated in the database server 
+                    The library plugin_debugger detected in the database server 
                     Shared libraries are set in postgresql.conf
                     """.trimIndent()
                 )

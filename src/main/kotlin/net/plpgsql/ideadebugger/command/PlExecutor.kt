@@ -39,9 +39,15 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
     fun checkDebugger(): ConnectionDiagnostic {
 
         // Run the custom command at startup
+        var customCommandOk = !settings.enableCustomCommand
+        var customCommandMessage = "Session command is disabled"
         if (settings.enableCustomCommand) {
-            executeSessionCommand(settings.customCommand)
+            customCommandOk = executeCustomCommand(settings.customCommand)
+            if (!customCommandOk) {
+                customCommandMessage = lastError?.content.toString()
+            }
         }
+
         // Shared library is loaded
         val sharedLibraries = executeQuery<PlApiString>(query = ApiQuery.GET_SHARED_LIBRARIES)
 
@@ -61,6 +67,8 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
 
         // Build diagnostic
         return ConnectionDiagnostic(
+            customCommandOk = customCommandOk,
+            customCommandMessage = customCommandMessage,
             sharedLibraries = sharedLibraries.joinToString(separator = ", ") { it.value },
             sharedLibraryOk = sharedLibraries.any { it.value.lowercase().contains(DEBUGGER_SHARED_LIBRARY) },
             extensions = extensions.joinToString(separator = ", ") { it.name },
@@ -291,15 +299,15 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         return res ?: listOf()
     }
 
-    private fun executeSessionCommand(rawSql: String, connection: DatabaseConnection = internalConnection) {
+    private fun executeCustomCommand(rawSql: String, connection: DatabaseConnection = internalConnection): Boolean {
         setDebug("Execute session command: rawSQL=$rawSql")
         executeQuery<PlApiVoid>(
-            query = ApiQuery.VOID,
+            query = ApiQuery.RAW_VOID,
             args = listOf(rawSql),
             dc = connection,
-            additionalCommand = rawSql,
-            ignoreError = true
+            ignoreError = false
         )
+        return lastError == null
     }
 
     private fun customQuery(cmd: ApiQuery): String {

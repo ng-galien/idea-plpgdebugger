@@ -60,13 +60,10 @@ class PlDebuggerSettingsDialog : Configurable {
                 row {
                     checkBox("Enable indirect debug (experimental)")
                         .bindSelected(formData::enableIndirect)
+                        .comment("Enable indirect debug on function definition")
                 }
             }
             collapsibleGroup("Custom Commands") {
-                row {
-                    checkBox("Enable session command")
-                        .bindSelected(formData::enableCustomCommand)
-                }
                 row {
                     checkBox("Enable custom command")
                         .bindSelected(formData::enableCustomCommand)

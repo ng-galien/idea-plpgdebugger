@@ -19,6 +19,11 @@ enum class ApiQuery(val sql: String,
     VOID(
         SELECT_NULL,
         Producer<Any> { PlApiVoid() }),
+    RAW_VOID(
+        "%s",
+        Producer<Any> { PlApiVoid() },
+        true
+    ),
     RAW_BOOL(
         "%s",
         Producer<Any> { PlApiBoolean(it.bool()) }),
@@ -165,7 +170,11 @@ enum class ApiQuery(val sql: String,
     ),
 
     GET_SHARED_LIBRARIES(
-        sql = "SHOW shared_preload_libraries;",
+        sql = """
+        SELECT setting
+        FROM pg_settings
+        WHERE name = 'shared_preload_libraries'
+        """.trimIndent(),
         producer = Producer<Any> {
             PlApiString(it.string())
         },
