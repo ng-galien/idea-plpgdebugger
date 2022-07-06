@@ -3,6 +3,10 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+- Upgrade plugin version
+- Upgrade kotlin version
+- Upgrade platform version
+- Remove deprecated implementation
 
 ## [221.1.3]
 ### Fixed
