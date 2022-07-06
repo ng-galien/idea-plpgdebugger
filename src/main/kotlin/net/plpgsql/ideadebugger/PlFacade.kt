@@ -4,6 +4,7 @@
 
 package net.plpgsql.ideadebugger
 
+import com.intellij.database.console.client.DatabaseSessionClient
 import com.intellij.database.dataSource.DatabaseConnectionPoint
 import com.intellij.database.dataSource.LocalDataSource
 import com.intellij.database.datagrid.DataRequest
@@ -57,15 +58,16 @@ class PlFacade : SqlDebuggerFacade {
         return checkDataSource(ds)
     }
 
-    @Deprecated("Deprecated in Java")
+
+
     override fun createController(
         project: Project,
-        connection: DatabaseConnectionPoint,
-        owner: DataRequest.OwnerEx,
+        connectionPoint: DatabaseConnectionPoint,
+        consoleRequestOwner: DatabaseSessionClient,
         scriptIsMeaningful: Boolean,
         virtualFile: VirtualFile?,
         rangeMarker: RangeMarker?,
-        searchPath: SearchPath?,
+        searchPath: SearchPath?
     ): SqlDebugController {
         logger.debug("createController")
 
@@ -78,10 +80,23 @@ class PlFacade : SqlDebuggerFacade {
 
         return PlController (
             project = project,
-            connectionPoint = connection,
+            connectionPoint = connectionPoint,
             searchPath = searchPath,
             callDefinition = callDefinition,
         )
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun createController(
+        p0: Project,
+        p1: DatabaseConnectionPoint,
+        p2: DataRequest.OwnerEx,
+        p3: Boolean,
+        p4: VirtualFile?,
+        p5: RangeMarker?,
+        p6: SearchPath?
+    ): SqlDebugController {
+        TODO("Deprecated")
     }
 
     /**
