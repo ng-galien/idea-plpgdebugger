@@ -3,6 +3,8 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+
+## [221.1.4]
 - Upgrade plugin version
 - Upgrade kotlin version
 - Upgrade platform version
