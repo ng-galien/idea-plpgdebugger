@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [222.0.0]
+- Branch 222
+- Upgrade plugin version
+- Upgrade kotlin version
+- Upgrade platform version
+
 ## [221.1.4]
 - Upgrade plugin version
 - Upgrade kotlin version
