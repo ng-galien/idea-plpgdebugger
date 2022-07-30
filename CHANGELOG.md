@@ -3,6 +3,8 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+
+## [222.0.0]
 - Branch 222
 - Upgrade plugin version
 - Upgrade kotlin version
