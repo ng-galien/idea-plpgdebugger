@@ -58,8 +58,6 @@ class PlFacade : SqlDebuggerFacade {
         return checkDataSource(ds)
     }
 
-
-
     override fun createController(
         project: Project,
         connectionPoint: DatabaseConnectionPoint,
