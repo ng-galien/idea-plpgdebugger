@@ -14,6 +14,11 @@ import com.intellij.xdebugger.XSourcePosition
 import com.intellij.xdebugger.evaluation.EvaluationMode
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 
+/**
+ * Custom debugger editor provider
+ *
+ * @author Alexandre Boyer
+ */
 class PlEditorProvider : XDebuggerEditorsProvider() {
 
     companion object {
@@ -32,5 +37,4 @@ class PlEditorProvider : XDebuggerEditorsProvider() {
     ): Document {
         return EditorFactory.getInstance().createDocument("")
     }
-
 }

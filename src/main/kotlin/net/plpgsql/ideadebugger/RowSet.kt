@@ -6,10 +6,20 @@ package net.plpgsql.ideadebugger
 
 import java.util.*
 
+/**
+ * Consumes a RowIterator.
+ *
+ * @author Alexandre Boyer
+ */
 fun interface Producer<R> {
     fun consume(rs: RowIterator<R>): R
 }
 
+/**
+ * Iterates over and consumes a RowIterator.
+ *
+ * @author Alexandre Boyer
+ */
 abstract class RowIterator<R>(private val producer: Producer<R>) : Iterator<R>, AutoCloseable {
 
     abstract fun bool(): Boolean
@@ -23,7 +33,6 @@ abstract class RowIterator<R>(private val producer: Producer<R>) : Iterator<R>, 
     }
 }
 
-
 interface RowSet<R> {
     fun open(): RowIterator<R>?
     fun fetch(args: List<String>)
@@ -36,7 +45,6 @@ abstract class AbstractRowSet<R>(protected val producer: Producer<R>, private va
     val values: List<R>
         get() = _items
 
-
     override fun fetch(args: List<String>) {
         path = String.format(cmd, *args.toTypedArray())
         open().use {
@@ -44,4 +52,3 @@ abstract class AbstractRowSet<R>(protected val producer: Producer<R>, private va
         }
     }
 }
-
