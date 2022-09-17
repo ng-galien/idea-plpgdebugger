@@ -8,15 +8,15 @@
 Debug PL/pg SQL with Intellij Database Tools<br/><br/>
 
 ## Features
-- Debug directly from SELECT statements
-- Debug routines and triggers from database tree
+- Debug queries from editor
+- Debug routines and triggers from database explorer
 - Full support for variables inspection with [Docker custom debugger](https://github.com/ng-galien/idea-plpgdebugger/blob/221/docker/README.md)
 
 Submit features => [Production ready task list](https://github.com/ng-galien/idea-plpgdebugger/issues/17)  
 Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea-plpgdebugger/issues/new/choose)
 <!-- Plugin description end -->
 
-### Use the enhanced debugger
+### Use the enhanced debugger in a Docker container
 
 Try out the Docker image with the ready to use enhanced debugger (versions 11 to 14).
 
@@ -29,7 +29,7 @@ Run this script on your database
 To build your own image instructions are [here](docker/README.md)
 
 
-### Direct debug in a console from a SELECT statement
+### Debug a routine from the editor
 
 Just write a statement using the function you want to debug
 

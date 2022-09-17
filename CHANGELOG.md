@@ -3,6 +3,9 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+- Update plugin version
+- Update plugin gradle version
+- Update Github Actions
 
 ## [222.0.0]
 - Branch 222

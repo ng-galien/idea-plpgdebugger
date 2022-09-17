@@ -23,7 +23,7 @@ import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 
 /**
- * Implements Database Tools the debugger facade
+ * Implements DatabaseTools debugger facade
  */
 class PlFacade : SqlDebuggerFacade {
 
@@ -58,6 +58,9 @@ class PlFacade : SqlDebuggerFacade {
         return checkDataSource(ds)
     }
 
+    /**
+     * Creates a new debug controller
+     */
     override fun createController(
         project: Project,
         connectionPoint: DatabaseConnectionPoint,
@@ -84,6 +87,9 @@ class PlFacade : SqlDebuggerFacade {
         )
     }
 
+    /**
+     * TODO: remove this method when DatabaseTools will be fixed
+     */
     @Deprecated("Deprecated in Java")
     override fun createController(
         p0: Project,
@@ -103,5 +109,4 @@ class PlFacade : SqlDebuggerFacade {
     private fun checkDataSource(ds: LocalDataSource): Boolean {
         return ds.dbms.isPostgres
     }
-
 }
