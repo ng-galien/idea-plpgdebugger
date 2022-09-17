@@ -5,10 +5,12 @@
 package net.plpgsql.ideadebugger.settings
 
 import net.plpgsql.ideadebugger.command.ApiQuery
-import org.jetbrains.annotations.ApiStatus
 
-
-@ApiStatus.Internal
+/**
+ * Settings for the PL/SQL Debugger
+ *
+ * @author Alexandre Boyer
+ */
 data class PlPluginSettings(
     var attachTimeOut: Int = 3000,
     var stepTimeOut: Int = 3000,
