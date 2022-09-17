@@ -9,7 +9,7 @@ plugins {
     // Kotlin support
     id("org.jetbrains.kotlin.jvm") version "1.7.10"
     // Gradle IntelliJ Plugin
-    id("org.jetbrains.intellij") version "1.7.0"
+    id("org.jetbrains.intellij") version "1.8.0"
     // Gradle Changelog Plugin
     id("org.jetbrains.changelog") version "1.3.1"
     // Gradle Qodana Plugin
@@ -27,8 +27,8 @@ repositories {
 dependencies {
     testImplementation(kotlin("test"))
     testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation(platform("org.junit:junit-bom:5.8.2"))
-    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.8.2")
+    testImplementation(platform("org.junit:junit-bom:5.9.0"))
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.9.0")
 }
 
 // Configure Gradle IntelliJ Plugin - read more: https://github.com/JetBrains/gradle-intellij-plugin
@@ -108,9 +108,7 @@ tasks {
 
     signPlugin {
         certificateChain.set(System.getenv("CERTIFICATE_CHAIN"))
-        //certificateChain.set(File(System.getenv("CERTIFICATE_CHAIN") ?: "C:\\dev\\cert\\chain.crt").readText(Charsets.UTF_8))
         privateKey.set(System.getenv("PRIVATE_KEY"))
-        //privateKey.set(File(System.getenv("PRIVATE_KEY") ?: "C:\\dev\\cert\\private.pem").readText(Charsets.UTF_8))
         password.set(System.getenv("PRIVATE_KEY_PASSWORD"))
     }
 
