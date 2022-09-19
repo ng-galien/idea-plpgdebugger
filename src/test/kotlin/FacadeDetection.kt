@@ -5,7 +5,6 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import net.plpgsql.ideadebugger.DEFAULT_SCHEMA
 import net.plpgsql.ideadebugger.DebugMode
 import net.plpgsql.ideadebugger.getCallStatement
-import net.plpgsql.ideadebugger.settings.PlPluginSettings
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Test
 
@@ -33,7 +32,7 @@ class FacadeDetection : BasePlatformTestCase() {
         testSuite.forEach {
             val psiFile = createLightFile("dummy.sql", PgDialect.INSTANCE, it.key)
             val stmt = psiFile.children.first() as SqlStatement
-            val call = getCallStatement(stmt, PlPluginSettings())
+            val call = getCallStatement(stmt)
             call.parseFunctionCall()
             Assertions.assertNotNull(call)
             Assertions.assertEquals(DebugMode.DIRECT, call.debugMode)
@@ -58,7 +57,7 @@ class FacadeDetection : BasePlatformTestCase() {
         testSuite.forEach {
             val psiFile = createLightFile("dummy.sql", PgDialect.INSTANCE, it.key)
             val stmt = psiFile.children.first() as SqlStatement
-            val call = getCallStatement(stmt, PlPluginSettings())
+            val call = getCallStatement(stmt)
             call.parseFunctionCall()
             Assertions.assertNotNull(call)
             Assertions.assertEquals(DebugMode.DIRECT, call.debugMode)
@@ -68,6 +67,6 @@ class FacadeDetection : BasePlatformTestCase() {
         }
     }
 
-    data class Function(val schema: String, val routine: String, val args: Map<String,  String>);
+    data class Function(val schema: String, val routine: String, val args: Map<String,  String>)
 
 }
