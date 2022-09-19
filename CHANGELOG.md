@@ -3,6 +3,8 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+- Remove indirect debug option
+- Fix console output
 
 ## [222.0.3]
 - Update plugin version
