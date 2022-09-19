@@ -14,7 +14,6 @@ import net.plpgsql.ideadebugger.command.ApiQuery
 data class PlPluginSettings(
     var attachTimeOut: Int = 3000,
     var stepTimeOut: Int = 3000,
-    var enableIndirect: Boolean = false,
     var showInlineVariable: Boolean = true,
     var enableCustomCommand: Boolean = false,
     var customCommand: String = "SELECT 'DEBUGGER PRE COMMAND';",
