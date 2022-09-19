@@ -57,11 +57,6 @@ class PlDebuggerSettingsDialog : Configurable {
                     checkBox("Display variables in code")
                         .bindSelected(formData::showInlineVariable)
                 }
-                row {
-                    checkBox("Enable indirect debug (experimental)")
-                        .bindSelected(formData::enableIndirect)
-                        .comment("Enable indirect debug on function definition")
-                }
             }
             collapsibleGroup("Custom Commands") {
                 row {

@@ -15,7 +15,6 @@ import com.intellij.lang.Language
 import com.intellij.openapi.project.Project
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.PgDialect
-import com.intellij.sql.psi.SqlCreateProcedureStatement
 import com.intellij.sql.psi.SqlFunctionCallExpression
 import com.intellij.sql.psi.SqlStatement
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
@@ -67,21 +66,10 @@ fun getAuxiliaryConnection(
 /**
  *
  */
-fun getCallStatement(statement: SqlStatement, settings: PlPluginSettings): CallDefinition {
-    return when (statement) {
-        is SqlCreateProcedureStatement -> {
-            if (settings.enableIndirect) {
-                CallDefinition(DebugMode.INDIRECT, statement, statement.text)
-            } else {
-                CallDefinition(DebugMode.NONE, null, "")
-            }
-        }
-        else -> {
-            val callElement =
-                PsiTreeUtil.findChildrenOfType(statement, SqlFunctionCallExpression::class.java).firstOrNull()
-            CallDefinition(DebugMode.DIRECT, callElement, statement.text)
-        }
-    }
+fun getCallStatement(statement: SqlStatement): CallDefinition {
+    val callElement =
+        PsiTreeUtil.findChildrenOfType(statement, SqlFunctionCallExpression::class.java).firstOrNull()
+    return CallDefinition(DebugMode.DIRECT, callElement, statement.text)
 }
 
 /**
@@ -98,13 +86,6 @@ fun sanitizeQuery(sql: String): String {
 
 fun unquote(s: String): String = s.removeSurrounding("\"")
 
-/*
-
-
-DbElement element = DbNavigationUtils.extractDbElementFromPsi(o);
-DataGrid grid = element == null ? null : DataGridPomTarget.unwrapDataGrid(o);
-return element != null && DbNavigationUtils.canNavigateToData(element) ? DbNavigationUtils.createToDataNavigatable(element) : null;
- */
 
 
 

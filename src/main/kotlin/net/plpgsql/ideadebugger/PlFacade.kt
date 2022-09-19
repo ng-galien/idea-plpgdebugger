@@ -20,7 +20,6 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.sql.psi.SqlStatement
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
-import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 
 /**
  * Implements DatabaseTools debugger facade
@@ -40,7 +39,7 @@ class PlFacade : SqlDebuggerFacade {
         if (watcher.isDebugging()) {
             return false
         }
-        callDefinition = getCallStatement(statement, PlDebuggerSettingsState.getInstance().state)
+        callDefinition = getCallStatement(statement)
         return callDefinition.canSelect()
     }
 

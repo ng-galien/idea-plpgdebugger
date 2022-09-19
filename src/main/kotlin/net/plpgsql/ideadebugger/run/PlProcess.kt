@@ -54,6 +54,10 @@ class PlProcess(
     val fileManager = PlSourceManager(session.project, executor)
     private var callDef: CallDefinition? = null
 
+    init {
+        executor.xSession = session
+    }
+
     override fun startStepOver(context: XSuspendContext?) {
         logger.debug("User request: startStepOver")
         command.add(ApiQuery.STEP_OVER)
@@ -127,39 +131,7 @@ class PlProcess(
         return (stack.topFrame as XStack.XFrame?)?.let { frame ->
 
             // Get stack and file breakpoint list for merge
-            val stackBreakPoints = executor.getBreakPoints().filter {
-                it.oid == frame.file.oid
-            }.filter {
-                it.line > 0
-            }.map {
-                it.line + frame.file.start
-            }
-            val fileBreakPoints = breakpoints["${frame.plFrame.oid}"]?.map {
-                it.line
-            } ?: listOf()
-
-            // Remove stack break point not in file list
-            stackBreakPoints.filter {
-                !fileBreakPoints.contains(it)
-            }.forEach {
-                executor.updateBreakPoint(ApiQuery.DROP_BREAKPOINT, frame.file.oid, it - frame.file.start)
-            }
-
-            // Add missing breakPoints to stack and verify for existing
-            val (toCheck, toAdd) = fileBreakPoints.partition { stackBreakPoints.contains(it) }
-
-            breakpoints["${frame.plFrame.oid}"]?.filter {
-                toAdd.contains(it.line)
-            }?.forEach {
-                addBreakpoint(frame.file, it)
-            }
-            if (first) {
-                breakpoints["${frame.plFrame.oid}"]?.filter {
-                    toCheck.contains(it.line)
-                }?.forEach {
-                    session.setBreakpointVerified(it)
-                }
-            }
+            val fileBreakPoints = mergeBreakPoint(first, frame)
 
             //We can go to next step
             val next = first && fileBreakPoints.isNotEmpty()
@@ -173,6 +145,43 @@ class PlProcess(
             StepInfo(frame.getSourceLine() + 1, frame.file.codeRange.second, frame.getSourceRatio())
         }
 
+    }
+
+    private fun mergeBreakPoint(first: Boolean, frame: XStack.XFrame): List<Int> {
+        val stackBreakPoints = executor.getBreakPoints().filter {
+            it.oid == frame.file.oid
+        }.filter {
+            it.line > 0
+        }.map {
+            it.line + frame.file.start
+        }
+        val fileBreakPoints = breakpoints["${frame.plFrame.oid}"]?.map {
+            it.line
+        } ?: listOf()
+
+        // Remove stack break point not in file list
+        stackBreakPoints.filter {
+            !fileBreakPoints.contains(it)
+        }.forEach {
+            executor.updateBreakPoint(ApiQuery.DROP_BREAKPOINT, frame.file.oid, it - frame.file.start)
+        }
+
+        // Add missing breakPoints to stack and verify for existing
+        val (toCheck, toAdd) = fileBreakPoints.partition { stackBreakPoints.contains(it) }
+
+        breakpoints["${frame.plFrame.oid}"]?.filter {
+            toAdd.contains(it.line)
+        }?.forEach {
+            addBreakpoint(frame.file, it)
+        }
+        if (first) {
+            breakpoints["${frame.plFrame.oid}"]?.filter {
+                toCheck.contains(it.line)
+            }?.forEach {
+                session.setBreakpointVerified(it)
+            }
+        }
+        return fileBreakPoints
     }
 
     fun addBreakpoint(file: PlFunctionSource, breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
@@ -352,25 +361,7 @@ class PlProcess(
 
                 val query = command.take()
                 logger1.debug("Command was taken from queue: ${query.name}")
-                var step: PlApiStep? = null
-                when (query) {
-                    ApiQuery.ABORT -> {
-                        executor.abort()
-                    }
-                    ApiQuery.VOID -> {
-                        step = PlApiStep(executor.entryPoint, -1, "")
-                    }
-                    ApiQuery.STEP_OVER,
-                    ApiQuery.STEP_CONTINUE,
-                    ApiQuery.STEP_INTO -> {
-                        step = executor.runStep(query)
-                    }
-                    else -> {
-                        logger1.warn("Unsupported command, canceling")
-                        proxyProgress?.cancel()
-                    }
-                }
-
+                val step: PlApiStep? = getStep(query)
                 if (step != null) {
                     updateStack()?.let {
                         proxyProgress?.displayInfo(query, step, it)
@@ -382,9 +373,30 @@ class PlProcess(
             logger1.debug("Thread end")
         }
 
+        private fun getStep(query: ApiQuery): PlApiStep? {
+            return when (query) {
+                ApiQuery.ABORT -> {
+                    executor.abort()
+                    null
+                }
+                ApiQuery.VOID -> {
+                    PlApiStep(executor.entryPoint, -1, "")
+                }
+                ApiQuery.STEP_OVER,
+                ApiQuery.STEP_CONTINUE,
+                ApiQuery.STEP_INTO -> {
+                    executor.runStep(query)
+                }
+                else -> {
+                    logger1.warn("Unsupported command, canceling")
+                    proxyProgress?.cancel()
+                    null
+                }
+            }
+        }
+
     }
 
     data class StepInfo(val pos: Int, val total: Int, val ratio: Double)
-
 
 }
