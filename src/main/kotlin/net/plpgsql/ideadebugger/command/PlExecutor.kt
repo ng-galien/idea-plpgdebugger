@@ -175,7 +175,7 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
 
         val query = vars.joinToString(separator = "\nUNION ALL\n", postfix = ";") {
             // Fix array type prefixed with underscore and NULL
-            val realValue = "('${it.value.value.replace("'", "''")}'::${it.value.type})"
+            val realValue = "('${it.value.value.replace("'", "''")}'::${it.value.type.replace("record","text")})"
             var jsonValue: String
             var prettyValue: String
             // Transform to jsonb
