@@ -3,6 +3,8 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+
+## [222.1.0]
 - Outputs RECORD type for PG 14 & 13 (Thanks to @cvas71)
 - Update Docker images.
 
