@@ -1,22 +1,17 @@
 # Docker Image
 
-## Build
+## Build the image
 
-> export PG_VERSION=14
-> docker build --build-arg "TAG=$PG_VERSION" -t "galien0xffffff/postgres-debugger:$PG_VERSION" .
+```bash
+export PG_VERSION=14 \
+&& export PG_IMAGE=postgres-with-debugger \
+&& docker build --build-arg "TAG=$PG_VERSION" -t "$PG_IMAGE:$PG_VERSION" .
+```
 
-## Run
+## Run the image
 
-> docker run -p 5514:5432 --name PG14-debug -e POSTGRES_PASSWORD=postgres -d galien0xffffff/postgres-debugger:14
-
-## Functions to duplicate from pl_exec.c
-
-* exec_eval_datum
-* convert_value_to_string
-* plpgsql_fulfill_promise
-* get_stmt_mcontext
-* instantiate_empty_record_variable
-* revalidate_rectypeid
-* make_tuple_from_row
-* assign_text_var
-* assign_simple_var
+```bash
+export PG_VERSION=14 \
+&& export PG_IMAGE=postgres-with-debugger \
+&& docker run -p 55$PG_VERSION:5432 --name "PostgresSQL-$PG_VERSION-debug" -e POSTGRES_PASSWORD=postgres -d "$PG_IMAGE:$PG_VERSION"
+```
