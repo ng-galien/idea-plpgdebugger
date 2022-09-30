@@ -3,6 +3,8 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+- Outputs RECORD type for PG 14 & 13 (Thanks to @cvas71)
+- Update Docker images.
 
 ## [222.0.4]
 - Remove indirect debug option
