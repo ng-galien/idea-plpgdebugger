@@ -3,10 +3,13 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+
+## [222.2.0]
 ### Features
 - Tree support for JSON variables
 - RECORD type is managed as JSON
 - Update Dockerfile to use latest version of plpgdebugger
+
 ### Breaking changes
 - Update the postgres plugin for proper RECORD handling
 
