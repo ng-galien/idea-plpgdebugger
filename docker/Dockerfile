@@ -13,8 +13,7 @@ ENV PLUGIN_BRANCH=print-vars
 # APT
 RUN apt --yes update \
     && apt --yes upgrade \
-    && apt --yes install \
-    git build-essential libreadline-dev zlib1g-dev bison libkrb5-dev flex $PG_LIB \
+    && apt --yes install git build-essential libreadline-dev zlib1g-dev bison libkrb5-dev flex $PG_LIB \
     && cd /usr/src/ \
     && git clone -b $PG_BRANCH --single-branch https://github.com/postgres/postgres.git \
     && cd postgres \
@@ -26,8 +25,7 @@ RUN apt --yes update \
     && make USE_PGXS=1 \
     && make USE_PGXS=1 install \
     && rm -r /usr/src/postgres \
-    && apt --yes remove --purge \
-        git build-essential libreadline-dev zlib1g-dev bison libkrb5-dev flex $PG_LIB \
+    && apt --yes remove --purge git build-essential libreadline-dev zlib1g-dev bison libkrb5-dev flex $PG_LIB \
     && apt --yes autoremove  \
     && apt --yes clean
 
