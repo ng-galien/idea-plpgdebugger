@@ -4,6 +4,7 @@
 
 package net.plpgsql.ideadebugger
 
+import com.google.gson.*
 import com.intellij.icons.AllIcons
 import com.intellij.util.ThreeState
 import com.intellij.xdebugger.XDebuggerUtil
@@ -230,9 +231,9 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     override fun renderValue(renderer: XValueTextRenderer) {
                         val type = if (isArray()) "${plVar.arrayType}[]" else plVar.type
                         renderer.renderComment("$type => ")
-                        renderer.renderValue(plVar.value.substring(0, min(plVar.value.length, 50)))
+                        val renderedValue = plVar.value
+                        renderer.renderValue(renderedValue.substring(0, min(renderedValue.length, 50)))
                     }
-
                 },
                 canExplode()
             )
@@ -247,7 +248,26 @@ class XStack(process: PlProcess) : XExecutionStack("") {
         }
 
         override fun computeChildren(node: XCompositeNode) {
-            explode(node, executor.explode(plVar))
+            val list = if (isJSON()) {
+                when(val jsonElement = JsonParser.parseString(plVar.value)) {
+                    is JsonObject -> {
+                        jsonElement.entrySet().map {
+                            fromJson(plVar.type, it.key, it.value)
+                        }
+                    }
+                    is JsonArray -> {
+                        listOf<PlApiValue>().toMutableList().apply {
+                            jsonElement.forEachIndexed { index, jsonElement ->
+                                add(fromJson(plVar.type, "${plVar.name}[$index]", jsonElement))
+                            }
+                        }
+                    }
+                    else -> listOf()
+                }
+            } else {
+                executor.explode(plVar)
+            }
+            explode(node, list)
             executor.printStack()
         }
 
@@ -269,6 +289,34 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             }
         }
 
+        private fun fromJson(type: String, name: String, jsonElement: JsonElement): PlApiValue {
+            val displayType = when(jsonElement) {
+                is JsonPrimitive -> {
+                    when {
+                        jsonElement.isString -> "string"
+                        jsonElement.isNumber -> "number"
+                        jsonElement.isBoolean -> "boolean"
+                        else -> "unknown"
+                    }
+                }
+                else -> type
+            }
+            return when(jsonElement) {
+
+                is JsonObject -> {
+                    PlApiValue(0, name, displayType, 'b', false, "", jsonElement.toString(), jsonElement.toString())
+                }
+                is JsonArray -> {
+                    PlApiValue(0, name, displayType, 'b', true, "json", jsonElement.toString(), jsonElement.toString())
+                }
+                is JsonPrimitive -> {
+                    PlApiValue(0, name, displayType, 'b', false, "", jsonElement.toString(), jsonElement.toString())
+                }
+                else -> {
+                    PlApiValue(0, name, displayType, 'b', false, "", jsonElement.toString(), jsonElement.toString())
+                }
+            }
+        }
 
         override fun computeInlineDebuggerData(callback: XInlineDebuggerDataCallback): ThreeState {
 
@@ -316,6 +364,8 @@ class XStack(process: PlProcess) : XExecutionStack("") {
 
         private fun isComposite() = plVar.kind == 'c'
 
+        private fun isJSON() = plVar.type in listOf("json", "jsonb", "record", "jsonArray")
+
         private fun canExplode(): Boolean {
             if (plNull(plVar.value)) {
                 return false
@@ -323,7 +373,14 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             if (isArray()) {
                 return plVar.value != "[]"
             }
-            return isComposite()
+            if (isJSON()) {
+                return when(val jsonElement = JsonParser.parseString(plVar.value)) {
+                    is JsonObject -> jsonElement.entrySet().isNotEmpty()
+                    is JsonArray -> !jsonElement.isEmpty
+                    else -> false
+                }
+            }
+            return isComposite() || isJSON()
         }
     }
 
