@@ -21,9 +21,7 @@ RUN apt --yes update \
     && cd /usr/src/postgres/contrib \
     && git clone -b $PLUGIN_BRANCH --single-branch https://github.com/ng-galien/pldebugger.git \
     && cd pldebugger \
-    && make clean \
-    && make USE_PGXS=1 \
-    && make USE_PGXS=1 install \
+    && make clean && make USE_PGXS=1 && make USE_PGXS=1 install \
     && rm -r /usr/src/postgres \
     && apt --yes remove --purge git build-essential libreadline-dev zlib1g-dev bison libkrb5-dev flex $PG_LIB \
     && apt --yes autoremove  \
