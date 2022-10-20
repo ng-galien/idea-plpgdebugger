@@ -15,8 +15,8 @@ import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindow
+import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
-import com.intellij.ui.content.Content
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugSession
 import net.plpgsql.ideadebugger.command.PlExecutor
@@ -32,7 +32,6 @@ class PlController(
 
     private lateinit var plProcess: PlProcess
     lateinit var xSession: XDebugSession
-    internal val windowLister = ToolListener()
     private val settings = PlDebuggerSettingsState.getInstance().state
     private var executor: PlExecutor? = null
 
@@ -40,6 +39,7 @@ class PlController(
     override fun getReady() {
         console("Controller: getReady")
         executor?.let { Disposer.register(xSession.consoleView, it) }
+        val windowLister = ToolListener(xSession.sessionName)
         project.messageBus.connect(xSession.consoleView).subscribe(ToolWindowManagerListener.TOPIC, windowLister)
     }
 
@@ -49,7 +49,7 @@ class PlController(
         executor = PlExecutor(getAuxiliaryConnection(project, connectionPoint, searchPath))
 
         plProcess = PlProcess(session, executor!!)
-
+        @Suppress("DialogTitleCapitalization")
         if (!callDefinition.canDebug()) {
             val notification = Notification(
                 "PL/pg Notifications",
@@ -113,40 +113,31 @@ class PlController(
     override fun close() {
         console("Controller: close")
         if (callDefinition.debugMode == DebugMode.DIRECT) {
-            windowLister.close()
+            closeDebugWindow(xSession.sessionName)
             Disposer.dispose(DatabaseSessionManager.getSession(project, connectionPoint))
         }
     }
 
-    inner class ToolListener : ToolWindowManagerListener {
-
-        private var debugWindow: ToolWindow? = null
-        private var first: Boolean = false
-        private var acutal: Content? = null
-        private var hasShown = false
-
-        override fun toolWindowShown(toolWindow: ToolWindow) {
-            if (toolWindow.id == "Debug") {
-                debugWindow = toolWindow
-                first = true
-            }
-            if (first && toolWindow.id != "Debug") {
-                debugWindow?.show()
-                acutal = debugWindow?.contentManager?.contents?.find {
-                    it.tabName == xSession.sessionName
+    private fun closeDebugWindow(sessionName: String) {
+        runInEdt {
+            ToolWindowManager.getInstance(project).getToolWindow("Debug")?.let { toolWindow ->
+                toolWindow.contentManager.contents.first {
+                    it.tabName == sessionName
+                }.let {
+                    it.manager?.removeContent(it, true)
                 }
-                first = false
-                hasShown = true
-            }
-        }
-
-        fun close() {
-            runInEdt {
-                windowLister.acutal?.let { debugWindow?.contentManager?.removeContent(it, true) }
             }
         }
     }
 
+    inner class ToolListener(private val sessionName: String) : ToolWindowManagerListener {
+
+        override fun toolWindowShown(toolWindow: ToolWindow) {
+            if (toolWindow.id == "Debug") {
+                toolWindow.show()
+            }
+        }
+    }
 }
 
 
