@@ -5,9 +5,10 @@
 [![Downloads](https://img.shields.io/jetbrains/plugin/d/18419-postgresql-debugger.svg)](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger)
 
 <!-- Plugin description -->
-Debug PL/pg SQL with Intellij Database Tools<br/><br/>
+Debug PL/pg SQL with Intellij Database Tools
 
 ## Features
+
 - Debug queries from editor
 - Debug routines and triggers from database explorer
 - Full support for variables inspection with [Docker custom debugger](https://github.com/ng-galien/idea-plpgdebugger/blob/221/docker/README.md)
@@ -28,7 +29,6 @@ Run this script on your database
 
 To build your own image instructions are [here](docker/README.md)
 
-
 ### Debug a routine from the editor
 
 Just write a statement using the function you want to debug
@@ -47,8 +47,8 @@ Choose Debug routine action in the database tree and run it in a console
 
 (Composite types are not returned by the extension see [Limitation](#limitation))
 
-  * Basic variables
-  * Arrays(including array of composite)
+- Basic variables
+- Arrays(including array of composite)
 
 ![](img/inspect-variables.png)
 
@@ -73,9 +73,9 @@ At the moment indirect debugging is not supported but will be available soon.
 ## Installation
 
 ### Server
+
 You must first install the debugger extension and activate the shared library onto the server.  
 Follow these [instructions for PgAdmin](https://www.pgadmin.org/docs/pgadmin4/development/debugger.html)
-
 
 ### IDE
 
@@ -89,10 +89,7 @@ Follow these [instructions for PgAdmin](https://www.pgadmin.org/docs/pgadmin4/de
   Download the [latest release](https://github.com/ng-galien/idea-plpgdebugger/releases/latest) and install it manually using
   <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
 
-
 ---
 Plugin based on the [IntelliJ Platform Plugin Template][template].
-
-
 
 [template]: https://github.com/JetBrains/intellij-platform-plugin-template
