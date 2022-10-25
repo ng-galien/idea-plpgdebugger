@@ -1,5 +1,4 @@
 import org.jetbrains.changelog.markdownToHTML
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 fun properties(key: String) = project.findProperty(key).toString()
 
@@ -25,10 +24,37 @@ repositories {
 }
 
 dependencies {
+    // Kotlin and logging
     testImplementation(kotlin("test"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation(platform("org.junit:junit-bom:5.9.0"))
-    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.9.0")
+    testImplementation(kotlin("reflect"))
+    testRuntimeOnly("ch.qos.logback:logback-classic:1.4.4")
+    testRuntimeOnly("org.fusesource.jansi:jansi:2.4.0")
+
+    // Junit 5 for IntelliJ
+    testImplementation("org.junit.platform:junit-platform-runner:1.9.0")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.9.1")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.1")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:5.9.1")
+    testImplementation(platform("org.junit:junit-bom:5.9.1"))
+    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.9.1")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.1")
+    // Postgres container and driver
+    testImplementation("org.testcontainers:testcontainers:1.17.5")
+    testImplementation("org.testcontainers:junit-jupiter:1.17.5")
+    testImplementation("org.jdbi:jdbi3-kotlin:3.34.0")
+    testImplementation("org.jdbi:jdbi3-kotlin-sqlobject:3.34.0")
+    testImplementation("org.postgresql:postgresql:42.5.0")
+    // JDBI
+    testImplementation("org.jdbi:jdbi3-postgres:3.34.0")
+    testImplementation("org.jdbi:jdbi3-testing:3.34.0")
+    // Guava
+    testImplementation("com.google.guava:guava:31.0.1-jre")
+}
+
+kotlin {
+    jvmToolchain {
+        languageVersion.set(JavaLanguageVersion.of(properties("javaVersion")))
+    }
 }
 
 // Configure Gradle IntelliJ Plugin - read more: https://github.com/JetBrains/gradle-intellij-plugin
@@ -56,16 +82,6 @@ qodana {
 }
 
 tasks {
-    // Set the JVM compatibility versions
-    properties("javaVersion").let {
-        withType<JavaCompile> {
-            sourceCompatibility = it
-            targetCompatibility = it
-        }
-        withType<KotlinCompile> {
-            kotlinOptions.jvmTarget = it
-        }
-    }
 
     wrapper {
         gradleVersion = properties("gradleVersion")
@@ -123,7 +139,7 @@ tasks {
 
     test {
         useJUnitPlatform {
-            includeEngines("junit-vintage")
+            includeEngines("junit-vintage", "junit-jupiter")
         }
     }
 }

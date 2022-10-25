@@ -106,6 +106,10 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
         }
     }
 
+    fun positionToLine(position: Int): Int {
+        return position + start
+    }
+
     override fun getCharset(): Charset = Charsets.UTF_8
 
     override fun getFileSystem(): VirtualFileSystem = PlVirtualFileSystem.getInstance()
