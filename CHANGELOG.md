@@ -4,7 +4,7 @@
 
 ## [Unreleased]
 ### Bugfixes
-- Incorrect line position [#84]()
+- Incorrect line position [#86]()
 
 ## [222.2.0]
 ### Features
