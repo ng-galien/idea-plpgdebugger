@@ -3,6 +3,8 @@ CREATE OR REPLACE FUNCTION function_with_declare_with_comments()
 AS
 $$
 -- This is a comment
+-- This is a comment
+-- This is a comment
 DECLARE
     v_result INTEGER;
 BEGIN
@@ -13,6 +15,3 @@ BEGIN
     RETURN v_result;
 END;
 $$LANGUAGE plpgsql;
-
-
-

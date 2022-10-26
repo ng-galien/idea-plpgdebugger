@@ -33,10 +33,10 @@ class PlFunctionSourceTest(
         @Parameterized.Parameters(name= "{index}: {0}")
         fun data() : Collection<Array<Any>> {
             return listOf(
-                arrayOf("function_with_declare", 2, 6 to 12),
-                arrayOf("function_with_declare_with_comments", 3, 7 to 13),
+                arrayOf("function_with_declare", 2, 7 to 14),
+                arrayOf("function_with_declare_with_comments", 2, 9 to 15),
                 arrayOf("function_without_declare", 2, 4 to 9),
-                arrayOf("function_without_declare_with_comments", 3, 5 to 10),
+                arrayOf("function_without_declare_with_comments", 2, 5 to 10),
             )
         }
         var postgres = getPGContainer("14")

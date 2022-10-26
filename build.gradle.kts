@@ -24,6 +24,7 @@ repositories {
 }
 
 dependencies {
+
     // Kotlin and logging
     testImplementation(kotlin("test"))
     testImplementation(kotlin("reflect"))

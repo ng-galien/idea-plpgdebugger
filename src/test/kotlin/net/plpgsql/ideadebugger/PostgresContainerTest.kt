@@ -31,6 +31,7 @@ class PostgresContainerTest {
         DynamicTest.dynamicTest("the function $name should be loaded and retrieved" ) {
             val sourceCode = getFunctionSource(this, postgres, name)
             assertNotNull(sourceCode)
+
         }
     }
 }

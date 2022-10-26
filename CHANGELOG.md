@@ -3,6 +3,8 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+### Bugfixes
+- Incorrect line position [#84]()
 
 ## [222.2.0]
 ### Features
