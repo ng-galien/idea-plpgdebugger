@@ -34,7 +34,7 @@ class PlController(
     lateinit var xSession: XDebugSession
     private val settings = PlDebuggerSettingsState.getInstance().state
     private var executor: PlExecutor? = null
-    
+
     override fun getReady() {
         console("Controller: getReady")
         executor?.let { Disposer.register(xSession.consoleView, it) }
