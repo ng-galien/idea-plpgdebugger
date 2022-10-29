@@ -34,15 +34,13 @@ class PlController(
     lateinit var xSession: XDebugSession
     private val settings = PlDebuggerSettingsState.getInstance().state
     private var executor: PlExecutor? = null
-
-
+    
     override fun getReady() {
         console("Controller: getReady")
         executor?.let { Disposer.register(xSession.consoleView, it) }
-        val windowLister = ToolListener(xSession.sessionName)
+        val windowLister = ToolListener()
         project.messageBus.connect(xSession.consoleView).subscribe(ToolWindowManagerListener.TOPIC, windowLister)
     }
-
 
     override fun initLocal(session: XDebugSession): XDebugProcess {
         xSession = session
@@ -130,11 +128,19 @@ class PlController(
         }
     }
 
-    inner class ToolListener(private val sessionName: String) : ToolWindowManagerListener {
+    inner class ToolListener() : ToolWindowManagerListener {
 
+        private var debugWindow: ToolWindow? = null
+        private var first: Boolean = false
         override fun toolWindowShown(toolWindow: ToolWindow) {
+
             if (toolWindow.id == "Debug") {
-                toolWindow.show()
+                debugWindow = toolWindow
+                first = true
+            }
+            if (first && toolWindow.id != "Debug") {
+                debugWindow?.show()
+                first = false
             }
         }
     }

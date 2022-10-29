@@ -33,7 +33,6 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
     val oid: Long = def.oid
     private var isTrigger = false
     var start: Int = 0
-    private var end: Int = 0
     var codeRange = Pair(0, 0)
     val lineRangeCount: Int by lazy {
         codeRange.second - codeRange.first
@@ -41,7 +40,6 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
     val psiArgs = mutableMapOf<String, PsiElement>()
     val psiVariables = mutableMapOf<String, PsiElement>()
     val psiUse = mutableMapOf<String, MutableList<Pair<Int, PsiElement>>>()
-
 
     init {
         runReadAction {
@@ -59,11 +57,15 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
                         psiVariables[unquote(v.text)] = v
                     }
                 }
+                PsiTreeUtil.collectElements(psi){
+                    it is SqlTokenElement && it.text.lowercase() == "\$function\$"
+                }.firstOrNull()?.let { el ->
+                    PsiDocumentManager.getInstance(psi.project).getDocument(psi)?.let { doc ->
+                        start = doc.getLineNumber(el.textOffset) - 1
+                    }
+                }
                 PsiTreeUtil.findChildOfType(psi, SqlBlockStatement::class.java)?.let { block ->
                     PsiDocumentManager.getInstance(psi.project).getDocument(psi)?.let { doc ->
-                        start = doc.getLineNumber(block.textOffset) - 2
-                        end = doc.getLineNumber(block.textOffset + block.textLength) - 2
-
                         val beginEl = PsiTreeUtil.collectElements(block){
                             it is SqlTokenElement && it.text.uppercase() == "BEGIN"
                         }.firstOrNull()
@@ -104,6 +106,10 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
                 }
             }
         }
+    }
+
+    fun positionToLine(position: Int): Int {
+        return position + start
     }
 
     override fun getCharset(): Charset = Charsets.UTF_8

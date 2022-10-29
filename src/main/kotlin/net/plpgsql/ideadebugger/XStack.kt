@@ -74,7 +74,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             return XDebuggerUtil.getInstance().createPosition(file, getSourceLine())
         }
 
-        fun getSourceLine(): Int = plFrame.line + file.start
+        fun getSourceLine(): Int = file.positionToLine(plFrame.line)
 
         override fun computeChildren(node: XCompositeNode) {
             val list = XValueChildrenList()

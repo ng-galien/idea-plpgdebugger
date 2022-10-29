@@ -3,6 +3,8 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+### Bugfixes
+- Incorrect line position [#86](https://github.com/ng-galien/idea-plpgdebugger/issues/86)
 
 ## [222.2.0]
 ### Features
