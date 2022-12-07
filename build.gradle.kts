@@ -1,3 +1,4 @@
+import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
 
 fun properties(key: String) = project.findProperty(key).toString()
@@ -8,9 +9,9 @@ plugins {
     // Kotlin support
     id("org.jetbrains.kotlin.jvm") version "1.6.21"
     // Gradle IntelliJ Plugin
-    id("org.jetbrains.intellij") version "1.9.0"
+    id("org.jetbrains.intellij") version "1.10.0"
     // Gradle Changelog Plugin
-    id("org.jetbrains.changelog") version "1.3.1"
+    id("org.jetbrains.changelog") version "2.0.0"
     // Gradle Qodana Plugin
     id("org.jetbrains.qodana") version "0.1.13"
 }
@@ -28,7 +29,7 @@ dependencies {
     // Kotlin and logging
     testImplementation(kotlin("test"))
     testImplementation(kotlin("reflect"))
-    testRuntimeOnly("ch.qos.logback:logback-classic:1.4.4")
+    testRuntimeOnly("ch.qos.logback:logback-classic:1.4.5")
     testRuntimeOnly("org.fusesource.jansi:jansi:2.4.0")
 
     // Junit 5 for IntelliJ
@@ -40,16 +41,16 @@ dependencies {
     testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.9.1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.1")
     // Postgres container and driver
-    testImplementation("org.testcontainers:testcontainers:1.17.5")
-    testImplementation("org.testcontainers:junit-jupiter:1.17.5")
+    testImplementation("org.testcontainers:testcontainers:1.17.6")
+    testImplementation("org.testcontainers:junit-jupiter:1.17.6")
     testImplementation("org.jdbi:jdbi3-kotlin:3.34.0")
     testImplementation("org.jdbi:jdbi3-kotlin-sqlobject:3.34.0")
-    testImplementation("org.postgresql:postgresql:42.5.0")
+    testImplementation("org.postgresql:postgresql:42.5.1")
     // JDBI
     testImplementation("org.jdbi:jdbi3-postgres:3.34.0")
     testImplementation("org.jdbi:jdbi3-testing:3.34.0")
     // Guava
-    testImplementation("com.google.guava:guava:31.0.1-jre")
+    testImplementation("com.google.guava:guava:31.1-jre")
 }
 
 kotlin {
@@ -108,9 +109,9 @@ tasks {
 
         // Get the latest available change notes from the changelog file
         changeNotes.set(provider {
-            changelog.run {
+            changelog.renderItem(changelog.run {
                 getOrNull(properties("pluginVersion")) ?: getLatest()
-            }.toHTML()
+            }, Changelog.OutputType.HTML)
         })
     }
 

@@ -3,6 +3,9 @@
 # idea-plpgdebugger Changelog
 
 ## [Unreleased]
+### Dependencies
+- Intellij 222.3
+- Graddle plugin 1.10
 
 ## [222.2.1]
 ### Bugfixes
