@@ -2,16 +2,21 @@
 
 # idea-plpgdebugger Changelog
 
-## [Unreleased]
+## Unreleased
+
+## 222.3.0 - 2022-12-07
+
 ### Dependencies
 - Intellij 222.3
 - Graddle plugin 1.10
 
-## [222.2.1]
+## 222.2.1
+
 ### Bugfixes
 - Incorrect line position [#86](https://github.com/ng-galien/idea-plpgdebugger/issues/86)
 
-## [222.2.0]
+## 222.2.0
+
 ### Features
 - Tree support for JSON variables
 - RECORD type is managed as JSON
@@ -20,32 +25,33 @@
 ### Breaking changes
 - Update the postgres plugin for proper RECORD handling
 
-## [222.1.0]
+## 222.1.0
 - Outputs RECORD type for PG 14 & 13 (Thanks to @cvas71)
 - Update Docker images.
 
-## [222.0.4]
+## 222.0.4
 - Remove indirect debug option
 - Fix console output
 
-## [222.0.3]
+## 222.0.3
 - Update plugin version
 - Update plugin gradle version
 - Update Github Actions
 
-## [222.0.0]
+## 222.0.0
 - Branch 222
 - Upgrade plugin version
 - Upgrade kotlin version
 - Upgrade platform version
 
-## [221.1.4]
+## 221.1.4
 - Upgrade plugin version
 - Upgrade kotlin version
 - Upgrade platform version
 - Remove deprecated implementation
 
-## [221.1.3]
+## 221.1.3
+
 ### Fixed
 - Fix shared_preload_libraries detection
 - Fix search_path from database tree
@@ -56,48 +62,50 @@
 ### Added
 - Build against Intellij 221.1.1
 
-## [221.1.2]
+## 221.1.2
 - Kotlin upgrade
 - Plugin versions upgrade
 - Images for Dockerized debugger
 
-## [221.1.1]
+## 221.1.1
 - Intellij 2022.1 support
 
-## [213.1.1]
+## 213.1.1
+
 ### Added
 - Change version scheme
 
 ### Fixed
 - NPE on database tree
 
-## [1.2.1]
+## 1.2.1
+
 ### Added
 - Debug a routine from the database tree
 
-## [1.2.0]
+## 1.2.0
+
 ### Added
 - Prevent running debugger twice
 - Manage quoted identifier and schema
 - Experimental support of indirect debugging
 
-## [1.2.0-beta2]
+## 1.2.0-beta2
+
 ### Fix
 - Sessions issues
 - NULL handling with array and composite types
 
-## [1.2.0-beta]
-- Use background task:
-  - User can control debug task
+## 1.2.0-beta
+- - User can control debug task
   - Gracefully terminate session
-- Inline variable display
-  - User can see variable in code
+- - User can see variable in code
   - Variable with long value are truncated
 
-## [1.1.1]
+## 1.1.1
+
 ### Added
-- Plugin configuration:
-  - Custom query on both running and debugging session
+- - Custom query on both running and debugging session
   - Add SQL specific verbosity
 
 ### Changed
@@ -105,10 +113,10 @@
 - Fix breakpoint support for PROCEDURE
 - Improved breakpoint management
 
-## [1.0.3]
+## 1.0.3
+
 ### Added
-- Plugin configuration:
-  - Timeout control
+- - Timeout control
   - Output verbosity
   - Internal queries(to fix manually)
   - Failure tests(for developer)
@@ -118,7 +126,8 @@
 - Better error handling
 - Close owner connection when something has failed
 
-## [1.0.2]
+## 1.0.2
+
 ### Added
 - Plugin configuration: timeouts and output verbosity
 
@@ -126,12 +135,14 @@
 - Fix procedure detection
 - Many internal changes
 
-## [1.0.1]
+## 1.0.1
+
 ### Changed
 - Ignore case when for function detection
 - Avoid JSON transformation error
 
-## [1.0.0-rc1]
+## 1.0.0-rc1
+
 ### Changed
 - Commands are within the PlExecutor
 - Better verbosity
@@ -140,7 +151,8 @@
 - Progress on A routine with an enum in arg fails #13
 - Fix compatibility with last DatabaseTool implementation
 
-## [1.0.0-beta]
+## 1.0.0-beta
+
 ### Added
 - Support for breakpoint
 - Implements a Virtual File System to store debug files
@@ -148,12 +160,14 @@
 ### Changed
 - Refactor many parts for future test support
 
-## [1.0.0-alpha1]
+## 1.0.0-alpha1
+
 ### Added
 - Fix procedure identification on specific schema
 - Gracefully handle debug connection
 
-## [1.0.0-alpha]
+## 1.0.0-alpha
+
 ### Added
 - Allow direct debug of a PL/pg function
 - View variables
