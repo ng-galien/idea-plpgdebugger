@@ -175,7 +175,8 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
 
         val query = vars.joinToString(separator = "\nUNION ALL\n", postfix = ";") {
             // Fix array type prefixed with underscore and NULL
-            val realValue = "('${it.value.value.replace("'", "''")}'::${it.value.type.replace("record","text")})"
+            val realType = if (it.value.isText) "text" else it.value.type.replace("record", "text")
+            val realValue = "('${it.value.value.replace("'", "''")}'::${realType})"
             var jsonValue: String
             var prettyValue: String
             // Transform to jsonb
@@ -191,7 +192,7 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
                 prettyValue = "'NULL'"
             }
             "SELECT ${it.isArg},${it.line},${it.value.oid},'${it.value.name}','${it.value.type}','${it.value.kind}'," +
-                    "${it.value.isArray},'${it.value.arrayType}',$jsonValue, $prettyValue"
+                    "${it.value.isArray},'${it.value.isText}','${it.value.arrayType}',$jsonValue, $prettyValue"
 
         }
         return executeQuery(query = ApiQuery.GET_JSON_VARIABLES, args = listOf(query))

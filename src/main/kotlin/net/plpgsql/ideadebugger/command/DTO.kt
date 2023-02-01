@@ -70,6 +70,7 @@ data class PlApiValue(
     val type: String,
     val kind: Char,
     val isArray: Boolean,
+    val isText: Boolean,
     val arrayType: String,
     val value: String,
     val pretty: String
