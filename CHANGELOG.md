@@ -4,6 +4,15 @@
 
 ## Unreleased
 
+### Bugfixes
+
+- CHAR type is now managed as TEXT [#93](https://github.com/ng-galien/idea-plpgdebugger/issues/93) [#94](https://github.com/ng-galien/idea-plpgdebugger/issues/94) - Thanks to  [ghtropic](https://github.com/ghtropic)
+
+### Dependencies
+
+- Kotlin 1.7
+- Intellij plugin 1.12
+
 ## 222.3.0 - 2022-12-07
 
 ### Dependencies
