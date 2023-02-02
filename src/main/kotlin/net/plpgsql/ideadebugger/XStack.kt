@@ -107,10 +107,11 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     "Function",
                     "text",
                     'b',
-                    false,
-                    "",
-                    file.name,
-                    file.name,
+                    isArray = false,
+                    isText = false,
+                    arrayType = "",
+                    value = file.name,
+                    pretty = file.name,
                 )
             ),
             PlApiStackVariable(
@@ -121,10 +122,11 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     "Oid",
                     "int8",
                     'b',
-                    false,
-                    "",
-                    "${plFrame.oid}",
-                    "${plFrame.oid}",
+                    isArray = false,
+                    isText = false,
+                    arrayType = "",
+                    value = "${plFrame.oid}",
+                    pretty = "${plFrame.oid}",
                 )
             ),
             PlApiStackVariable(
@@ -135,10 +137,11 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     "Level",
                     "int4",
                     'b',
-                    false,
-                    "",
-                    "${plFrame.level}",
-                    "${plFrame.level}",
+                    isArray = false,
+                    isText = false,
+                    arrayType = "",
+                    value = "${plFrame.level}",
+                    pretty = "${plFrame.level}",
                 )
             ),
             PlApiStackVariable(
@@ -149,10 +152,11 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     "Line",
                     "int4",
                     'b',
-                    false,
-                    "",
-                    "${getSourceLine()}",
-                    "${getSourceLine()}",
+                    isArray = false,
+                    isText = false,
+                    arrayType = "",
+                    value = "${getSourceLine()}",
+                    pretty = "${getSourceLine()}",
                 )
             ),
             PlApiStackVariable(
@@ -163,10 +167,11 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     "Range Start",
                     "int4",
                     'b',
-                    false,
-                    "",
-                    "${file.codeRange.first}",
-                    "${file.codeRange.first}",
+                    isArray = false,
+                    isText = false,
+                    arrayType = "",
+                    value = "${file.codeRange.first}",
+                    pretty = "${file.codeRange.first}",
                 )
             ),
             PlApiStackVariable(
@@ -177,10 +182,11 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     "Range End",
                     "int4",
                     'b',
-                    false,
-                    "",
-                    "${file.codeRange.second}",
-                    "${file.codeRange.second}",
+                    isArray = false,
+                    isText = false,
+                    arrayType = "",
+                    value = "${file.codeRange.second}",
+                    pretty = "${file.codeRange.second}",
                 )
             ),
         )
@@ -304,16 +310,40 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             return when(jsonElement) {
 
                 is JsonObject -> {
-                    PlApiValue(0, name, displayType, 'b', false, "", jsonElement.toString(), jsonElement.toString())
+                    PlApiValue(0, name, displayType, 'b',
+                        isArray = false,
+                        isText = false,
+                        arrayType = "",
+                        value = jsonElement.toString(),
+                        pretty = jsonElement.toString()
+                    )
                 }
                 is JsonArray -> {
-                    PlApiValue(0, name, displayType, 'b', true, "json", jsonElement.toString(), jsonElement.toString())
+                    PlApiValue(0, name, displayType, 'b',
+                        isArray = true,
+                        isText = false,
+                        arrayType = "json",
+                        value = jsonElement.toString(),
+                        pretty = jsonElement.toString()
+                    )
                 }
                 is JsonPrimitive -> {
-                    PlApiValue(0, name, displayType, 'b', false, "", jsonElement.toString(), jsonElement.toString())
+                    PlApiValue(0, name, displayType, 'b',
+                        isArray = false,
+                        isText = false,
+                        arrayType = "",
+                        value = jsonElement.toString(),
+                        pretty = jsonElement.toString()
+                    )
                 }
                 else -> {
-                    PlApiValue(0, name, displayType, 'b', false, "", jsonElement.toString(), jsonElement.toString())
+                    PlApiValue(0, name, displayType, 'b',
+                        isArray = false,
+                        isText = false,
+                        arrayType = "",
+                        value = jsonElement.toString(),
+                        pretty = jsonElement.toString()
+                    )
                 }
             }
         }
