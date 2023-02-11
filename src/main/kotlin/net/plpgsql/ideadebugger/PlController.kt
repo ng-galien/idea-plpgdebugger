@@ -74,12 +74,7 @@ class PlController(
             return plProcess
         }
 
-        // DatabaseTools identification
-        callDefinition.identify()
-
-        if (!callDefinition.canStartDebug()) {
-            callDefinition.identify(executor!!)
-        }
+        callDefinition.identify(executor!!)
 
         if (!callDefinition.canStartDebug()) {
             executor!!.setError("[FAKE]Function not found: schema=${callDefinition.schema}, name=${callDefinition.routine}")

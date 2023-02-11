@@ -41,7 +41,7 @@ class CallDefinition(
     /**
      * Get routine information from Database Tool internal API
      */
-    fun identify() {
+    fun identifyWithDatabaseTools() {
         psi?.let {
             runReadAction {
                 PsiTreeUtil.collectElements(psi) { it.reference != null }.firstOrNull()?.references?.forEach { ref ->
@@ -64,14 +64,26 @@ class CallDefinition(
      * Get routine information from SQL queries
      */
     fun identify(executor: PlExecutor) {
-        parseFunctionCall()
-        searchCallee(executor)
+        //If the mode is ANONYMOUS, we don't need to identify the routine
+        if(debugMode == DebugMode.ANONYMOUS) {
+            createAndGetTempFunction(executor)
+            return
+        }
+        identifyWithDatabaseTools()
+        if(!canStartDebug()) {
+            parseFunctionCall()
+            searchCallee(executor)
+        }
+    }
+
+    private fun createAndGetTempFunction(executor: PlExecutor) {
+        TODO("Not yet implemented")
     }
 
     /**
      * If the statement is a candidate for selection
      */
-    fun canSelect(): Boolean =debugMode != DebugMode.NONE && psi != null
+    fun canSelect(): Boolean = debugMode != DebugMode.NONE && psi != null
 
     /**
      * If the selected statement can be debugged

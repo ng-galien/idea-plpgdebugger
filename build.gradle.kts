@@ -7,7 +7,7 @@ plugins {
     // Java support
     java
     // Kotlin support
-    kotlin("jvm") version "1.7.21"
+    kotlin("jvm") version "1.7.22"
     // Gradle IntelliJ Plugin
     id("org.jetbrains.intellij") version "1.12.0"
     // Gradle Changelog Plugin
@@ -26,6 +26,9 @@ repositories {
 
 dependencies {
 
+    //Arrow
+    implementation(platform("io.arrow-kt:arrow-stack:1.1.2"))
+    implementation("io.arrow-kt:arrow-core")
     // Kotlin and logging
     testImplementation(kotlin("test"))
     testImplementation(kotlin("reflect"))

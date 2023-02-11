@@ -15,8 +15,11 @@ import com.intellij.lang.Language
 import com.intellij.openapi.project.Project
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.PgDialect
+import com.intellij.sql.psi.SqlCodeBlockElement
 import com.intellij.sql.psi.SqlFunctionCallExpression
 import com.intellij.sql.psi.SqlStatement
+import com.intellij.sql.psi.SqlToken
+import com.intellij.sql.psi.impl.SqlTokenElement
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 import net.plpgsql.ideadebugger.settings.PlPluginSettings
 
@@ -28,7 +31,7 @@ const val DEBUGGER_SHARED_LIBRARY = "plugin_debugger"
 const val DEBUGGER_SESSION_NAME = "idea_debugger"
 
 enum class DebugMode {
-    NONE, DIRECT, INDIRECT
+    NONE, DIRECT, INDIRECT, ANONYMOUS
 }
 
 
@@ -67,6 +70,15 @@ fun getAuxiliaryConnection(
  *
  */
 fun getCallStatement(statement: SqlStatement): CallDefinition {
+    statement.children.first().let { firstChild ->
+        if (firstChild is SqlTokenElement) {
+            if (firstChild.text.lowercase() == "do") {
+                //SqlCodeBlockElement
+                val codeBlock = PsiTreeUtil.findChildOfType(statement, SqlCodeBlockElement::class.java)
+                return CallDefinition(DebugMode.ANONYMOUS, statement, codeBlock?.text ?: "")
+            }
+        }
+    }
     val callElement =
         PsiTreeUtil.findChildrenOfType(statement, SqlFunctionCallExpression::class.java).firstOrNull()
     return CallDefinition(DebugMode.DIRECT, callElement, statement.text)
