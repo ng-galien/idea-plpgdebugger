@@ -4,6 +4,8 @@
 
 ## Unreleased
 
+## 222.3.3 - 2023-03-31
+
 ### Maintenance
 - Platform 2023.1
 - Remove deprecated code
