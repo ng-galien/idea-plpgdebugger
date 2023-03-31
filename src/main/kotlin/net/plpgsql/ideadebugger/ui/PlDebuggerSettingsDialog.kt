@@ -6,11 +6,7 @@ package net.plpgsql.ideadebugger.ui
 
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.DialogPanel
-import com.intellij.ui.dsl.builder.bindIntText
-import com.intellij.ui.dsl.builder.bindSelected
-import com.intellij.ui.dsl.builder.bindText
-import com.intellij.ui.dsl.builder.panel
-import com.intellij.ui.dsl.gridLayout.HorizontalAlign
+import com.intellij.ui.dsl.builder.*
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 import javax.swing.JComponent
 
@@ -67,7 +63,7 @@ class PlDebuggerSettingsDialog : Configurable {
                     textArea()
                         .bindText(formData::customCommand)
                         .resizableColumn()
-                        .horizontalAlign(HorizontalAlign.FILL)
+                        .align(AlignX.CENTER)
                         .comment(
                             """
                             Optional command run on the internal debugger session 
@@ -113,7 +109,7 @@ class PlDebuggerSettingsDialog : Configurable {
                         textArea()
                             .bindText(formData::queryFuncArgs)
                             .resizableColumn()
-                            .horizontalAlign(HorizontalAlign.FILL)
+                            .align(AlignX.CENTER)
                             .comment(
                                 """
                                 Fetch arguments of the function<br/>
@@ -124,7 +120,7 @@ class PlDebuggerSettingsDialog : Configurable {
                         textArea()
                             .bindText(formData::queryRawVars)
                             .resizableColumn()
-                            .horizontalAlign(HorizontalAlign.FILL)
+                            .align(AlignX.CENTER)
                             .comment(
                                 """
                                 Fetch variable definition and values<br/>
@@ -136,7 +132,7 @@ class PlDebuggerSettingsDialog : Configurable {
                         textArea()
                             .bindText(formData::queryExplodeComposite)
                             .resizableColumn()
-                            .horizontalAlign(HorizontalAlign.FILL)
+                            .align(AlignX.CENTER)
                             .comment(
                                 """
                                 Fetch members of a composite value in the stack<br/>
@@ -148,7 +144,7 @@ class PlDebuggerSettingsDialog : Configurable {
                         textArea()
                             .bindText(formData::queryExplodeArray)
                             .resizableColumn()
-                            .horizontalAlign(HorizontalAlign.FILL)
+                            .align(AlignX.CENTER)
                             .comment(
                                 """
                                 Fetch members of an array value in the stack<br/>
