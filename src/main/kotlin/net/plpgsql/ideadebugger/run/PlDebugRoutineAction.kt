@@ -11,6 +11,7 @@ import com.intellij.database.util.DbImplUtilCore
 import com.intellij.database.util.ObjectPaths
 import com.intellij.database.util.SearchPath
 import com.intellij.database.view.getSelectedDbElements
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
@@ -66,6 +67,10 @@ class PlDebugRoutineAction : AnAction() {
 
         p.text = if (debugWaiting()) "Open Routine" else "Debug Routine"
         p.icon = PlDebuggerIcons.DebugAction
+    }
+
+    override fun getActionUpdateThread(): ActionUpdateThread {
+        return ActionUpdateThread.BGT
     }
 
 
