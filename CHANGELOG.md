@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+### Maintenance
+- Platform 2023.1
+- Plugin version 1.13.3
+- Remove deprecated code
+
 ## 222.3.2 - 2023-02-02
 
 ### Bugfixes
