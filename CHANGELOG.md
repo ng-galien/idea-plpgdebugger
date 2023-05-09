@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+### Bugfixes
+
+- Fix NoSuchElementException when running pldbg_create_listener [#102](https://github.com/ng-galien/idea-plpgdebugger/issues/102)
+
 ## 222.3.3 - 2023-03-31
 
 ### Maintenance

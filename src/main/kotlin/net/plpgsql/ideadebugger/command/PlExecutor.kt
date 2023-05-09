@@ -18,9 +18,12 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Debugger SQL executor.
  * Executes queries from the debugger API
  */
+const val EMPTY_ENTRY_POINT = 0L
+const val INVALID_SESSION = 0
+
 class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Disposable {
 
-    var entryPoint = 0L
+    var entryPoint = EMPTY_ENTRY_POINT
     private var ready = true
     var waitingForCompletion = false
     private var lastMessage: Message? = null
@@ -29,7 +32,7 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
 
     private var internalConnection: DatabaseConnection = guardedRef.get()
     var xSession: XDebugSession? = null
-    private var plSession = 0
+    private var plSession = INVALID_SESSION
     private val settings = getSettings()
     var waiting = AtomicBoolean(false)
 
@@ -78,7 +81,7 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         )
     }
 
-    private fun invalidSession(): Boolean = (plSession == 0)
+    private fun invalidSession(): Boolean = (plSession == INVALID_SESSION)
 
     private fun getActivities(): List<PlActivity> {
         return executeQuery(
@@ -108,7 +111,7 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
     fun createListener() {
         plSession = executeQuery<PlApiInt>(
             query = ApiQuery.CREATE_LISTENER
-        ).first().value
+        ).firstOrNull()?.value ?: INVALID_SESSION
     }
 
     fun waitForTarget(): Int {
