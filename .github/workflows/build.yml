@@ -27,7 +27,8 @@ on:
       - '**/Dockerfile'
   # Trigger the workflow on any pull request
   pull_request:
-    branches: ['231-dev']
+    ## Allow to run workflow on pull requests from bugfix branches like #12-[name of the issue]
+    branches: ['^\\d+-.*$']
 
 jobs:
 
