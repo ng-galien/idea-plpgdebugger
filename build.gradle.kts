@@ -58,7 +58,7 @@ dependencies {
     testImplementation("org.jdbi:jdbi3-postgres:3.34.0")
     testImplementation("org.jdbi:jdbi3-testing:3.39.1")
     // Guava
-    testImplementation("com.google.guava:guava:31.1-jre")
+    testImplementation("com.google.guava:guava:32.1.1-jre")
 }
 
 kotlin {
