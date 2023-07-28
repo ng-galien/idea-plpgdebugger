@@ -22,43 +22,38 @@ repositories {
 }
 
 dependencies {
-
     // Postgres
     implementation(libs.postgres)
     // JDBI
     implementation(libs.jdbi3Core)
     implementation(libs.jdbi3Kotlin)
+    implementation(libs.jdbi3Kotlin)
+    implementation(libs.jdbi3SqlObject)
     implementation(libs.jdbi3Postgres)
     // Arrow
-    testImplementation(libs.arrowCore)
-    testImplementation(libs.arrowFxCoroutines)
+    implementation(libs.arrowCore)
+    implementation(libs.arrowFxCoroutines)
 
     // Kotlin and logging
     testImplementation(kotlin("test"))
     testImplementation(kotlin("reflect"))
-    testRuntimeOnly("ch.qos.logback:logback-classic:1.4.5")
-    testRuntimeOnly("org.fusesource.jansi:jansi:2.4.0")
-
+    testRuntimeOnly(libs.logbackClassic)
+    testRuntimeOnly(libs.jansi)
     // Junit 5 for IntelliJ
-    testImplementation("org.junit.platform:junit-platform-runner:1.9.0")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.9.1")
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.0")
-    testImplementation("org.junit.jupiter:junit-jupiter-params:5.9.1")
-    testImplementation(platform("org.junit:junit-bom:5.9.1"))
-    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.10.0")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.1")
-    // Postgres container and driver
+    testImplementation(platform(libs.junitBom))
+    testImplementation(libs.junitJupiterApi)
+    testImplementation(libs.junitJupiter)
+    testImplementation(libs.junitJupiterParams)
+    testImplementation(libs.junitPlatformRunner)
+    testRuntimeOnly(libs.junitJupiterEngine)
+    testRuntimeOnly(libs.junitVintageEngine)
+    // Container and driver
     testImplementation(libs.testcontainers)
     testImplementation(libs.testcontainersJunitJupiter)
-
-    testImplementation("org.jdbi:jdbi3-kotlin:3.39.1")
-    testImplementation("org.jdbi:jdbi3-kotlin-sqlobject:3.39.1")
-    testImplementation("org.postgresql:postgresql:42.5.1")
-    // JDBI
-    testImplementation("org.jdbi:jdbi3-postgres:3.39.1")
-    testImplementation("org.jdbi:jdbi3-testing:3.39.1")
+    // JDBI testing
+    testImplementation(libs.jdbi3Testing)
     // Guava
-    testImplementation("com.google.guava:guava:32.1.1-jre")
+    testImplementation(libs.guava)
 }
 
 kotlin {

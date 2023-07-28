@@ -8,20 +8,36 @@ changelog = "2.1.2"
 gradleIntelliJPlugin = "1.15.0"
 qodana = "0.1.13"
 kover = "0.7.2"
-
 arrow = "1.2.0"
-
 testcontainers = "1.18.3"
-
 postgres = "42.6.0"
-
 jbdi3 = "3.39.1"
+logback = "1.4.8"
+jansi = "2.4.0"
+junit = "5.9.1"
+junitPlatformRunner = "1.9.0"
+guava = "31.1-jre"
 
 [libraries]
+
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
+
+junitJupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
+junitJupiterApi = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit" }
+junitJupiterEngine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
+junitJupiterParams = { module = "org.junit.jupiter:junit-jupiter-params", version.ref = "junit" }
+junitVintageEngine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junit" }
+junitBom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junitPlatformRunner = { module = "org.junit.platform:junit-platform-runner", version.ref = "junitPlatformRunner" }
+
+logbackClassic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+jansi = { module = "org.fusesource.jansi:jansi", version.ref = "jansi" }
 
 jdbi3Core = { module = "org.jdbi:jdbi3-core", version.ref = "jbdi3" }
 jdbi3Kotlin = { module = "org.jdbi:jdbi3-kotlin", version.ref = "jbdi3" }
 jdbi3Postgres = { module = "org.jdbi:jdbi3-postgres", version.ref = "jbdi3" }
+jdbi3SqlObject = { module = "org.jdbi:jdbi3-sqlobject", version.ref = "jbdi3" }
+jdbi3Testing = { module = "org.jdbi:jdbi3-testing", version.ref = "jbdi3" }
 
 annotations = { group = "org.jetbrains", name = "annotations", version.ref = "annotations" }
 
