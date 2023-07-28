@@ -19,7 +19,7 @@ import net.plpgsql.ideadebugger.getPlLanguage
 import net.plpgsql.ideadebugger.unquote
 import java.nio.charset.Charset
 
-class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFile(
+class PlFunctionSource(project: Project, def: PlApiFunctionDef, val md5: String) : LightVirtualFile(
     "${def.schema}.${def.name}[${def.oid}]",
     getPlLanguage(),
     def.source
@@ -114,7 +114,7 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
 
     override fun getCharset(): Charset = Charsets.UTF_8
 
-    override fun getFileSystem(): VirtualFileSystem = PlVirtualFileSystem.getInstance()
+    override fun getFileSystem(): VirtualFileSystem = PlVirtualFileSystem.Util.getInstance()
 
     override fun getPath(): String = "$oid"
 

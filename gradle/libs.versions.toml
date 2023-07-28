@@ -1,0 +1,41 @@
+[versions]
+# libraries
+annotations = "24.0.1"
+
+# plugins
+kotlin = "1.9.0"
+changelog = "2.1.2"
+gradleIntelliJPlugin = "1.15.0"
+qodana = "0.1.13"
+kover = "0.7.2"
+
+arrow = "1.2.0"
+
+testcontainers = "1.18.3"
+
+postgres = "42.6.0"
+
+jbdi3 = "3.39.1"
+
+[libraries]
+
+jdbi3Core = { module = "org.jdbi:jdbi3-core", version.ref = "jbdi3" }
+jdbi3Kotlin = { module = "org.jdbi:jdbi3-kotlin", version.ref = "jbdi3" }
+jdbi3Postgres = { module = "org.jdbi:jdbi3-postgres", version.ref = "jbdi3" }
+
+annotations = { group = "org.jetbrains", name = "annotations", version.ref = "annotations" }
+
+arrowCore = { module = "io.arrow-kt:arrow-core", version.ref = "arrow" }
+arrowFxCoroutines = { module = "io.arrow-kt:arrow-fx-coroutines", version.ref = "arrow" }
+
+postgres = { module = "org.postgresql:postgresql", version.ref = "postgres" }
+
+testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
+testcontainersJunitJupiter = { module = "org.testcontainers:junit-jupiter", version.ref = "testcontainers" }
+
+[plugins]
+changelog = { id = "org.jetbrains.changelog", version.ref = "changelog" }
+gradleIntelliJPlugin = { id = "org.jetbrains.intellij", version.ref = "gradleIntelliJPlugin" }
+kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
+qodana = { id = "org.jetbrains.qodana", version.ref = "qodana" }

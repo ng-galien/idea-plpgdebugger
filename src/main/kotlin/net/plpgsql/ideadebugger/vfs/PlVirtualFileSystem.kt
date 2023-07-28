@@ -20,11 +20,16 @@ class PlVirtualFileSystem : DummyCachingFileSystem<PlFunctionSource>(PROTOCOL) {
 
     override fun doRenameFile(vFile: VirtualFile, newName: String) {}
 
+    object Util {
+        private val INSTANCE = Objects.requireNonNull(VirtualFileManager.getInstance().getFileSystem(PROTOCOL))
+                as PlVirtualFileSystem
+
+        fun getInstance(): PlVirtualFileSystem = INSTANCE
+    }
+
     companion object {
         const val PROTOCOL: String = "plpgsql"
         const val PROTOCOL_PREFIX: String = "$PROTOCOL://"
-        private val INSTANCE = Objects.requireNonNull(VirtualFileManager.getInstance().getFileSystem(PROTOCOL)) as PlVirtualFileSystem
-        fun getInstance(): PlVirtualFileSystem = INSTANCE
     }
 
     fun registerNewDefinition(file: PlFunctionSource): PlFunctionSource {

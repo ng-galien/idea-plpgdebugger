@@ -4,6 +4,15 @@
 
 ## Unreleased
 
+### Maintenance
+
+- Project template
+- Update dependencies
+
+### Bugfixes
+
+- Fix does not load the latest function [#107](https://github.com/ng-galien/idea-plpgdebugger/issues/107)
+
 ## 231.0.1 - 2023-05-09
 
 ### Bugfixes

@@ -58,7 +58,7 @@ class PlFunctionSourceTest(
     fun `test function source`() {
         val sourceCode = getFunctionSource(this, postgres, file)
         val def = PlApiFunctionDef(0, "public", file, sourceCode, sourceCode.md5())
-        val plSource = PlFunctionSource(project, def)
+        val plSource = PlFunctionSource(project, def, def.md5)
         Assertions.assertEquals(start, plSource.start)
         Assertions.assertEquals(range, plSource.codeRange)
     }
