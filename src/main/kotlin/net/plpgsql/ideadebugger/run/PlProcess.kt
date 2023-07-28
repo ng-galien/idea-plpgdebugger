@@ -246,7 +246,7 @@ class PlProcess(
             executor.setInfo("registerBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
             runReadAction {
                 val path = breakpoint.fileUrl.removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX)
-                val file = PlVirtualFileSystem.getInstance().findFileByPath(path)
+                val file = PlVirtualFileSystem.Util.getInstance().findFileByPath(path)
                 if (file != null && readyToAcceptBreakPoint()) {
                     addBreakpoint(file, breakpoint)
                 }
@@ -260,7 +260,7 @@ class PlProcess(
             executor.setInfo("unregisterBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
             runReadAction {
                 val path = breakpoint.fileUrl.removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX)
-                val file = PlVirtualFileSystem.getInstance().findFileByPath(path)
+                val file = PlVirtualFileSystem.Util.getInstance().findFileByPath(path)
                 if (file != null && readyToAcceptBreakPoint()) {
                     dropBreakpoint(file, breakpoint)
                 }

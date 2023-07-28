@@ -23,6 +23,16 @@ repositories {
 
 dependencies {
 
+    // Postgres
+    implementation(libs.postgres)
+    // JDBI
+    implementation(libs.jdbi3Core)
+    implementation(libs.jdbi3Kotlin)
+    implementation(libs.jdbi3Postgres)
+    // Arrow
+    testImplementation(libs.arrowCore)
+    testImplementation(libs.arrowFxCoroutines)
+
     // Kotlin and logging
     testImplementation(kotlin("test"))
     testImplementation(kotlin("reflect"))
@@ -38,8 +48,9 @@ dependencies {
     testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.9.1")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.1")
     // Postgres container and driver
-    testImplementation("org.testcontainers:testcontainers:1.17.6")
-    testImplementation("org.testcontainers:junit-jupiter:1.17.6")
+    testImplementation(libs.testcontainers)
+    testImplementation(libs.testcontainersJunitJupiter)
+
     testImplementation("org.jdbi:jdbi3-kotlin:3.34.0")
     testImplementation("org.jdbi:jdbi3-kotlin-sqlobject:3.34.0")
     testImplementation("org.postgresql:postgresql:42.5.1")

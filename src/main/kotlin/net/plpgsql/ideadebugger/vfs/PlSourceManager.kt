@@ -11,60 +11,54 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiDocumentManager
 import com.intellij.psi.PsiManager
+import net.plpgsql.ideadebugger.command.PlApiFunctionDef
 import net.plpgsql.ideadebugger.command.PlApiStackFrame
 import net.plpgsql.ideadebugger.command.PlExecutor
 
 class PlSourceManager(private val project: Project, private val executor: PlExecutor) {
 
-    private val vfs = PlVirtualFileSystem.getInstance()
+    private val vfs = PlVirtualFileSystem.Util.getInstance()
 
     fun update(stack: PlApiStackFrame): PlFunctionSource? {
-
-        var virtualFile = runReadAction {
-            vfs.findFileByPath("${stack.oid}")
-        }
-
-        if (virtualFile == null) {
-            val def = executor.getFunctionDef(stack.oid)
-            if (def != null) {
-                virtualFile = vfs.registerNewDefinition(PlFunctionSource(project, def))
+        grabFromDB(stack.oid)?.let { def ->
+            grabFromVFS(def.oid)?.let { vfsFile ->
+                if (!compareMD5(def, vfsFile)) {
+                    updateFileContent(vfsFile, def)
+                }
+            }?: run {
+                vfs.registerNewDefinition(PlFunctionSource(project, def, def.md5))
+            }.let {
+                runInEdt {
+                    FileEditorManager.getInstance(project).openFile(it, true, true)
+                }
             }
         }
+        return vfs.findFileByPath("${stack.oid}")
+    }
 
-        if (virtualFile != null) {
-            runReadAction {
-                PsiManager.getInstance(project).findFile(virtualFile)
-            }?.let { psi ->
-                PsiDocumentManager.getInstance(project).getDocument(psi)?.let { doc ->
-                    if (doc.text != virtualFile.content) {
-                        runInEdt {
-                            runWriteAction {
-                                doc.setText(virtualFile.content)
-                            }
-                        }
+    private fun updateFileContent(vfsFile: PlFunctionSource, def: PlApiFunctionDef) {
+        runReadAction {
+            PsiManager.getInstance(project).findFile(vfsFile)
+        }?.let { psi ->
+            PsiDocumentManager.getInstance(project).getDocument(psi)?.let { doc ->
+                runInEdt {
+                    runWriteAction {
+                        doc.setText(def.source)
                     }
                 }
             }
         }
-
-        if (virtualFile != null) {
-            runInEdt {
-                FileEditorManager.getInstance(project).openFile(virtualFile, true, true)
-            }
-        }
-
-        return virtualFile
     }
 
-    fun getVirtualFile(oid: Long): PlFunctionSource? {
-        return runReadAction {
-            vfs.findFileByPath("${oid}")
-        }
+    private fun grabFromDB(oid: Long): PlApiFunctionDef? {
+        return executor.getFunctionDef(oid)
     }
 
-    fun getSourceFromDatabase(oid: Long): PlFunctionSource? = executor.getFunctionDef(oid)?.let {
-        vfs.registerNewDefinition(PlFunctionSource(project, it))
+    private fun grabFromVFS(oid: Long): PlFunctionSource? = runReadAction {
+        vfs.findFileByPath("$oid")
     }
 
-
+    private fun compareMD5(inDB: PlApiFunctionDef, inVFS: PlFunctionSource): Boolean {
+        return inDB.md5 == inVFS.md5
+    }
 }
