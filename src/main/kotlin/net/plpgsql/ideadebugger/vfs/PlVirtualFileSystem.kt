@@ -23,7 +23,8 @@ class PlVirtualFileSystem : DummyCachingFileSystem<PlFunctionSource>(PROTOCOL) {
     companion object {
         const val PROTOCOL: String = "plpgsql"
         const val PROTOCOL_PREFIX: String = "$PROTOCOL://"
-        private val INSTANCE = Objects.requireNonNull(VirtualFileManager.getInstance().getFileSystem(PROTOCOL)) as PlVirtualFileSystem
+        private val INSTANCE = Objects.requireNonNull(VirtualFileManager.getInstance().getFileSystem(PROTOCOL))
+                as PlVirtualFileSystem
         fun getInstance(): PlVirtualFileSystem = INSTANCE
     }
 

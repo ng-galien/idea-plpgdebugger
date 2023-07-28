@@ -56,5 +56,15 @@ class PlSourceManager(private val project: Project, private val executor: PlExec
         return virtualFile
     }
 
+    fun getVirtualFile(oid: Long): PlFunctionSource? {
+        return runReadAction {
+            vfs.findFileByPath("${oid}")
+        }
+    }
+
+    fun getSourceFromDatabase(oid: Long): PlFunctionSource? = executor.getFunctionDef(oid)?.let {
+        vfs.registerNewDefinition(PlFunctionSource(project, it))
+    }
+
 
 }
