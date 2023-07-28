@@ -1,5 +1,7 @@
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
+import org.jetbrains.intellij.tasks.RunPluginVerifierTask
+import java.util.EnumSet
 
 fun properties(key: String) = providers.gradleProperty(key)
 fun environment(key: String) = providers.environmentVariable(key)
@@ -139,6 +141,22 @@ tasks {
         systemProperty("ide.mac.message.dialogs.as.sheets", "false")
         systemProperty("jb.privacy.policy.text", "<!--999.999-->")
         systemProperty("jb.consents.confirmation.enabled", "false")
+    }
+
+    runPluginVerifier {
+        failureLevel = project.objects.listProperty(RunPluginVerifierTask.FailureLevel::class.java).apply {
+            add(RunPluginVerifierTask.FailureLevel.COMPATIBILITY_WARNINGS)
+            add(RunPluginVerifierTask.FailureLevel.COMPATIBILITY_PROBLEMS)
+//            add(RunPluginVerifierTask.FailureLevel.DEPRECATED_API_USAGES)
+//            add(RunPluginVerifierTask.FailureLevel.SCHEDULED_FOR_REMOVAL_API_USAGES)
+            add(RunPluginVerifierTask.FailureLevel.EXPERIMENTAL_API_USAGES)
+            add(RunPluginVerifierTask.FailureLevel.INTERNAL_API_USAGES)
+            add(RunPluginVerifierTask.FailureLevel.OVERRIDE_ONLY_API_USAGES)
+            add(RunPluginVerifierTask.FailureLevel.NON_EXTENDABLE_API_USAGES)
+            add(RunPluginVerifierTask.FailureLevel.PLUGIN_STRUCTURE_WARNINGS)
+            add(RunPluginVerifierTask.FailureLevel.MISSING_DEPENDENCIES)
+            add(RunPluginVerifierTask.FailureLevel.INVALID_PLUGIN)
+        }
     }
 
     signPlugin {
