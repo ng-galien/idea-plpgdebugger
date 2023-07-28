@@ -51,11 +51,11 @@ dependencies {
     testImplementation(libs.testcontainers)
     testImplementation(libs.testcontainersJunitJupiter)
 
-    testImplementation("org.jdbi:jdbi3-kotlin:3.34.0")
-    testImplementation("org.jdbi:jdbi3-kotlin-sqlobject:3.34.0")
+    testImplementation("org.jdbi:jdbi3-kotlin:3.39.1")
+    testImplementation("org.jdbi:jdbi3-kotlin-sqlobject:3.39.1")
     testImplementation("org.postgresql:postgresql:42.5.1")
     // JDBI
-    testImplementation("org.jdbi:jdbi3-postgres:3.34.0")
+    testImplementation("org.jdbi:jdbi3-postgres:3.39.1")
     testImplementation("org.jdbi:jdbi3-testing:3.39.1")
     // Guava
     testImplementation("com.google.guava:guava:32.1.1-jre")
