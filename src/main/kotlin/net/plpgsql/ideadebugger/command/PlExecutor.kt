@@ -261,7 +261,7 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun <T> executeQuery(
+    private fun <T> executeQuery(
         query: ApiQuery,
         args: List<String> = listOf(),
         dc: DatabaseConnection = internalConnection,

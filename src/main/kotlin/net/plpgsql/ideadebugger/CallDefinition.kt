@@ -45,7 +45,7 @@ class CallDefinition(
         psi?.let {
             runReadAction {
                 PsiTreeUtil.collectElements(psi) { it.reference != null }.firstOrNull()?.references?.forEach { ref ->
-                    ref.resolve()?.let { it ->
+                    ref.resolve()?.let {
                         if (it is DbRoutine) {
                             val delegate = it.delegate
                             if (delegate is PgRoutine) {

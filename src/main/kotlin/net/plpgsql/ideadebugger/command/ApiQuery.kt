@@ -18,15 +18,15 @@ enum class ApiQuery(val sql: String,
 
     VOID(
         SELECT_NULL,
-        Producer<Any> { PlApiVoid() }),
+        Producer { PlApiVoid() }),
     RAW_VOID(
         "%s",
-        Producer<Any> { PlApiVoid() },
+        Producer { PlApiVoid() },
         true
     ),
     RAW_BOOL(
         "%s",
-        Producer<Any> { PlApiBoolean(it.bool()) }),
+        Producer { PlApiBoolean(it.bool()) }),
     PG_ACTIVITY(
         """
         SELECT pid,
@@ -37,22 +37,22 @@ enum class ApiQuery(val sql: String,
         WHERE application_name = '$DEBUGGER_SESSION_NAME'
         AND pid <> pg_backend_pid();
         """,
-        Producer<Any> { PlActivity(it.long(), it.string(), it.string(), it.string()) }),
+        Producer { PlActivity(it.long(), it.string(), it.string(), it.string()) }),
     PG_CANCEL(
         """
         SELECT pg_terminate_backend(%s);
         """,
-        Producer<Any> { PlApiBoolean(it.bool()) }
+        Producer { PlApiBoolean(it.bool()) }
     ),
     CREATE_LISTENER(
         "pldbg_create_listener()",
-        Producer<Any> { PlApiInt(it.int()) }),
+        Producer { PlApiInt(it.int()) }),
     WAIT_FOR_TARGET(
         "pldbg_wait_for_target(%s)",
-        Producer<Any> { PlApiInt(it.int()) }),
+        Producer { PlApiInt(it.int()) }),
     ABORT(
         "pldbg_abort_target(%s)",
-        Producer<Any> { PlApiBoolean(it.bool()) }),
+        Producer { PlApiBoolean(it.bool()) }),
     STEP_OVER(
         """
             SELECT step.func,
@@ -60,7 +60,7 @@ enum class ApiQuery(val sql: String,
                    md5(pg_catalog.pg_get_functiondef(step.func))
             FROM pldbg_step_over(%s) step;
         """,
-        Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) }),
+        Producer { PlApiStep(it.long(), it.int(), it.string()) }),
     STEP_INTO(
         """
             SELECT step.func,
@@ -68,7 +68,7 @@ enum class ApiQuery(val sql: String,
                    md5(pg_catalog.pg_get_functiondef(step.func))
             FROM pldbg_step_into(%s) step;
         """,
-        Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) }),
+        Producer { PlApiStep(it.long(), it.int(), it.string()) }),
     STEP_CONTINUE(
         """
             SELECT step.func,
@@ -76,7 +76,7 @@ enum class ApiQuery(val sql: String,
                    md5(pg_catalog.pg_get_functiondef(step.func))
             FROM pldbg_continue(%s) step;
         """,
-        Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) }),
+        Producer { PlApiStep(it.long(), it.int(), it.string()) }),
 
     LIST_BREAKPOINT(
         """
@@ -85,16 +85,16 @@ enum class ApiQuery(val sql: String,
                    ''
             FROM pldbg_get_breakpoints(%s) bp;
         """,
-        Producer<Any> { PlApiStep(it.long(), it.int(), it.string()) }),
+        Producer { PlApiStep(it.long(), it.int(), it.string()) }),
     SET_GLOBAL_BREAKPOINT(
         "pldbg_set_global_breakpoint(%s, %s, -1, NULL)",
-        Producer<Any> { PlApiBoolean(it.bool()) }),
+        Producer { PlApiBoolean(it.bool()) }),
     SET_BREAKPOINT(
         "pldbg_set_breakpoint(%s, %s, %s)",
-        Producer<Any> { PlApiBoolean(it.bool()) }),
+        Producer { PlApiBoolean(it.bool()) }),
     DROP_BREAKPOINT(
         "pldbg_drop_breakpoint(%s, %s, %s)",
-        Producer<Any> { PlApiBoolean(it.bool()) }),
+        Producer { PlApiBoolean(it.bool()) }),
 
     GET_STACK(
         """
@@ -105,7 +105,7 @@ enum class ApiQuery(val sql: String,
             md5(pg_catalog.pg_get_functiondef(frame.func))
         FROM pldbg_get_stack(%s) frame;
         """,
-        Producer<Any> {
+        Producer {
             PlApiStackFrame(
                 it.int(), // Level
                 it.long(), // Oid
@@ -131,7 +131,7 @@ enum class ApiQuery(val sql: String,
         FROM pldbg_get_variables(%s) t_var
              LEFT JOIN pg_type t_type ON t_var.dtype = t_type.oid
              LEFT JOIN pg_type t_sub ON t_type.typelem = t_sub.oid;
-        """, Producer<Any> {
+        """, Producer {
             PlApiStackVariable(
                 it.bool(),
                 it.int(),
@@ -151,7 +151,7 @@ enum class ApiQuery(val sql: String,
     ),
     GET_JSON_VARIABLES(
         sql = "%s",
-        producer = Producer<Any> {
+        producer = Producer {
             PlApiStackVariable(
                 it.bool(),
                 it.int(),
@@ -177,7 +177,7 @@ enum class ApiQuery(val sql: String,
         FROM pg_settings
         WHERE name = 'shared_preload_libraries'
         """.trimIndent(),
-        producer = Producer<Any> {
+        producer = Producer {
             PlApiString(it.string())
         },
         disableDecoration = true
@@ -192,7 +192,7 @@ enum class ApiQuery(val sql: String,
         FROM pg_extension t_extension
         JOIN pg_namespace t_namespace ON t_extension.extnamespace = t_namespace.oid
         """,
-        Producer<Any> {
+        Producer {
             PlApiExtension(it.string(), it.string(), it.string())
         }
     ),
@@ -227,7 +227,7 @@ enum class ApiQuery(val sql: String,
                  LEFT JOIN pg_type t_type
                            ON t_proc2.proargtype = t_type.oid
                  LEFT JOIN pg_namespace t_type_ns ON t_type.typnamespace = t_type_ns.oid;
-        """, Producer<Any> {
+        """, Producer {
             PlApiFunctionArg(
                 it.long(),
                 it.int(),
@@ -249,7 +249,7 @@ enum class ApiQuery(val sql: String,
         FROM pg_proc t_proc
                  JOIN pg_namespace t_namespace on t_proc.pronamespace = t_namespace.oid
         WHERE t_proc.oid = %s;
-        """, Producer<Any> {
+        """, Producer {
             PlApiFunctionDef(
                 it.long(),
                 it.string(),
@@ -260,7 +260,7 @@ enum class ApiQuery(val sql: String,
         }
     ),
 
-    EXPLODE("%s", Producer<Any> {
+    EXPLODE("%s", Producer {
         PlApiValue(
             it.long(),
             it.string(),
@@ -290,7 +290,7 @@ enum class ApiQuery(val sql: String,
                  JOIN pg_type t_arr_type ON t_type.typelem = t_arr_type.oid
                  LEFT JOIN pg_type t_sub ON t_arr_type.typelem = t_sub.oid;
         """,
-        Producer<Any> {
+        Producer {
             PlApiValue(
                 it.long(),
                 it.string(),
@@ -327,7 +327,7 @@ enum class ApiQuery(val sql: String,
                  JOIN (SELECT '%s'::jsonb val) AS jsonb
                       ON TRUE
         WHERE t_type.oid = %s;
-        """, Producer<Any> {
+        """, Producer {
             PlApiValue(
                 it.long(),
                 it.string(),

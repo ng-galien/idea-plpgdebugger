@@ -8,6 +8,7 @@
 
 - Project template
 - Update dependencies
+- Code cleanup
 
 ### Bugfixes
 

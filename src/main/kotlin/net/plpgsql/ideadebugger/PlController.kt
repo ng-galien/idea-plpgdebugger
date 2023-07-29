@@ -31,7 +31,7 @@ class PlController(
 ) : SqlDebugController() {
 
     private lateinit var plProcess: PlProcess
-    lateinit var xSession: XDebugSession
+    private lateinit var xSession: XDebugSession
     private val settings = PlDebuggerSettingsState.getInstance().state
     private var executor: PlExecutor? = null
 
@@ -128,7 +128,7 @@ class PlController(
         }
     }
 
-    inner class ToolListener() : ToolWindowManagerListener {
+    inner class ToolListener : ToolWindowManagerListener {
 
         private var debugWindow: ToolWindow? = null
         private var first: Boolean = false
