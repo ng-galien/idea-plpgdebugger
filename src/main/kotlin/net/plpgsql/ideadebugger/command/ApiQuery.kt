@@ -343,5 +343,9 @@ enum class ApiQuery(val sql: String,
     ),
 }
 
+fun listToArr(list: List<Any>): String {
+    return list.joinToString(", ", "{", "}")
+}
+
 
 

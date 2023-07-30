@@ -6,7 +6,6 @@ package net.plpgsql.ideadebugger.run
 
 import com.intellij.database.debugger.SqlDebugProcess
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
@@ -21,16 +20,15 @@ import com.intellij.xdebugger.breakpoints.XLineBreakpoint
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
+import kotlinx.collections.immutable.toImmutableList
 import net.plpgsql.ideadebugger.*
-import net.plpgsql.ideadebugger.breakpoint.PlLineBreakpointProperties
-import net.plpgsql.ideadebugger.breakpoint.PlLineBreakpointType
+import net.plpgsql.ideadebugger.breakpoint.DBBreakpointProperties
+import net.plpgsql.ideadebugger.breakpoint.DBLineBreakpointType
 import net.plpgsql.ideadebugger.command.ApiQuery
 import net.plpgsql.ideadebugger.command.PlApiStep
 import net.plpgsql.ideadebugger.command.PlExecutor
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
-import net.plpgsql.ideadebugger.vfs.PlFunctionSource
-import net.plpgsql.ideadebugger.vfs.PlSourceManager
-import net.plpgsql.ideadebugger.vfs.PlVirtualFileSystem
+import net.plpgsql.ideadebugger.vfs.refreshFileFromStackFrame
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -43,7 +41,7 @@ class PlProcess(
 ) : SqlDebugProcess(session) {
 
     private val logger = logger<PlProcess>()
-    private val breakpoints = mutableMapOf<String, MutableList<XLineBreakpoint<PlLineBreakpointProperties>>>()
+    private val breakpoints: MutableList<XLineBreakpoint<DBBreakpointProperties>> = mutableListOf()
     private val context = XContext()
     private var stack: XStack = XStack(this)
     private var breakPointHandler = BreakPointHandler()
@@ -51,8 +49,10 @@ class PlProcess(
     var mode: DebugMode = DebugMode.NONE
     private val proxyTask = ProxyTask(session.project, "PL/pg Debug")
     private var proxyProgress: ProxyIndicator? = null
-    val fileManager = PlSourceManager(session.project, executor)
     private var callDef: CallDefinition? = null
+
+    //getter for breakpoints
+    fun filesBreakpointList() = breakpoints.toImmutableList()
 
     init {
         executor.xSession = session
@@ -107,120 +107,28 @@ class PlProcess(
     /**
      *
      */
-    fun updateStack(): StepInfo? {
-
+    fun updateStack(): StepInfo {
         logger.debug("User request: updateStack")
-        val plStacks = executor.getStack()
-        // If we reach this frame for the first time
-        var first = stack.topFrame?.let {
-            (it as XStack.XFrame).file.oid != plStacks.firstOrNull()?.oid
-        } ?: true
-        // In case of indirect debugging check it's first line
-        if (!first && mode == DebugMode.INDIRECT && stack.topFrame != null) {
-            (stack.topFrame as XStack.XFrame).let {
-                first = it.getSourceLine() == it.file.codeRange.first + 1
-            }
+        val frames = executor.getStack().map {
+            val file = refreshFileFromStackFrame(session.project, executor, it)
+            val firstTime = !stack.hasFile(it.oid)
+            stack.newFrame(file, it.line, it.level, firstTime)
         }
-        executor.setDebug("Reach frame ${plStacks.firstOrNull()?.oid}, first=$first")
-        stack.clear()
-        plStacks.forEach {
-            fileManager.update(it)?.let {
-                source -> stack.append(it, source)
-            }
+        stack.setFrames(frames)
+        val next = needToContinueExecution(stack, this)
+        if (next) {
+            executor.setDebug("Got to next")
+            command.add(ApiQuery.STEP_CONTINUE)
+        } else {
+            session.positionReached(context)
         }
-        return (stack.topFrame as XStack.XFrame?)?.let { frame ->
-
-            // Get stack and file breakpoint list for merge
-            val fileBreakPoints = mergeBreakPoint(first, frame)
-
-            //We can go to next step
-            val next = first && fileBreakPoints.isNotEmpty()
-                    && !fileBreakPoints.any { frame.plFrame.line == it - frame.file.start }
-            if (next) {
-                executor.setDebug("Got to next")
-                command.add(ApiQuery.STEP_CONTINUE)
-            } else {
-                session.positionReached(context)
-            }
-            StepInfo(frame.getSourceLine() + 1, frame.file.codeRange.second, frame.getSourceRatio())
-        }
-
+        return stepInfoForStack(stack)
     }
 
-    private fun mergeBreakPoint(first: Boolean, frame: XStack.XFrame): List<Int> {
-        val stackBreakPoints = executor.getBreakPoints().filter {
-            it.oid == frame.file.oid
-        }.filter {
-            it.line > 0
-        }.map {
-            it.line + frame.file.start
-        }
-        val fileBreakPoints = breakpoints["${frame.plFrame.oid}"]?.map {
-            it.line
-        } ?: listOf()
-
-        // Remove stack break point not in file list
-        stackBreakPoints.filter {
-            !fileBreakPoints.contains(it)
-        }.forEach {
-            executor.updateBreakPoint(ApiQuery.DROP_BREAKPOINT, frame.file.oid, it - frame.file.start)
-        }
-
-        // Add missing breakPoints to stack and verify for existing
-        val (toCheck, toAdd) = fileBreakPoints.partition { stackBreakPoints.contains(it) }
-
-        breakpoints["${frame.plFrame.oid}"]?.filter {
-            toAdd.contains(it.line)
-        }?.forEach {
-            addBreakpoint(frame.file, it)
-        }
-        if (first) {
-            breakpoints["${frame.plFrame.oid}"]?.filter {
-                toCheck.contains(it.line)
-            }?.forEach {
-                session.setBreakpointVerified(it)
-            }
-        }
-        return fileBreakPoints
-    }
-
-    fun addBreakpoint(file: PlFunctionSource, breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
-        logger.debug("addBreakpoint: file=${file.name}, line=${breakpoint.line}")
-        if (executor.updateBreakPoint(
-                ApiQuery.SET_BREAKPOINT,
-                file.oid,
-                breakpoint.line - file.start
-            )
-        ) {
-            session.setBreakpointVerified(breakpoint)
-        }
-    }
-
-    fun dropBreakpoint(file: PlFunctionSource, breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
-        logger.debug("dropBreakpoint: file=${file.name}, line=${breakpoint.line}")
-        executor.updateBreakPoint(
-            ApiQuery.DROP_BREAKPOINT,
-            file.oid,
-            breakpoint.line - file.start
-        )
-    }
-
-    override fun getEditorsProvider(): XDebuggerEditorsProvider {
-        return PlEditorProvider.INSTANCE
-    }
-
-    override fun checkCanInitBreakpoints(): Boolean {
-        return true
-    }
-
-    override fun checkCanPerformCommands(): Boolean {
-        return proxyTask.running.get()
-    }
-
-    override fun getBreakpointHandlers(): Array<XBreakpointHandler<*>> {
-        return arrayOf(breakPointHandler)
-    }
-
+    override fun getEditorsProvider() = PlEditorProvider.INSTANCE
+    override fun checkCanInitBreakpoints() = true
+    override fun checkCanPerformCommands() = proxyTask.running.get()
+    override fun getBreakpointHandlers() = arrayOf(breakPointHandler)
 
     inner class XContext : XSuspendContext() {
 
@@ -239,39 +147,30 @@ class PlProcess(
 
 
     inner class BreakPointHandler :
-        XBreakpointHandler<XLineBreakpoint<PlLineBreakpointProperties>>(PlLineBreakpointType::class.java),
-        XBreakpointListener<XLineBreakpoint<PlLineBreakpointProperties>> {
+        XBreakpointHandler<XLineBreakpoint<DBBreakpointProperties>>(DBLineBreakpointType::class.java),
+        XBreakpointListener<XLineBreakpoint<DBBreakpointProperties>> {
 
-        override fun registerBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
-            executor.setInfo("registerBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
-            runReadAction {
-                val path = breakpoint.fileUrl.removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX)
-                val file = PlVirtualFileSystem.Util.getInstance().findFileByPath(path)
-                if (file != null && readyToAcceptBreakPoint()) {
-                    addBreakpoint(file, breakpoint)
-                }
-                breakpoints[path]?.add(breakpoint) ?: kotlin.run {
-                    breakpoints[path] = mutableListOf(breakpoint)
-                }
-            }
+        override fun registerBreakpoint(breakpoint: XLineBreakpoint<DBBreakpointProperties>) {
+           ensureBreakPoint(this@PlProcess, breakpoint)?.let {
+               breakpoints.add(breakpoint)
+               if (readyToAcceptBreakPoint()) {
+                   addLineBreakPoint(this@PlProcess, breakpoint)
+               }
+           }
         }
 
-        override fun unregisterBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>, temporary: Boolean) {
-            executor.setInfo("unregisterBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
-            runReadAction {
-                val path = breakpoint.fileUrl.removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX)
-                val file = PlVirtualFileSystem.Util.getInstance().findFileByPath(path)
-                if (file != null && readyToAcceptBreakPoint()) {
-                    dropBreakpoint(file, breakpoint)
-                }
-                breakpoints[path]?.removeIf {
-                    it.line == breakpoint.line
+        override fun unregisterBreakpoint(breakpoint: XLineBreakpoint<DBBreakpointProperties>, temporary: Boolean) {
+            ensureBreakPoint(this@PlProcess, breakpoint)?.let {
+                breakpoints.remove(breakpoint)
+                if (readyToAcceptBreakPoint()) {
+                    deleteLineBreakpoint(this@PlProcess, it)
                 }
             }
         }
     }
 
-    fun readyToAcceptBreakPoint(): Boolean = proxyTask.running.get() && !executor.waitingForCompletion
+    fun readyToAcceptBreakPoint():
+            Boolean = proxyTask.running.get() && !executor.waitingForCompletion
 
     inner class ProxyTask(project: Project, title: String) : Task.Backgroundable(project, title, true) {
 
@@ -347,6 +246,7 @@ class PlProcess(
                 executor.createListener()
                 executor.setGlobalBreakPoint()
                 executor.waitForTarget()
+                syncBreakPoints(this@PlProcess)
             }.onFailure {
                 logger1.error("Run failed to start", it)
                 proxyProgress?.cancel()
@@ -363,7 +263,7 @@ class PlProcess(
                 logger1.debug("Command was taken from queue: ${query.name}")
                 val step: PlApiStep? = getStep(query)
                 if (step != null) {
-                    updateStack()?.let {
+                    updateStack().let {
                         proxyProgress?.displayInfo(query, step, it)
                         executor.printStack()
                     }

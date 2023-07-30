@@ -14,12 +14,14 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.psi.*
 import com.intellij.sql.psi.impl.SqlTokenElement
 import com.intellij.testFramework.LightVirtualFile
+import com.intellij.xdebugger.breakpoints.XLineBreakpoint
+import net.plpgsql.ideadebugger.breakpoint.DBBreakpointProperties
 import net.plpgsql.ideadebugger.command.PlApiFunctionDef
 import net.plpgsql.ideadebugger.getPlLanguage
 import net.plpgsql.ideadebugger.unquote
 import java.nio.charset.Charset
 
-class PlFunctionSource(project: Project, def: PlApiFunctionDef, val md5: String) : LightVirtualFile(
+class PlFunctionSource(val project: Project, def: PlApiFunctionDef, private var md5: String) : LightVirtualFile(
     "${def.schema}.${def.name}[${def.oid}]",
     getPlLanguage(),
     def.source
@@ -32,7 +34,7 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef, val md5: String)
 
     val oid: Long = def.oid
     private var isTrigger = false
-    var start: Int = 0
+    var startOfCode: Int = 0
     var codeRange = Pair(0, 0)
     val lineRangeCount: Int by lazy {
         codeRange.second - codeRange.first
@@ -43,7 +45,12 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef, val md5: String)
 
     init {
         runReadAction {
-            PsiManager.getInstance(project).findFile(this)?.let { psi ->
+            parse()
+        }
+    }
+
+    private fun parse() {
+        PsiManager.getInstance(project).findFile(this)?.let { psi ->
 
                 PsiTreeUtil.findChildOfType(psi, SqlCreateTriggerStatement::class.java).let { isTrigger = true }
 
@@ -61,7 +68,7 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef, val md5: String)
                     it is SqlTokenElement && it.text.lowercase() == "\$function\$"
                 }.firstOrNull()?.let { el ->
                     PsiDocumentManager.getInstance(psi.project).getDocument(psi)?.let { doc ->
-                        start = doc.getLineNumber(el.textOffset) - 1
+                        startOfCode = doc.getLineNumber(el.textOffset) - 1
                     }
                 }
                 PsiTreeUtil.findChildOfType(psi, SqlBlockStatement::class.java)?.let { block ->
@@ -105,11 +112,14 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef, val md5: String)
                     }
                 }
             }
-        }
     }
 
-    fun positionToLine(position: Int): Int {
-        return position + start
+    fun breakPointPositionToLinePosition(position: Int): Int {
+        return position + startOfCode
+    }
+
+    fun linePositionToBreakPointPosition(position: Int): Int {
+        return position - startOfCode
     }
 
     override fun getCharset(): Charset = Charsets.UTF_8
@@ -119,4 +129,19 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef, val md5: String)
     override fun getPath(): String = "$oid"
 
     override fun isWritable(): Boolean = true
+
+    fun updateContentFromDB(def: PlApiFunctionDef): PlFunctionSource {
+        if (def.md5 != this.md5) {
+            runReadAction {
+                setContent(this, def.source, true)
+                parse()
+            }
+            this.md5 = def.md5
+        }
+        return this
+    }
+
+    fun breakOutOfRange(bp: XLineBreakpoint<DBBreakpointProperties>): Boolean {
+        return bp.line < codeRange.first || bp.line > codeRange.second
+    }
 }

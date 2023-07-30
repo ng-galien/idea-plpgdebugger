@@ -12,7 +12,7 @@ import com.intellij.xdebugger.XSourcePosition
 import com.intellij.xdebugger.frame.*
 import com.intellij.xdebugger.frame.presentation.XValuePresentation
 import icons.DatabaseIcons
-import net.plpgsql.ideadebugger.command.PlApiStackFrame
+import kotlinx.collections.immutable.toImmutableList
 import net.plpgsql.ideadebugger.command.PlApiStackVariable
 import net.plpgsql.ideadebugger.command.PlApiValue
 import net.plpgsql.ideadebugger.command.PlExecutor
@@ -25,7 +25,7 @@ import kotlin.math.min
  * During a debugging session the code definition does not change
  * The function definition have not to be reevaluated
  */
-class XStack(process: PlProcess) : XExecutionStack("") {
+class XStack(process: PlProcess) : XExecutionStack("PlPgSqlStack") {
 
     private val frames = mutableListOf<XFrame>()
     private val variableRegistry = mutableMapOf<Long, List<PlApiStackVariable>>()
@@ -41,12 +41,19 @@ class XStack(process: PlProcess) : XExecutionStack("") {
         container?.addStackFrames(frames.subList(firstFrameIndex, frames.size), true)
     }
 
-    fun clear() {
-        frames.clear()
+    fun frameList(): List<XFrame> = frames.toImmutableList()
+
+    fun hasFile(oid: Long): Boolean {
+        return frames.any { it.file.oid == oid }
     }
 
-    fun append(frame: PlApiStackFrame, file: PlFunctionSource) {
-        frames.add(XFrame(frame, file))
+    fun newFrame(file: PlFunctionSource, stackLine: Int, level: Int, firstTime: Boolean): XFrame {
+        return XFrame(file, stackLine, level, firstTime)
+    }
+
+    fun setFrames(frames: List<XFrame>) {
+        this.frames.clear()
+        this.frames.addAll(frames)
     }
 
     enum class GroupType(val title: String, val icon: Icon) {
@@ -58,23 +65,23 @@ class XStack(process: PlProcess) : XExecutionStack("") {
     /**
      * Debugger frame, per function call in the execution stack
      */
-    inner class XFrame(val plFrame: PlApiStackFrame, val file: PlFunctionSource) : XStackFrame() {
+    inner class XFrame(val file: PlFunctionSource, val stackLine: Int, val level: Int, val firstTime: Boolean) : XStackFrame() {
 
         private val oid: Long
-            get() = plFrame.oid
+            get() = file.oid
 
         fun getSourceRatio(): Double {
             if (file.lineRangeCount == 0) {
                 return 1.0
             }
-            return (plFrame.line + file.start - file.codeRange.first).toDouble() / file.lineRangeCount
+            return (stackLine + file.startOfCode - file.codeRange.first).toDouble() / file.lineRangeCount
         }
 
         override fun getSourcePosition(): XSourcePosition? {
             return XDebuggerUtil.getInstance().createPosition(file, getSourceLine())
         }
 
-        fun getSourceLine(): Int = file.positionToLine(plFrame.line)
+        fun getSourceLine(): Int = file.breakPointPositionToLinePosition(stackLine)
 
         override fun computeChildren(node: XCompositeNode) {
             val list = XValueChildrenList()
@@ -91,11 +98,11 @@ class XStack(process: PlProcess) : XExecutionStack("") {
         }
 
         private fun getVariables(): List<PlApiStackVariable> {
-            if ((topFrame as XFrame?)?.oid == plFrame.oid) {
+            if ((topFrame as XFrame?)?.oid == file.oid) {
                 val plVars = executor.getVariables()
-                variableRegistry[plFrame.oid] = plVars
+                variableRegistry[file.oid] = plVars
             }
-            return variableRegistry[plFrame.oid] ?: mutableListOf()
+            return variableRegistry[file.oid] ?: mutableListOf()
         }
 
         private fun getFrameInfo(): List<PlApiStackVariable> = listOf(
@@ -125,8 +132,8 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     isArray = false,
                     isText = false,
                     arrayType = "",
-                    value = "${plFrame.oid}",
-                    pretty = "${plFrame.oid}",
+                    value = "${file.oid}",
+                    pretty = "${file.oid}",
                 )
             ),
             PlApiStackVariable(
@@ -140,8 +147,8 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     isArray = false,
                     isText = false,
                     arrayType = "",
-                    value = "${plFrame.level}",
-                    pretty = "${plFrame.level}",
+                    value = "${level}",
+                    pretty = "${level}",
                 )
             ),
             PlApiStackVariable(

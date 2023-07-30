@@ -10,16 +10,20 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.xdebugger.breakpoints.XLineBreakpoint
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
+import net.plpgsql.ideadebugger.command.EMPTY_ENTRY_POINT
+import net.plpgsql.ideadebugger.command.INVALID_SESSION
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import javax.swing.Icon
 
 
-class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>(
+class DBLineBreakpointType : SqlLineBreakpointType<DBBreakpointProperties>(
     "plpg_line_breakpoint",
     "PL/pg SQL") {
 
-    override fun createBreakpointProperties(file: VirtualFile, line: Int): PlLineBreakpointProperties {
-        return PlLineBreakpointProperties(file, line)
+    override fun createBreakpointProperties(file: VirtualFile, line: Int): DBBreakpointProperties {
+        return (file as? PlFunctionSource)?.let {
+            DBBreakpointProperties(it.oid, it.linePositionToBreakPointPosition(line))
+        }?: DBBreakpointProperties(EMPTY_ENTRY_POINT, 0)
     }
 
     override fun canPutAt(file: VirtualFile, line: Int, project: Project): Boolean {
@@ -30,7 +34,7 @@ class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>(
     }
 
     override fun getEditorsProvider(
-        breakpoint: XLineBreakpoint<PlLineBreakpointProperties>,
+        breakpoint: XLineBreakpoint<DBBreakpointProperties>,
         project: Project
     ): XDebuggerEditorsProvider? {
         return null
@@ -40,6 +44,9 @@ class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>(
         return AllIcons.Providers.Postgresql
     }
 
+    override fun getEditorsProvider(): XDebuggerEditorsProvider? {
+        return super.getEditorsProvider()
+    }
 }
 
 

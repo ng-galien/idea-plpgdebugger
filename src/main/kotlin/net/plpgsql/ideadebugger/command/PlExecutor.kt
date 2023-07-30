@@ -29,7 +29,6 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
     private var lastMessage: Message? = null
     private var lastError: Message? = null
     private val messages = mutableListOf<Message>()
-
     private var internalConnection: DatabaseConnection = guardedRef.get()
     var xSession: XDebugSession? = null
     private var plSession = INVALID_SESSION
@@ -221,7 +220,7 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         return executeQuery(query = ApiQuery.EXPLODE, args = listOf(query), ignoreError = true)
     }
 
-    fun getBreakPoints(): List<PlApiStep>{
+    fun getDbBreakPoints(): List<PlApiStep>{
         if (invalidSession()) {
             return listOf()
         }
@@ -229,18 +228,20 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
     }
 
 
-    fun setGlobalBreakPoint(oid: Long) {
+    fun setGlobalBreakPoint(oid: Long) : Boolean {
         if (invalidSession()) {
-            return
+            return false
         }
-        executeQuery<PlApiBoolean>(
+        return executeQuery<PlApiBoolean>(
             ApiQuery.SET_GLOBAL_BREAKPOINT,
             listOf("$plSession", "$oid")
-        )
+        ).firstOrNull()?.value ?: false
     }
 
     fun setGlobalBreakPoint() {
-        setGlobalBreakPoint(entryPoint)
+        if (!setGlobalBreakPoint(entryPoint)) {
+            throw IllegalStateException("Failed to set global breakpoint");
+        }
     }
 
     fun updateBreakPoint(cmd: ApiQuery, oid: Long, line: Int): Boolean {

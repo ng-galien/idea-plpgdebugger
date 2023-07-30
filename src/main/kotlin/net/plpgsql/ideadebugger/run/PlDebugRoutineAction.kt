@@ -25,7 +25,7 @@ import net.plpgsql.ideadebugger.*
 import net.plpgsql.ideadebugger.command.PlApiStackFrame
 import net.plpgsql.ideadebugger.command.PlExecutor
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
-import net.plpgsql.ideadebugger.vfs.PlSourceManager
+import net.plpgsql.ideadebugger.vfs.refreshFileFromStackFrame
 
 /**
  * Run debug action from the database tree view
@@ -98,7 +98,7 @@ class PlDebugRoutineAction : AnAction() {
         if (watcher.isDebugging()) {
             if(watcher.getFunctionOid() != callDef.oid) {
                 watcher.getProcess()?.let { process ->
-                    val frame = PlApiStackFrame(1, callDef.oid, 0, "")
+                    val frame = PlApiStackFrame(0, callDef.oid, 0, "")
                     if (debugWaiting()) {
                         val executor = PlExecutor(
                             getAuxiliaryConnection(
@@ -107,11 +107,11 @@ class PlDebugRoutineAction : AnAction() {
                                 searchPath = searchPath
                             )
                         )
-                        PlSourceManager(project, executor).update(frame)
+                        refreshFileFromStackFrame(project, executor, frame)
                         executor.cancelAndCloseConnection()
                     } else {
                         process.executor.setGlobalBreakPoint(callDef.oid)
-                        process.fileManager.update(frame)
+                        refreshFileFromStackFrame(project, process.executor, frame)
                     }
                 }
             }
@@ -143,7 +143,7 @@ class PlDebugRoutineAction : AnAction() {
                 object : XDebugProcessStarter() {
                     override fun start(session: XDebugSession): XDebugProcess {
                         val process = PlProcess(session = session, executor = executor)
-                        process.fileManager.update(PlApiStackFrame(1, callDef.oid, 0, ""))
+                        refreshFileFromStackFrame(project, executor, PlApiStackFrame(0, callDef.oid, 0, ""))
                         process.startDebug(callDef)
                         return process
                     }

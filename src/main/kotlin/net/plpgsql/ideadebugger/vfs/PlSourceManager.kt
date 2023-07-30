@@ -5,60 +5,39 @@
 package net.plpgsql.ideadebugger.vfs
 
 import com.intellij.openapi.application.runInEdt
-import com.intellij.openapi.application.runReadAction
-import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiDocumentManager
-import com.intellij.psi.PsiManager
 import net.plpgsql.ideadebugger.command.PlApiFunctionDef
 import net.plpgsql.ideadebugger.command.PlApiStackFrame
 import net.plpgsql.ideadebugger.command.PlExecutor
 
-class PlSourceManager(private val project: Project, private val executor: PlExecutor) {
+val vfs = PlVirtualFileSystem.Util.getInstance()
 
-    private val vfs = PlVirtualFileSystem.Util.getInstance()
-
-    fun update(stack: PlApiStackFrame): PlFunctionSource? {
-        grabFromDB(stack.oid)?.let { def ->
-            grabFromVFS(def.oid)?.let { vfsFile ->
-                if (!compareMD5(def, vfsFile)) {
-                    updateFileContent(vfsFile, def)
-                }
-            }?: run {
-                vfs.registerNewDefinition(PlFunctionSource(project, def, def.md5))
-            }.let {
-                runInEdt {
-                    FileEditorManager.getInstance(project).openFile(it, true, true)
-                }
+fun refreshFileFromStackFrame(project: Project, executor: PlExecutor, stack: PlApiStackFrame): PlFunctionSource =
+    ensureFileFromDB(executor, stack.oid).let { def ->
+        fileFromVFS(def.oid)?.updateContentFromDB(def)
+            ?: vfs.registerNewDefinition(PlFunctionSource(project, def, def.md5))
+    }.let { file ->
+        if (stack.level == 0) {
+            runInEdt {
+                FileEditorManager.getInstance(project).openFile(file, true, true)
             }
         }
-        return vfs.findFileByPath("${stack.oid}")
+        file
     }
 
-    private fun updateFileContent(vfsFile: PlFunctionSource, def: PlApiFunctionDef) {
-        runReadAction {
-            PsiManager.getInstance(project).findFile(vfsFile)
-        }?.let { psi ->
-            PsiDocumentManager.getInstance(project).getDocument(psi)?.let { doc ->
-                runInEdt {
-                    runWriteAction {
-                        doc.setText(def.source)
-                    }
-                }
-            }
-        }
+fun searchFileFromOid(project: Project, executor: PlExecutor, oid: Long): PlFunctionSource? =
+    vfs.findFileByPath("$oid") ?:
+    searchFileFromDB(executor, oid)?.let { def ->
+        vfs.registerNewDefinition(PlFunctionSource(project, def, def.md5))
     }
 
-    private fun grabFromDB(oid: Long): PlApiFunctionDef? {
-        return executor.getFunctionDef(oid)
-    }
+fun fileFromVFS(oid: Long): PlFunctionSource? = vfs.findFileByPath("$oid")
 
-    private fun grabFromVFS(oid: Long): PlFunctionSource? = runReadAction {
-        vfs.findFileByPath("$oid")
-    }
+fun ensureFileFromDB(executor: PlExecutor, oid: Long): PlApiFunctionDef {
+    return executor.getFunctionDef(oid) ?: throw IllegalStateException("Can't find file for $oid")
+}
 
-    private fun compareMD5(inDB: PlApiFunctionDef, inVFS: PlFunctionSource): Boolean {
-        return inDB.md5 == inVFS.md5
-    }
+fun searchFileFromDB(executor: PlExecutor, oid: Long): PlApiFunctionDef? {
+    return executor.getFunctionDef(oid)
 }
