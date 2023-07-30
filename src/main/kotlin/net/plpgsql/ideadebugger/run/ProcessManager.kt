@@ -3,37 +3,36 @@ package net.plpgsql.ideadebugger.run
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.project.Project
 import com.intellij.xdebugger.breakpoints.XLineBreakpoint
-import net.plpgsql.ideadebugger.XStack
+import net.plpgsql.ideadebugger.DBStack
 import net.plpgsql.ideadebugger.breakpoint.DBBreakpointProperties
 import net.plpgsql.ideadebugger.command.ApiQuery
+import net.plpgsql.ideadebugger.command.DBExecutor
 import net.plpgsql.ideadebugger.command.EMPTY_ENTRY_POINT
-import net.plpgsql.ideadebugger.command.PlExecutor
 import net.plpgsql.ideadebugger.vfs.PlVirtualFileSystem
 import net.plpgsql.ideadebugger.vfs.searchFileFromOid
-import net.plpgsql.ideadebugger.vfs.vfs
 
-fun needToContinueExecution(stack: XStack, process: PlProcess): Boolean {
-    return stack.frameList().any {
-        isStackIsOnFirstLine(it)
-                && asFurtherBreakpoint(it, process)
+fun needToContinueExecution(process: PlProcess, stack: DBStack) =
+    isStackIsOnFirstLine(topFrameOfStack(stack))
+            && asFurtherBreakpoint(process, topFrameOfStack(stack))
+
+fun isStackIsOnFirstLine(frame: DBStack.Frame) = frame.firstTime
+
+fun frameBreakpointList(process: PlProcess, frame: DBStack.Frame) =
+    process.filesBreakpointList().filter { breakPoint ->
+        breakPointOid(breakPoint)?.let { oid ->
+            oid == frame.file.oid
+    } ?: false
+}
+
+fun asFurtherBreakpoint(process: PlProcess, frame: DBStack.Frame): Boolean {
+    return frameBreakpointList(process, frame).any { breakPoint ->
+        breakPoint.line > frame.file.breakPointPositionToLinePosition(frame.stackLine)
     }
 }
 
-fun isStackIsOnFirstLine(topFrame: XStack.XFrame): Boolean {
-    return topFrame.firstTime
-}
+fun topFrameOfStack(stack: DBStack) = stack.topFrame as DBStack.Frame
 
-fun asFurtherBreakpoint(topFrame: XStack.XFrame, process: PlProcess): Boolean {
-    return process.filesBreakpointList().any { breakPoint ->
-        breakPoint.line > topFrame.file.breakPointPositionToLinePosition(topFrame.stackLine)
-    }
-}
-
-fun topFrameOfStack(stack: XStack): XStack.XFrame {
-    return stack.topFrame as XStack.XFrame
-}
-
-fun stepInfoForStack(stack: XStack): PlProcess.StepInfo {
+fun stepInfoForStack(stack: DBStack): PlProcess.StepInfo {
     val frame = topFrameOfStack(stack)
     return PlProcess.StepInfo(frame.getSourceLine() + 1, frame.file.codeRange.second, frame.getSourceRatio())
 }
@@ -49,24 +48,14 @@ private fun setFilesBreakpoints(process: PlProcess) {
     }
 }
 
-
-private fun deleteBreakpointsInDatabase(process: PlProcess) {
+private fun deleteBreakpointsInDatabase(process: PlProcess) =
     process.executor.getDbBreakPoints().forEach { deleteLineBreakpoint(process, it.oid, it.line) }
-}
 
-fun deleteLineBreakpoint(process: PlProcess, line: XLineBreakpoint<DBBreakpointProperties>) {
-    ensureBreakPoint(process, line)?.let {
-        deleteLineBreakpoint(process, it)
-    }
-}
+fun deleteLineBreakpoint(process: PlProcess, p: DBBreakpointProperties) =
+    deleteLineBreakpoint(process, p.oid, p.dbLine)
 
-fun deleteLineBreakpoint(process: PlProcess, p: DBBreakpointProperties): Boolean {
-    return deleteLineBreakpoint(process, p.oid, p.dbLine)
-}
-
-fun deleteLineBreakpoint(process: PlProcess, oid: Long, line: Int): Boolean {
-    return process.executor.updateBreakPoint(ApiQuery.DROP_BREAKPOINT, oid, line)
-}
+fun deleteLineBreakpoint(process: PlProcess, oid: Long, line: Int) =
+    process.executor.updateBreakPoint(ApiQuery.DROP_BREAKPOINT, oid, line)
 
 fun addLineBreakPoint(process: PlProcess, line: XLineBreakpoint<DBBreakpointProperties>) {
     ensureBreakPoint(process, line)?.let {
@@ -90,9 +79,8 @@ fun addLineBreakPoint(process: PlProcess, p: DBBreakpointProperties): Boolean {
     return addLineBreakPoint(process, p.oid, p.dbLine)
 }
 
-fun addLineBreakPoint(process: PlProcess, oid: Long, line: Int): Boolean {
-    return process.executor.updateBreakPoint(ApiQuery.SET_BREAKPOINT, oid, line)
-}
+fun addLineBreakPoint(process: PlProcess, oid: Long, line: Int) =
+    process.executor.updateBreakPoint(ApiQuery.SET_BREAKPOINT, oid, line)
 
 fun ensureBreakPoint(process: PlProcess, breakpoint: XLineBreakpoint<DBBreakpointProperties>):
         DBBreakpointProperties? {
@@ -113,8 +101,18 @@ fun breakPointOid(breakpoint: XLineBreakpoint<DBBreakpointProperties>): Long? {
     return path.toLongOrNull()
 }
 
-fun restoreBreakPointProperty(project: Project, executor: PlExecutor, oid: Long, line: Int): DBBreakpointProperties? {
+fun restoreBreakPointProperty(project: Project, executor: DBExecutor, oid: Long, line: Int): DBBreakpointProperties? {
     return searchFileFromOid(project, executor, oid)?.let { source ->
             DBBreakpointProperties(oid, source.linePositionToBreakPointPosition(line))
+    }
+}
+
+fun breakPointLineFromStack(process: PlProcess, stack: DBStack): XLineBreakpoint<DBBreakpointProperties>? {
+    val topFrame = topFrameOfStack(stack)
+    return process.filesBreakpointList().find { breakpoint ->
+        breakPointOid(breakpoint)?.let {
+            oid -> oid == topFrame.file.oid &&
+                breakpoint.line == topFrame.file.breakPointPositionToLinePosition(topFrame.stackLine)
+        } ?: false
     }
 }

@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 const val EMPTY_ENTRY_POINT = 0L
 const val INVALID_SESSION = 0
 
-class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Disposable {
+class DBExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Disposable {
 
     var entryPoint = EMPTY_ENTRY_POINT
     private var ready = true

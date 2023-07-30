@@ -14,19 +14,14 @@ import com.intellij.openapi.progress.impl.BackgroundableProcessIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.xdebugger.XDebugSession
 import com.intellij.xdebugger.XSourcePosition
-import com.intellij.xdebugger.breakpoints.XBreakpointHandler
-import com.intellij.xdebugger.breakpoints.XBreakpointListener
-import com.intellij.xdebugger.breakpoints.XLineBreakpoint
-import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
-import com.intellij.xdebugger.frame.XExecutionStack
 import com.intellij.xdebugger.frame.XSuspendContext
-import kotlinx.collections.immutable.toImmutableList
-import net.plpgsql.ideadebugger.*
-import net.plpgsql.ideadebugger.breakpoint.DBBreakpointProperties
-import net.plpgsql.ideadebugger.breakpoint.DBLineBreakpointType
+import net.plpgsql.ideadebugger.CallDefinition
+import net.plpgsql.ideadebugger.DBStack
+import net.plpgsql.ideadebugger.DebugMode
+import net.plpgsql.ideadebugger.PlEditorProvider
 import net.plpgsql.ideadebugger.command.ApiQuery
+import net.plpgsql.ideadebugger.command.DBExecutor
 import net.plpgsql.ideadebugger.command.PlApiStep
-import net.plpgsql.ideadebugger.command.PlExecutor
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.vfs.refreshFileFromStackFrame
 import java.util.concurrent.LinkedBlockingQueue
@@ -37,22 +32,20 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class PlProcess(
     session: XDebugSession,
-    val executor: PlExecutor
+    val executor: DBExecutor
 ) : SqlDebugProcess(session) {
 
-    private val logger = logger<PlProcess>()
-    private val breakpoints: MutableList<XLineBreakpoint<DBBreakpointProperties>> = mutableListOf()
-    private val context = XContext()
-    private var stack: XStack = XStack(this)
-    private var breakPointHandler = BreakPointHandler()
-    internal val command = LinkedBlockingQueue<ApiQuery>()
     var mode: DebugMode = DebugMode.NONE
+    private val logger = logger<PlProcess>()
+    private var stack: DBStack = DBStack(this)
+    private val context = ExecContext(stack)
+    private var handler = BreakPointHandler(this)
+    internal val command = LinkedBlockingQueue<ApiQuery>()
     private val proxyTask = ProxyTask(session.project, "PL/pg Debug")
     private var proxyProgress: ProxyIndicator? = null
     private var callDef: CallDefinition? = null
 
-    //getter for breakpoints
-    fun filesBreakpointList() = breakpoints.toImmutableList()
+    fun filesBreakpointList() = handler.getBreakpoints()
 
     init {
         executor.xSession = session
@@ -107,7 +100,7 @@ class PlProcess(
     /**
      *
      */
-    fun updateStack(): StepInfo {
+    private fun updateStack(): StepInfo {
         logger.debug("User request: updateStack")
         val frames = executor.getStack().map {
             val file = refreshFileFromStackFrame(session.project, executor, it)
@@ -115,62 +108,29 @@ class PlProcess(
             stack.newFrame(file, it.line, it.level, firstTime)
         }
         stack.setFrames(frames)
-        val next = needToContinueExecution(stack, this)
+        val next = needToContinueExecution(this, stack)
         if (next) {
             executor.setDebug("Got to next")
             command.add(ApiQuery.STEP_CONTINUE)
         } else {
-            session.positionReached(context)
+            breakPointLineFromStack(this, stack)?.let {
+                session.breakpointReached(it, "", context)
+            }?: run {
+                session.positionReached(context)
+            }
         }
         return stepInfoForStack(stack)
     }
 
     override fun getEditorsProvider() = PlEditorProvider.INSTANCE
+
     override fun checkCanInitBreakpoints() = true
+
     override fun checkCanPerformCommands() = proxyTask.running.get()
-    override fun getBreakpointHandlers() = arrayOf(breakPointHandler)
 
-    inner class XContext : XSuspendContext() {
+    override fun getBreakpointHandlers() = arrayOf(handler)
 
-        override fun getActiveExecutionStack(): XExecutionStack {
-            return stack
-        }
-
-        override fun getExecutionStacks(): Array<XExecutionStack> {
-            return arrayOf(stack)
-        }
-
-        override fun computeExecutionStacks(container: XExecutionStackContainer?) {
-            container?.addExecutionStack(mutableListOf(stack), true)
-        }
-    }
-
-
-    inner class BreakPointHandler :
-        XBreakpointHandler<XLineBreakpoint<DBBreakpointProperties>>(DBLineBreakpointType::class.java),
-        XBreakpointListener<XLineBreakpoint<DBBreakpointProperties>> {
-
-        override fun registerBreakpoint(breakpoint: XLineBreakpoint<DBBreakpointProperties>) {
-           ensureBreakPoint(this@PlProcess, breakpoint)?.let {
-               breakpoints.add(breakpoint)
-               if (readyToAcceptBreakPoint()) {
-                   addLineBreakPoint(this@PlProcess, breakpoint)
-               }
-           }
-        }
-
-        override fun unregisterBreakpoint(breakpoint: XLineBreakpoint<DBBreakpointProperties>, temporary: Boolean) {
-            ensureBreakPoint(this@PlProcess, breakpoint)?.let {
-                breakpoints.remove(breakpoint)
-                if (readyToAcceptBreakPoint()) {
-                    deleteLineBreakpoint(this@PlProcess, it)
-                }
-            }
-        }
-    }
-
-    fun readyToAcceptBreakPoint():
-            Boolean = proxyTask.running.get() && !executor.waitingForCompletion
+    fun readyToAcceptBreakPoint() = proxyTask.running.get() && !executor.waitingForCompletion
 
     inner class ProxyTask(project: Project, title: String) : Task.Backgroundable(project, title, true) {
 
@@ -205,17 +165,6 @@ class PlProcess(
             }
         }
 
-    }
-
-    inner class ProxyIndicator(task: ProxyTask): BackgroundableProcessIndicator(task) {
-        fun displayInfo(query: ApiQuery, step: PlApiStep, info: StepInfo) {
-            fraction = info.ratio
-            if (step.line < 0) {
-                proxyProgress?.text2 = "Waiting for step [${info.pos} / ${info.total}]"
-            } else {
-                proxyProgress?.text2 = "Last step ${query.name} [${info.pos} / ${info.total}]"
-            }
-        }
     }
 
     /**
@@ -294,9 +243,7 @@ class PlProcess(
                 }
             }
         }
-
     }
 
     data class StepInfo(val pos: Int, val total: Int, val ratio: Double)
-
 }

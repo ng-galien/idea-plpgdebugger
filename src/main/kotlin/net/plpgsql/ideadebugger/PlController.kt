@@ -19,7 +19,7 @@ import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugSession
-import net.plpgsql.ideadebugger.command.PlExecutor
+import net.plpgsql.ideadebugger.command.DBExecutor
 import net.plpgsql.ideadebugger.run.PlProcess
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 
@@ -33,7 +33,7 @@ class PlController(
     private lateinit var plProcess: PlProcess
     private lateinit var xSession: XDebugSession
     private val settings = PlDebuggerSettingsState.getInstance().state
-    private var executor: PlExecutor? = null
+    private var executor: DBExecutor? = null
 
     override fun getReady() {
         console("Controller: getReady")
@@ -44,7 +44,7 @@ class PlController(
 
     override fun initLocal(session: XDebugSession): XDebugProcess {
         xSession = session
-        executor = PlExecutor(getAuxiliaryConnection(project, connectionPoint, searchPath))
+        executor = DBExecutor(getAuxiliaryConnection(project, connectionPoint, searchPath))
 
         plProcess = PlProcess(session, executor!!)
         @Suppress("DialogTitleCapitalization")

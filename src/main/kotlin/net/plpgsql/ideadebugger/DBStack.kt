@@ -15,7 +15,7 @@ import icons.DatabaseIcons
 import kotlinx.collections.immutable.toImmutableList
 import net.plpgsql.ideadebugger.command.PlApiStackVariable
 import net.plpgsql.ideadebugger.command.PlApiValue
-import net.plpgsql.ideadebugger.command.PlExecutor
+import net.plpgsql.ideadebugger.command.DBExecutor
 import net.plpgsql.ideadebugger.run.PlProcess
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import javax.swing.Icon
@@ -25,12 +25,12 @@ import kotlin.math.min
  * During a debugging session the code definition does not change
  * The function definition have not to be reevaluated
  */
-class XStack(process: PlProcess) : XExecutionStack("PlPgSqlStack") {
+class DBStack(process: PlProcess) : XExecutionStack("PlPgSqlStack") {
 
-    private val frames = mutableListOf<XFrame>()
+    private val frames = mutableListOf<Frame>()
     private val variableRegistry = mutableMapOf<Long, List<PlApiStackVariable>>()
 
-    val executor: PlExecutor = process.executor
+    val executor: DBExecutor = process.executor
     val project = process.session.project
 
     override fun getTopFrame(): XStackFrame? {
@@ -41,17 +41,17 @@ class XStack(process: PlProcess) : XExecutionStack("PlPgSqlStack") {
         container?.addStackFrames(frames.subList(firstFrameIndex, frames.size), true)
     }
 
-    fun frameList(): List<XFrame> = frames.toImmutableList()
+    fun frameList(): List<Frame> = frames.toImmutableList()
 
     fun hasFile(oid: Long): Boolean {
         return frames.any { it.file.oid == oid }
     }
 
-    fun newFrame(file: PlFunctionSource, stackLine: Int, level: Int, firstTime: Boolean): XFrame {
-        return XFrame(file, stackLine, level, firstTime)
+    fun newFrame(file: PlFunctionSource, stackLine: Int, level: Int, firstTime: Boolean): Frame {
+        return Frame(file, stackLine, level, firstTime)
     }
 
-    fun setFrames(frames: List<XFrame>) {
+    fun setFrames(frames: List<Frame>) {
         this.frames.clear()
         this.frames.addAll(frames)
     }
@@ -65,7 +65,7 @@ class XStack(process: PlProcess) : XExecutionStack("PlPgSqlStack") {
     /**
      * Debugger frame, per function call in the execution stack
      */
-    inner class XFrame(val file: PlFunctionSource, val stackLine: Int, val level: Int, val firstTime: Boolean) : XStackFrame() {
+    inner class Frame(val file: PlFunctionSource, val stackLine: Int, val level: Int, val firstTime: Boolean) : XStackFrame() {
 
         private val oid: Long
             get() = file.oid
@@ -98,7 +98,7 @@ class XStack(process: PlProcess) : XExecutionStack("PlPgSqlStack") {
         }
 
         private fun getVariables(): List<PlApiStackVariable> {
-            if ((topFrame as XFrame?)?.oid == file.oid) {
+            if ((topFrame as Frame?)?.oid == file.oid) {
                 val plVars = executor.getVariables()
                 variableRegistry[file.oid] = plVars
             }
@@ -205,12 +205,12 @@ class XStack(process: PlProcess) : XExecutionStack("PlPgSqlStack") {
     inner class XValGroup(
         private val type: GroupType,
         private val plVars: List<PlApiStackVariable>,
-        private val xFrame: XFrame? = null
+        private val frame: Frame? = null
     ) : XValueGroup(type.title) {
         override fun computeChildren(node: XCompositeNode) {
             val list = XValueChildrenList()
             plVars.forEach {
-                list.add(XVal(it, xFrame))
+                list.add(XVal(it, frame))
             }
             node.addChildren(list, true)
         }
@@ -229,7 +229,7 @@ class XStack(process: PlProcess) : XExecutionStack("PlPgSqlStack") {
      */
     inner class XVal (
         private val plStackVar: PlApiStackVariable,
-        private val xFrame: XFrame? = null
+        private val frame: Frame? = null
     ) : XNamedValue(plStackVar.value.name) {
 
         private val plVar: PlApiValue = plStackVar.value
@@ -286,7 +286,7 @@ class XStack(process: PlProcess) : XExecutionStack("PlPgSqlStack") {
 
 
         override fun computeSourcePosition(navigatable: XNavigatable) {
-            xFrame?.file?.let { fs ->
+            frame?.file?.let { fs ->
                 (if (plStackVar.isArg) fs.psiArgs else fs.psiVariables).let { map ->
                     map[plVar.name]?.let {
                         val pos = XDebuggerUtil.getInstance().createPositionByElement(it)
@@ -294,7 +294,7 @@ class XStack(process: PlProcess) : XExecutionStack("PlPgSqlStack") {
                     }
                 }
                 fs.psiUse[plVar.name]?.filter { p ->
-                    xFrame.getSourceLine() >= p.first
+                    frame.getSourceLine() >= p.first
                 }?.forEach { p ->
                     val pos = XDebuggerUtil.getInstance().createPositionByElement(p.second)
                     navigatable.setSourcePosition(pos)
@@ -362,7 +362,7 @@ class XStack(process: PlProcess) : XExecutionStack("PlPgSqlStack") {
             }
             var compute = false
 
-            xFrame?.file?.let { fs ->
+            frame?.file?.let { fs ->
                 (if (plStackVar.isArg) fs.psiArgs else fs.psiVariables).let { map ->
                     map[plVar.name]?.let {
                         val pos = XDebuggerUtil.getInstance().createPositionByElement(it)
@@ -371,7 +371,7 @@ class XStack(process: PlProcess) : XExecutionStack("PlPgSqlStack") {
                     }
                 }
                 fs.psiUse[plVar.name]?.filter { p ->
-                    xFrame.getSourceLine() >= p.first
+                    frame.getSourceLine() >= p.first
                 }?.forEach { p ->
                     val pos = XDebuggerUtil.getInstance().createPositionByElement(p.second)
                     callback.computed(pos)

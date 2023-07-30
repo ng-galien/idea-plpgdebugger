@@ -23,7 +23,7 @@ import com.intellij.xdebugger.XDebuggerManager
 import icons.PlDebuggerIcons
 import net.plpgsql.ideadebugger.*
 import net.plpgsql.ideadebugger.command.PlApiStackFrame
-import net.plpgsql.ideadebugger.command.PlExecutor
+import net.plpgsql.ideadebugger.command.DBExecutor
 import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.vfs.refreshFileFromStackFrame
 
@@ -100,7 +100,7 @@ class PlDebugRoutineAction : AnAction() {
                 watcher.getProcess()?.let { process ->
                     val frame = PlApiStackFrame(0, callDef.oid, 0, "")
                     if (debugWaiting()) {
-                        val executor = PlExecutor(
+                        val executor = DBExecutor(
                             getAuxiliaryConnection(
                                 project = project,
                                 connectionPoint = dataSource,
@@ -121,7 +121,7 @@ class PlDebugRoutineAction : AnAction() {
         //Starts the debugger
         if (callDef.canStartDebug()) {
 
-            val executor = PlExecutor(
+            val executor = DBExecutor(
                 getAuxiliaryConnection(
                     project = project,
                     connectionPoint = dataSource,

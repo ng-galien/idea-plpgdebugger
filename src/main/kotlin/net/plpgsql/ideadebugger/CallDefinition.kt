@@ -14,7 +14,7 @@ import com.intellij.sql.psi.SqlExpressionList
 import com.intellij.sql.psi.SqlIdentifier
 import com.intellij.sql.psi.SqlReferenceExpression
 import com.jetbrains.rd.util.first
-import net.plpgsql.ideadebugger.command.PlExecutor
+import net.plpgsql.ideadebugger.command.DBExecutor
 
 /**
  * Encapsulate routine call information
@@ -63,7 +63,7 @@ class CallDefinition(
     /**
      * Get routine information from SQL queries
      */
-    fun identify(executor: PlExecutor) {
+    fun identify(executor: DBExecutor) {
         parseFunctionCall()
         searchCallee(executor)
     }
@@ -134,7 +134,7 @@ class CallDefinition(
     /**
      * Execute SQL to get information from pg_catalog
      */
-    private fun searchCallee(executor: PlExecutor) {
+    private fun searchCallee(executor: DBExecutor) {
         val rt = routine?: ""
         val functions = executor.getCallArgs(schema, rt).filter {
             if (args.isEmpty()) {
