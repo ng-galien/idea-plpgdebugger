@@ -10,7 +10,6 @@ import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
-import com.intellij.openapi.progress.impl.BackgroundableProcessIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.xdebugger.XDebugSession
 import com.intellij.xdebugger.XSourcePosition
@@ -22,7 +21,7 @@ import net.plpgsql.ideadebugger.PlEditorProvider
 import net.plpgsql.ideadebugger.command.ApiQuery
 import net.plpgsql.ideadebugger.command.DBExecutor
 import net.plpgsql.ideadebugger.command.PlApiStep
-import net.plpgsql.ideadebugger.service.PlProcessWatcher
+import net.plpgsql.ideadebugger.service.ProcessWatcher
 import net.plpgsql.ideadebugger.vfs.refreshFileFromStackFrame
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
@@ -34,7 +33,7 @@ class PlProcess(
     session: XDebugSession,
     val executor: DBExecutor
 ) : SqlDebugProcess(session) {
-
+    val project: Project = session.project
     var mode: DebugMode = DebugMode.NONE
     private val logger = logger<PlProcess>()
     private var stack: DBStack = DBStack(this)
@@ -137,7 +136,7 @@ class PlProcess(
         private val logger1 = logger<ProxyTask>()
         val running = AtomicBoolean(false)
 
-        private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
+        private var watcher = ApplicationManager.getApplication().getService(ProcessWatcher::class.java)
         private val innerThread = InnerThread()
 
         override fun run(indicator: ProgressIndicator) {

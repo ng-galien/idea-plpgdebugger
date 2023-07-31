@@ -10,14 +10,17 @@ import com.intellij.openapi.project.Project
 import net.plpgsql.ideadebugger.command.PlApiFunctionDef
 import net.plpgsql.ideadebugger.command.PlApiStackFrame
 import net.plpgsql.ideadebugger.command.DBExecutor
+import net.plpgsql.ideadebugger.node.SourceFile
 
-val vfs = PlVirtualFileSystem.Util.getInstance()
 
 fun refreshFileFromStackFrame(project: Project, executor: DBExecutor, stack: PlApiStackFrame): PlFunctionSource =
     ensureFileFromDB(executor, stack.oid).let { def ->
         fileFromVFS(def.oid)?.updateContentFromDB(def)
-            ?: vfs.registerNewDefinition(PlFunctionSource(project, def, def.md5))
+            ?: vfs().registerNewDefinition(PlFunctionSource(project, def, def.md5))
     }
+
+fun showFile(project: Project, event: SourceFile) =
+    showFile(project, vfs().findFileByPath(event.path)!!)
 
 fun showFile(project: Project, file: PlFunctionSource) =
     runInEdt {
@@ -25,12 +28,12 @@ fun showFile(project: Project, file: PlFunctionSource) =
     }
 
 fun searchFileFromOid(project: Project, executor: DBExecutor, oid: Long): PlFunctionSource? =
-    vfs.findFileByPath("$oid") ?:
+    vfs().findFileByPath("$oid") ?:
     searchFileFromDB(executor, oid)?.let { def ->
-        vfs.registerNewDefinition(PlFunctionSource(project, def, def.md5))
+        vfs().registerNewDefinition(PlFunctionSource(project, def, def.md5))
     }
 
-fun fileFromVFS(oid: Long): PlFunctionSource? = vfs.findFileByPath("$oid")
+fun fileFromVFS(oid: Long): PlFunctionSource? = vfs().findFileByPath("$oid")
 
 fun ensureFileFromDB(executor: DBExecutor, oid: Long): PlApiFunctionDef {
     return searchFileFromDB(executor, oid) ?: throw IllegalStateException("File with oid $oid not found")
@@ -39,3 +42,7 @@ fun ensureFileFromDB(executor: DBExecutor, oid: Long): PlApiFunctionDef {
 fun searchFileFromDB(executor: DBExecutor, oid: Long): PlApiFunctionDef? {
     return executor.getFunctionDef(oid)
 }
+
+fun allVFSDocuments(): List<PlFunctionSource> = vfs().cachedFiles.toList()
+
+private fun vfs() = PlVirtualFileSystem.Util.getInstance()

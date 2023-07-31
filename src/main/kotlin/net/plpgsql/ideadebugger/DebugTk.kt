@@ -27,6 +27,15 @@ const val DEBUGGER_EXTENSION = "pldbgapi"
 const val DEBUGGER_SHARED_LIBRARY = "plugin_debugger"
 const val DEBUGGER_SESSION_NAME = "idea_debugger"
 
+//class DebugTk {
+//    companion object {
+//        val BUS = ApplicationManager.getApplication().messageBus
+//        val VFS = PlVirtualFileSystem.Util.getInstance()
+//    }
+//}
+
+
+
 enum class DebugMode {
     NONE, DIRECT, INDIRECT
 }
@@ -85,6 +94,7 @@ fun sanitizeQuery(sql: String): String {
 }
 
 fun unquote(s: String): String = s.removeSurrounding("\"")
+
 
 
 

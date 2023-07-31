@@ -20,16 +20,34 @@
                              id="net.plpgsql.ideadebugger.settings.PlSettingsConfigurable"
                              displayName="PL/pgSQL Debugger"/>
         <applicationService serviceImplementation="net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState"/>
-        <applicationService serviceInterface="net.plpgsql.ideadebugger.service.PlProcessWatcher"
-                            serviceImplementation="net.plpgsql.ideadebugger.service.PlProcessWatcherImpl" />
+        <applicationService serviceInterface="net.plpgsql.ideadebugger.service.ProcessWatcher"
+                            serviceImplementation="net.plpgsql.ideadebugger.service.ProcessWatcherImpl" />
         <notificationGroup displayType="BALLOON" id="PL/pg Notifications"/>
+        <toolWindow id="PL/pgSQL" anchor="left" factoryClass="net.plpgsql.ideadebugger.ui.ExplorerFactory" icon="AllIcons.Providers.Postgresql"/>
     </extensions>
     <actions>
-        <action id="net.plpgsql.ideadebugger.run.PlDebugRoutineAction"
-                class="net.plpgsql.ideadebugger.run.PlDebugRoutineAction" text="Debug PG routine"
+        <group id="net.plpgsql.ideadebugger.action.DebuggerActionGroup"
+               class="net.plpgsql.ideadebugger.action.DebuggerActionGroup"
+               popup="true"/>
+        <action id="net.plpgsql.ideadebugger.action.OpenSourceFileAction"
+                class="net.plpgsql.ideadebugger.action.OpenSourceFileAction"
+                text="Open Source"
+                description="Debug PG file">
+            <add-to-group
+                    group-id="net.plpgsql.ideadebugger.action.DebuggerActionGroup"
+                    anchor="last"/>
+        </action>
+        <action id="net.plpgsql.ideadebugger.action.PlDebugRoutineAction"
+                class="net.plpgsql.ideadebugger.action.PlDebugRoutineAction" text="Debug PG routine"
                 description="Debug PG routine">
             <add-to-group group-id="DatabaseViewPopupMenu" anchor="after"
                           relative-to-action="DatabaseView.DebugRoutine"/>
         </action>
+
     </actions>
+    <applicationListeners>
+        <listener
+                class="net.plpgsql.ideadebugger.ui.ExplorerListener"
+                topic="net.plpgsql.ideadebugger.service.DebuggerEventListener"/>
+    </applicationListeners>
 </idea-plugin>

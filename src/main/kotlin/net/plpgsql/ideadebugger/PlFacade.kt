@@ -19,7 +19,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.sql.psi.SqlStatement
-import net.plpgsql.ideadebugger.service.PlProcessWatcher
+import net.plpgsql.ideadebugger.service.ProcessWatcher
 
 /**
  * Implements DatabaseTools debugger facade
@@ -30,7 +30,7 @@ class PlFacade : SqlDebuggerFacade {
 
     private var callDefinition = CallDefinition(DebugMode.NONE, null, "")
 
-    private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
+    private var watcher = ApplicationManager.getApplication().getService(ProcessWatcher::class.java)
 
     /**
      * Checks if the selected statement is a good candidate for direct debugging

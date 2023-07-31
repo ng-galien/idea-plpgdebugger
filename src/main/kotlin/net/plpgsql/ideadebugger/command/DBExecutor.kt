@@ -35,6 +35,8 @@ class DBExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
     private val settings = getSettings()
     var waiting = AtomicBoolean(false)
 
+    fun getDbInternalSession() = plSession
+
     /**
      * Checks the ability to debug and returns a diagnostic.
      */
@@ -240,7 +242,7 @@ class DBExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
 
     fun setGlobalBreakPoint() {
         if (!setGlobalBreakPoint(entryPoint)) {
-            throw IllegalStateException("Failed to set global breakpoint");
+            throw IllegalStateException("Failed to set global breakpoint")
         }
     }
 

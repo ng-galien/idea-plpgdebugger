@@ -9,7 +9,11 @@ import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
 import com.intellij.openapi.vfs.ex.dummy.DummyCachingFileSystem
+import net.plpgsql.ideadebugger.node.SourceFile
+import net.plpgsql.ideadebugger.service.SourceLoaded
+import net.plpgsql.ideadebugger.service.publishEvent
 import java.util.*
+
 
 
 class PlVirtualFileSystem : DummyCachingFileSystem<PlFunctionSource>(PROTOCOL) {
@@ -38,6 +42,7 @@ class PlVirtualFileSystem : DummyCachingFileSystem<PlFunctionSource>(PROTOCOL) {
                 fileRenamed(file, null, "", file.name)
             }
         }
+        publishEvent(SourceLoaded(file.project, SourceFile(file.name, file.path)))
         return file
     }
 

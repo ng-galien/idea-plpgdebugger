@@ -22,7 +22,7 @@ import net.plpgsql.ideadebugger.unquote
 import java.nio.charset.Charset
 
 class PlFunctionSource(val project: Project, def: PlApiFunctionDef, private var md5: String) : LightVirtualFile(
-    "${def.schema}.${def.name}[${def.oid}]",
+    "${def.schema}.${def.name} [${def.oid}]",
     getPlLanguage(),
     def.source
 ) {

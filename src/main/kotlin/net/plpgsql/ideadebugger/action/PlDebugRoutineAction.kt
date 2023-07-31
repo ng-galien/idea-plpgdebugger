@@ -2,7 +2,7 @@
  * Copyright (c) 2022. Alexandre Boyer
  */
 
-package net.plpgsql.ideadebugger.run
+package net.plpgsql.ideadebugger.action
 
 import com.intellij.database.dataSource.LocalDataSource
 import com.intellij.database.dialects.postgres.model.PgRoutine
@@ -24,7 +24,8 @@ import icons.PlDebuggerIcons
 import net.plpgsql.ideadebugger.*
 import net.plpgsql.ideadebugger.command.PlApiStackFrame
 import net.plpgsql.ideadebugger.command.DBExecutor
-import net.plpgsql.ideadebugger.service.PlProcessWatcher
+import net.plpgsql.ideadebugger.run.PlProcess
+import net.plpgsql.ideadebugger.service.ProcessWatcher
 import net.plpgsql.ideadebugger.vfs.refreshFileFromStackFrame
 
 /**
@@ -39,7 +40,7 @@ class PlDebugRoutineAction : AnAction() {
 
     private var searchPath: SearchPath? = null
 
-    private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
+    private var watcher = ApplicationManager.getApplication().getService(ProcessWatcher::class.java)
 
     override fun update(e: AnActionEvent) {
 
@@ -92,7 +93,7 @@ class PlDebugRoutineAction : AnAction() {
 
         val settings = getSettings()
         val callDef = CallDefinition(routine)
-        val watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
+        val watcher = ApplicationManager.getApplication().getService(ProcessWatcher::class.java)
 
         // Just open source file
         if (watcher.isDebugging()) {
