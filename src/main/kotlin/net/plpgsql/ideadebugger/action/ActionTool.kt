@@ -1,23 +1,20 @@
 package net.plpgsql.ideadebugger.action
 
-import com.intellij.openapi.actionSystem.ActionManager
-import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.openapi.actionSystem.DataContext
-import com.intellij.openapi.actionSystem.DataKey
+import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
-import net.plpgsql.ideadebugger.node.DebuggerNode
-import net.plpgsql.ideadebugger.node.FolderNode
-import net.plpgsql.ideadebugger.node.ProcessInfo
-import net.plpgsql.ideadebugger.node.SourceFile
+import net.plpgsql.ideadebugger.DebuggerItem
+import net.plpgsql.ideadebugger.FileItem
+import net.plpgsql.ideadebugger.FilesRoot
+import net.plpgsql.ideadebugger.service.DebugWatcher
 import java.awt.event.MouseEvent
 
 
-val SOURCE_FILE_KEY: DataKey<SourceFile> = DataKey.create("sourceFile")
+val DEBUGGER_ITEM_KEY: DataKey<DebuggerItem> = DataKey.create("debuggerItem")
 
-val PROCESS_INFO_KEY: DataKey<ProcessInfo> = DataKey.create("processInfo")
-
-val DEBUGGER_NODE_KEY: DataKey<DebuggerNode> = DataKey.create("debuggerNode")
+private val debugWatcher = ApplicationManager.getApplication().getService(DebugWatcher::class.java)
 
 //Get a Generic Action instance with the given class name which is the id of the action
  fun <T> actionFind(clazz: Class<T>): T? =
@@ -25,8 +22,8 @@ val DEBUGGER_NODE_KEY: DataKey<DebuggerNode> = DataKey.create("debuggerNode")
         if (it.javaClass.isAssignableFrom(clazz)) clazz.cast(it) else null
     }
 
-fun openPopup(project: Project, node: DebuggerNode, mouseEvent: MouseEvent) {
-    val dataContext = dataContextForNode(project, node)
+fun openPopup(project: Project, mouseEvent: MouseEvent, debuggerItem: DebuggerItem) {
+    val dataContext = dataContextForNode(project, debuggerItem)
     actionFind(DebuggerActionGroup::class.java)?.run {
         val popupMenu = ActionManager.getInstance().createActionPopupMenu("Debugger", this)
         popupMenu.setDataContext { dataContext }
@@ -34,12 +31,65 @@ fun openPopup(project: Project, node: DebuggerNode, mouseEvent: MouseEvent) {
     }
 }
 
-fun dataContextForNode(project: Project, node: DebuggerNode): DataContext =
-    when (node) {
-        is FolderNode -> newDataContext(project, DEBUGGER_NODE_KEY, node)
-        is SourceFile -> newDataContext(project, SOURCE_FILE_KEY, node)
-        is ProcessInfo -> newDataContext(project, PROCESS_INFO_KEY, node)
-    }
+fun dataContextForNode(project: Project, node: DebuggerItem): DataContext =
+    newDataContext(project, DEBUGGER_ITEM_KEY, node)
 
 fun <T> newDataContext(project: Project, key: DataKey<T>, value:  T): DataContext =
     SimpleDataContext.builder().add(CommonDataKeys.PROJECT, project).add(key, value).build()
+
+class DebuggerActionGroup : DefaultActionGroup() {
+    override fun getActionUpdateThread() = ActionUpdateThread.BGT
+    override fun update(event: AnActionEvent) = event.run { presentation.isVisible = true }
+}
+
+
+fun isFileItem(event: AnActionEvent) = event.dataContext.getData(DEBUGGER_ITEM_KEY) is FileItem
+fun isFilesFolder(event: AnActionEvent) = event.dataContext.getData(DEBUGGER_ITEM_KEY) is FilesRoot
+fun isFileItemOrFilesRoot(event: AnActionEvent) = isFileItem(event) || isFilesFolder(event)
+//fun isDebugging() = debugProcess() != null
+
+fun fileItemFromEvent(event: AnActionEvent) = event.dataContext.getData(DEBUGGER_ITEM_KEY) as? FileItem
+fun filesFolderFromEvent(event: AnActionEvent) = event.dataContext.getData(DEBUGGER_ITEM_KEY) as? FilesRoot
+
+//fun debugProcess(): PlProcess? = debugWatcher.getProcess()
+
+class OpenSourceFileAction : AnAction() {
+    override fun getActionUpdateThread() = ActionUpdateThread.EDT
+    override fun update(event: AnActionEvent) = event.run {
+        val ok = isFileItem(event)
+        this.presentation.isVisible = ok
+        this.presentation.isEnabled = ok
+    }
+
+    override fun actionPerformed(event: AnActionEvent) =
+        fileItemFromEvent(event)?.let { file ->
+            event.project?.let {
+//                FileEditorManager.getInstance(it)
+//                    .openFile(file.plFunctionSource, true, true)
+                Unit
+            }
+        }?: Unit
+}
+
+class RefresAction : AnAction() {
+    override fun getActionUpdateThread() = ActionUpdateThread.EDT
+    override fun update(event: AnActionEvent) = event.run {
+//        val ok = isFileItemOrFilesRoot(event) && !isDebugging()
+        val ok = isFileItemOrFilesRoot(event)
+        this.presentation.isVisible = ok
+        this.presentation.isEnabled = ok
+    }
+
+    override fun actionPerformed(event: AnActionEvent) =
+        fileItemFromEvent(event)?.let { file ->
+            event.project?.let {
+//                FileEditorManager.getInstance(it)
+//                    .openFile(file.plFunctionSource, true, true)
+                Unit
+            }
+        }?: filesFolderFromEvent(event)?.let {
+            event.project?.let {
+//                refreshVFS()
+            }
+        }?: Unit
+}

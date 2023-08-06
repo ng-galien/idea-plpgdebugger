@@ -35,8 +35,8 @@ jansi = { module = "org.fusesource.jansi:jansi", version.ref = "jansi" }
 
 jdbi3Core = { module = "org.jdbi:jdbi3-core", version.ref = "jbdi3" }
 jdbi3Kotlin = { module = "org.jdbi:jdbi3-kotlin", version.ref = "jbdi3" }
+jdbi3KotlinSqlObject = { module = "org.jdbi:jdbi3-kotlin-sqlobject", version.ref = "jbdi3" }
 jdbi3Postgres = { module = "org.jdbi:jdbi3-postgres", version.ref = "jbdi3" }
-jdbi3SqlObject = { module = "org.jdbi:jdbi3-sqlobject", version.ref = "jbdi3" }
 jdbi3Testing = { module = "org.jdbi:jdbi3-testing", version.ref = "jbdi3" }
 
 annotations = { group = "org.jetbrains", name = "annotations", version.ref = "annotations" }

@@ -8,21 +8,29 @@
 
     <depends>com.intellij.platform.images</depends>
 
+    <resource-bundle>message</resource-bundle>
+
     <extensions defaultExtensionNs="com.intellij.database">
-        <debuggerFacade dbms="POSTGRES" implementationClass="net.plpgsql.ideadebugger.PlFacade"/>
+        <debuggerFacade dbms="POSTGRES" implementationClass="net.plpgsql.ideadebugger.PluginFacade"/>
     </extensions>
+
 
     <extensions defaultExtensionNs="com.intellij">
         <xdebugger.breakpointType implementation="net.plpgsql.ideadebugger.breakpoint.DBLineBreakpointType"/>
-        <virtualFileSystem key="plpgsql"  implementationClass="net.plpgsql.ideadebugger.vfs.PlVirtualFileSystem"/>
+        <virtualFileSystem key="postgres-debugger-plugin"  implementationClass="net.plpgsql.ideadebugger.PluginFileSystem"/>
         <applicationConfigurable parentId="tools"
                              instance="net.plpgsql.ideadebugger.ui.PlDebuggerSettingsDialog"
                              id="net.plpgsql.ideadebugger.settings.PlSettingsConfigurable"
                              displayName="PL/pgSQL Debugger"/>
         <applicationService serviceImplementation="net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState"/>
-        <applicationService serviceInterface="net.plpgsql.ideadebugger.service.ProcessWatcher"
-                            serviceImplementation="net.plpgsql.ideadebugger.service.ProcessWatcherImpl" />
+        <applicationService serviceInterface="net.plpgsql.ideadebugger.service.DebugWatcher"
+                            serviceImplementation="net.plpgsql.ideadebugger.service.DebugWatcherImpl" />
+        <applicationService serviceInterface="net.plpgsql.ideadebugger.Debugger"
+                            serviceImplementation="net.plpgsql.ideadebugger.DebuggerImpl" />
         <notificationGroup displayType="BALLOON" id="PL/pg Notifications"/>
+        <notificationGroup id="net.plpgsql.ideadebugger.notification"
+                           displayType="BALLOON"
+                           key="notification.plugin.start.error"/>
         <toolWindow id="PL/pgSQL" anchor="left" factoryClass="net.plpgsql.ideadebugger.ui.ExplorerFactory" icon="AllIcons.Providers.Postgresql"/>
     </extensions>
     <actions>

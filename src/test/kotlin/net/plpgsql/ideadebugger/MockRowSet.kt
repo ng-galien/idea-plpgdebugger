@@ -4,6 +4,10 @@
 
 package net.plpgsql.ideadebugger
 
+import net.plpgsql.ideadebugger.old.AbstractRowSet
+import net.plpgsql.ideadebugger.old.Producer
+import net.plpgsql.ideadebugger.old.RowIterator
+import net.plpgsql.ideadebugger.old.RowSet
 import java.text.SimpleDateFormat
 import java.util.*
 

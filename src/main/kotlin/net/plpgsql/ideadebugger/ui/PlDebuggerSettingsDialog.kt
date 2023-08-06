@@ -105,52 +105,52 @@ class PlDebuggerSettingsDialog : Configurable {
                                 """.trimIndent())
                     }
 
-                    row("Function detection") {
-                        textArea()
-                            .bindText(formData::queryFuncArgs)
-                            .resizableColumn()
-                            .align(AlignX.CENTER)
-                            .comment(
-                                """
-                                Fetch arguments of the function<br/>
-                                Schema and function name are passed as arguments 
-                                """.trimIndent())
-                    }
-                    row("Fetch variables") {
-                        textArea()
-                            .bindText(formData::queryRawVars)
-                            .resizableColumn()
-                            .align(AlignX.CENTER)
-                            .comment(
-                                """
-                                Fetch variable definition and values<br/>
-                                Debugging session is passed as single argument
-                                """.trimIndent())
-                    }
-                    row("Explode composite") {
-
-                        textArea()
-                            .bindText(formData::queryExplodeComposite)
-                            .resizableColumn()
-                            .align(AlignX.CENTER)
-                            .comment(
-                                """
-                                Fetch members of a composite value in the stack<br/>
-                                Json value is passed as single argument
-                                """.trimIndent())
-                    }
-                    row("ExplodeArray") {
-
-                        textArea()
-                            .bindText(formData::queryExplodeArray)
-                            .resizableColumn()
-                            .align(AlignX.CENTER)
-                            .comment(
-                                """
-                                Fetch members of an array value in the stack<br/>
-                                Json value is passed as single argument
-                                """.trimIndent())
-                    }
+//                    row("Function detection") {
+//                        textArea()
+//                            .bindText(formData::queryFuncArgs)
+//                            .resizableColumn()
+//                            .align(AlignX.CENTER)
+//                            .comment(
+//                                """
+//                                Fetch arguments of the function<br/>
+//                                Schema and function name are passed as arguments
+//                                """.trimIndent())
+//                    }
+//                    row("Fetch variables") {
+//                        textArea()
+//                            .bindText(formData::queryRawVars)
+//                            .resizableColumn()
+//                            .align(AlignX.CENTER)
+//                            .comment(
+//                                """
+//                                Fetch variable definition and values<br/>
+//                                Debugging session is passed as single argument
+//                                """.trimIndent())
+//                    }
+//                    row("Explode composite") {
+//
+//                        textArea()
+//                            .bindText(formData::queryExplodeComposite)
+//                            .resizableColumn()
+//                            .align(AlignX.CENTER)
+//                            .comment(
+//                                """
+//                                Fetch members of a composite value in the stack<br/>
+//                                Json value is passed as single argument
+//                                """.trimIndent())
+//                    }
+//                    row("ExplodeArray") {
+//
+//                        textArea()
+//                            .bindText(formData::queryExplodeArray)
+//                            .resizableColumn()
+//                            .align(AlignX.CENTER)
+//                            .comment(
+//                                """
+//                                Fetch members of an array value in the stack<br/>
+//                                Json value is passed as single argument
+//                                """.trimIndent())
+//                    }
                 }
 
                 collapsibleGroup("Failure Testing") {

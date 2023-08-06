@@ -5,8 +5,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.util.messages.MessageBus
 import com.intellij.util.messages.Topic
 import com.intellij.util.messages.Topic.ProjectLevel
-import net.plpgsql.ideadebugger.node.ProcessInfo
-import net.plpgsql.ideadebugger.node.SourceFile
+import net.plpgsql.ideadebugger.FileItem
 import java.util.*
 
 @ProjectLevel
@@ -29,19 +28,15 @@ sealed interface DebuggerEvent {
     fun project(): Project
 }
 
-data class SourceLoaded(val project: Project, val file: SourceFile) : DebuggerEvent {
+data class SourceLoaded(val project: Project, val file: FileItem) : DebuggerEvent {
     override fun project(): Project = project
 }
 
-data class ProcessCreated(val project: Project, val processInfo: ProcessInfo) : DebuggerEvent {
-    override fun project(): Project = project
-}
-
-data class ProcessFinished(val project: Project, val processInfo: ProcessInfo) : DebuggerEvent {
-    override fun project(): Project = project
-}
-
-//data class ProcessStateChanged(val project: Project, val state: ProcessState) : DebuggerEvent {
+//data class ProcessCreated(val project: Project, val processInfo: ProcessItem) : DebuggerEvent {
+//    override fun project(): Project = project
+//}
+//
+//data class ProcessFinished(val project: Project, val processInfo: ProcessItem) : DebuggerEvent {
 //    override fun project(): Project = project
 //}
 

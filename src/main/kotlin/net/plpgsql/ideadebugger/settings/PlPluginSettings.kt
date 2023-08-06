@@ -4,7 +4,6 @@
 
 package net.plpgsql.ideadebugger.settings
 
-import net.plpgsql.ideadebugger.command.ApiQuery
 
 /**
  * Settings for the PL/SQL Debugger
@@ -28,8 +27,8 @@ data class PlPluginSettings(
     var failPGBreak: Boolean = false,
     var failAttach: Boolean = false,
     var customQuery: Boolean = false,
-    var queryFuncArgs: String = ApiQuery.GET_FUNCTION_CALL_ARGS.sql,
-    var queryRawVars: String = ApiQuery.GET_RAW_VARIABLES.sql,
-    var queryExplodeComposite: String = ApiQuery.EXPLODE_COMPOSITE.sql,
-    var queryExplodeArray: String = ApiQuery.EXPLODE_ARRAY.sql,
+//    var queryFuncArgs: String = ApiQuery.GET_FUNCTION_CALL_ARGS.sql,
+//    var queryRawVars: String = ApiQuery.GET_RAW_VARIABLES.sql,
+//    var queryExplodeComposite: String = ApiQuery.EXPLODE_COMPOSITE.sql,
+//    var queryExplodeArray: String = ApiQuery.EXPLODE_ARRAY.sql,
 )

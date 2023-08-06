@@ -6,7 +6,7 @@ package net.plpgsql.ideadebugger
 
 import com.intellij.testFramework.TestDataPath
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import net.plpgsql.ideadebugger.command.PlApiFunctionDef
+import net.plpgsql.ideadebugger.old.PlApiFunctionDef
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import org.junit.BeforeClass
 import org.junit.Test
@@ -39,7 +39,7 @@ class PlFunctionSourceTest(
                 arrayOf("function_without_declare_with_comments", 2, 5 to 10),
             )
         }
-        var postgres = getPGContainer("14")
+        var postgres = createCustomPostgres("14")
 
         @JvmStatic
         @BeforeClass

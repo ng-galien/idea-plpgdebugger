@@ -4,10 +4,14 @@
 
 package net.plpgsql.ideadebugger
 
+import com.intellij.notification.NotificationDisplayType
+import com.intellij.notification.NotificationGroup
+import com.intellij.notification.NotificationGroupManager
+import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.project.Project
-import net.plpgsql.ideadebugger.command.PlActivity
 import net.plpgsql.ideadebugger.ui.ConnectionDiagnosticDialog
+
 
 data class ConnectionDiagnostic (
     var customCommandMessage: String,
@@ -16,7 +20,7 @@ data class ConnectionDiagnostic (
     var sharedLibraryOk: Boolean,
     var extensions: String,
     var extensionOk: Boolean,
-    var activities: List<PlActivity>,
+//    var activities: List<PlActivity>,
     var activityOk: Boolean
 )
 
@@ -28,4 +32,11 @@ fun showExtensionDiagnostic(project: Project, diag: ConnectionDiagnostic) {
     runInEdt {
         dialog.show()
     }
+}
+
+fun notifyError(project: Project, message: String) {
+    NotificationGroupManager.getInstance()
+        .getNotificationGroup("net.plpgsql.ideadebugger.notification")
+        .createNotification(message, NotificationType.ERROR)
+        .notify(project);
 }

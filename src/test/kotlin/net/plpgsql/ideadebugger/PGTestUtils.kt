@@ -9,10 +9,11 @@ import org.jdbi.v3.core.Handle
 import org.jdbi.v3.core.Jdbi
 import org.jdbi.v3.core.kotlin.KotlinPlugin
 import org.jdbi.v3.postgres.PostgresPlugin
+import org.jdbi.v3.sqlobject.kotlin.KotlinSqlObjectPlugin
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.utility.DockerImageName
 
-const val PG_PORT = 5432
+
 
 data class FunctionDef(val schema: String, val routine: String, val args: Map<String,  String>)
 
@@ -30,7 +31,7 @@ fun getProcedureDefinition(handle: Handle, procedureName: String): String? {
         .firstOrNull()
 }
 
-fun getPGContainer(pgVersion: String): GenericContainer<*> {
+fun createCustomPostgres(pgVersion: String): GenericContainer<*> {
     return GenericContainer(DockerImageName.parse("galien0xffffff/postgres-debugger:$pgVersion"))
         .withExposedPorts(PG_PORT)
         .withEnv("POSTGRES_PASSWORD", "postgres")
@@ -42,7 +43,9 @@ fun getHandle(container: GenericContainer<*>): Handle {
     val host = container.host
     val port = container.getMappedPort(PG_PORT)
     val jdbi = Jdbi.create("jdbc:postgresql://${host}:${port}/postgres", "postgres", "postgres")
-        .installPlugin(PostgresPlugin()).installPlugin(KotlinPlugin())
+        .installPlugin(PostgresPlugin())
+        .installPlugin(KotlinPlugin())
+        .installPlugin(KotlinSqlObjectPlugin())
     return jdbi.open()
 }
 

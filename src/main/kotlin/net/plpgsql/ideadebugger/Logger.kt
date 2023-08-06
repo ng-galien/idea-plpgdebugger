@@ -3,7 +3,8 @@
  */
 
 package net.plpgsql.ideadebugger
-import com.intellij.openapi.diagnostic.Logger
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import kotlin.reflect.KClass
 
-fun getLogger(clazz: KClass<*>): Logger = Logger.getInstance(clazz.java)
+fun getLogger(clazz: KClass<*>): Logger = LoggerFactory.getLogger(clazz.java)

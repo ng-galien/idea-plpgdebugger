@@ -29,7 +29,7 @@ dependencies {
     implementation(libs.jdbi3Core)
     implementation(libs.jdbi3Kotlin)
     implementation(libs.jdbi3Kotlin)
-    implementation(libs.jdbi3SqlObject)
+    implementation(libs.jdbi3KotlinSqlObject)
     implementation(libs.jdbi3Postgres)
     // Arrow
     implementation(libs.arrowCore)
@@ -57,6 +57,12 @@ dependencies {
     testImplementation(libs.guava)
 }
 
+configurations {
+    all {
+        exclude(group = "org.slf4j")
+    }
+}
+
 kotlin {
     jvmToolchain(17)
 }
@@ -69,6 +75,7 @@ intellij {
 
     // Plugin Dependencies. Uses `platformPlugins` property from the gradle.properties file.
     plugins = properties("platformPlugins").map { it.split(',').map(String::trim).filter(String::isNotEmpty) }
+    downloadSources = true
 }
 
 
