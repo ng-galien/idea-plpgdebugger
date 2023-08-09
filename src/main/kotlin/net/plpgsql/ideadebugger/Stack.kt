@@ -2,6 +2,8 @@ package net.plpgsql.ideadebugger
 
 import com.intellij.icons.AllIcons
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiReference
+import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.util.ThreeState
 import com.intellij.xdebugger.XDebuggerUtil
 import com.intellij.xdebugger.XSourcePosition
@@ -149,7 +151,7 @@ private class PluginValue (val frame: PluginFrame, val provider: PluginValueProv
 
     override fun computeSourcePosition(navigatable: XNavigatable) {
         psiElement()?.let {
-            val pos = XDebuggerUtil.getInstance().createPositionByElement(it)
+            val pos = XDebuggerUtil.getInstance().createPositionByElement(it.parent)
             navigatable.setSourcePosition(pos)
         }
     }
@@ -158,20 +160,26 @@ private class PluginValue (val frame: PluginFrame, val provider: PluginValueProv
         if (!getSettings().showInlineVariable) {
             return ThreeState.NO
         }
-        return psiElement()?.let {
+        return psiReferences().map {
             val pos = XDebuggerUtil.getInstance().createPositionByElement(it)
             callback.computed(pos)
             ThreeState.YES
-        }?: ThreeState.NO
+        }.firstOrNull() ?: ThreeState.NO
     }
 
-
-    private fun psiElement(): PsiElement? {
+    fun psiElement(): PsiElement? {
         return if (provider is FileValueProvider) {
             provider.frame.pluginFile?.let { file ->
                 file.variables.find { it.name == provider.name }?.psiElement
             }
         } else null
+    }
+
+
+    private fun psiReferences(): List<PsiElement> {
+        return psiElement()?.let {
+            ReferencesSearch.search(it.parent).map { it.element }.toList()
+        } ?: emptyList()
     }
 
     override fun getEvaluationExpression(): String {

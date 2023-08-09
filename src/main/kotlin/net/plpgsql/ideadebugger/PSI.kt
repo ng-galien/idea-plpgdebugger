@@ -30,7 +30,7 @@ fun findProcedure(project: Project, file: VirtualFile?, range: RangeMarker?): Po
         return null
     }
     return runReadAction {
-        psiElement(project, file, range)?.let {
+        psiReferences(project, file, range)?.let {
             unWrapPgRoutine(it)?.let { routine ->
                 PostgresLib.Oid(routine.objectId)
             }
@@ -46,7 +46,7 @@ fun findProcedure(psiElement: PsiElement): PostgresLib.Oid? {
     }
 }
 
-fun psiElement(project: Project, file: VirtualFile?, range: RangeMarker?): PsiElement? {
+fun psiReferences(project: Project, file: VirtualFile?, range: RangeMarker?): PsiElement? {
     if (file == null || range == null) {
         return null
     }
