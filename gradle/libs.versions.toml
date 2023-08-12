@@ -15,8 +15,9 @@ jbdi3 = "3.39.1"
 logback = "1.4.11"
 jansi = "2.4.0"
 junit = "5.9.1"
-junitPlatformRunner = "1.9.0"
+junitPlatformRunner = "1.10.0"
 guava = "32.1.2-jre"
+
 
 [libraries]
 
