@@ -275,7 +275,7 @@ interface PostgresLib: SqlObject {
                t_arr_type.typtype                      AS kind,
                t_arr_type.typarray = 0                 AS is_array,
                t_arr_type.typcategory = 'S'            AS is_text,
-               coalesce(t_sub.typname, 'unknown')      AS array_type,
+               t_sub.typname                           AS array_type,
                coalesce(arr.val::TEXT, 'NULL')         AS value,
                coalesce(jsonb_pretty(arr.val), 'NULL') AS pretty
         FROM jsonb_array_elements(:json) WITH ORDINALITY arr(val, idx)

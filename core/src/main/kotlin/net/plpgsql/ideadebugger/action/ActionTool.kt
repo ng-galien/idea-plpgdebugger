@@ -3,7 +3,6 @@ package net.plpgsql.ideadebugger.action
 import com.intellij.openapi.actionSystem.*
 import com.intellij.openapi.actionSystem.impl.SimpleDataContext
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import net.plpgsql.ideadebugger.DebuggerItem
 import net.plpgsql.ideadebugger.FileItem

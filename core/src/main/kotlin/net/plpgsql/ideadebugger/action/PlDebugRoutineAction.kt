@@ -14,14 +14,8 @@ import com.intellij.database.view.getSelectedDbElements
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
-import com.intellij.xdebugger.XDebugProcess
-import com.intellij.xdebugger.XDebugProcessStarter
-import com.intellij.xdebugger.XDebugSession
-import com.intellij.xdebugger.XDebuggerManager
 import icons.PlDebuggerIcons
-import net.plpgsql.ideadebugger.*
 
 /**
  * Run debug action from the database tree view

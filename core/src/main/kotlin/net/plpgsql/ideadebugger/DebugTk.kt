@@ -15,13 +15,8 @@ import com.intellij.database.util.SearchPath
 import com.intellij.lang.Language
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.runInEdt
-import com.intellij.openapi.application.runWriteAction
 import com.intellij.openapi.project.Project
-import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.PgDialect
-import com.intellij.sql.psi.SqlFunctionCallExpression
-import com.intellij.sql.psi.SqlStatement
-import com.intellij.xdebugger.XDebuggerUtil
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 import net.plpgsql.ideadebugger.settings.PlPluginSettings
 import org.jdbi.v3.core.Jdbi

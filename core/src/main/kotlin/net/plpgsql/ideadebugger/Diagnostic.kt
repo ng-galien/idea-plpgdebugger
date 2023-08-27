@@ -4,8 +4,6 @@
 
 package net.plpgsql.ideadebugger
 
-import com.intellij.notification.NotificationDisplayType
-import com.intellij.notification.NotificationGroup
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.application.runInEdt

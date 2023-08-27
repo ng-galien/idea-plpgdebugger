@@ -2,7 +2,6 @@ package net.plpgsql.ideadebugger
 
 import com.intellij.icons.AllIcons
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiReference
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.util.ThreeState
 import com.intellij.xdebugger.XDebuggerUtil
