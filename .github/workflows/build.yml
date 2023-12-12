@@ -22,7 +22,6 @@ on:
       - '**/*.md'
       - '**/*.sql'
       - '**/*.xml'
-      - '**/*.yml'
       - '**/*.sh'
       - '**/Dockerfile'
   # Trigger the workflow on any pull request
@@ -57,7 +56,7 @@ jobs:
       - name: Gradle Wrapper Validation
         uses: gradle/wrapper-validation-action@v1.1.0
 
-      # Setup Java environment for the next steps
+      # Set up Java environment for the next steps
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -67,6 +66,8 @@ jobs:
       # Setup Gradle
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
+        with:
+          gradle-home-cache-cleanup: true
 
       # Set environment variables
       - name: Export Properties
@@ -119,7 +120,7 @@ jobs:
       - name: Fetch Sources
         uses: actions/checkout@v4
 
-      # Setup Java environment for the next steps
+      # Set up Java environment for the next steps
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -129,6 +130,8 @@ jobs:
       # Setup Gradle
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
+        with:
+          gradle-home-cache-cleanup: true
 
       # Run tests
       - name: Run Tests
@@ -142,11 +145,11 @@ jobs:
           name: tests-result
           path: ${{ github.workspace }}/build/reports/tests
 
-      # Upload Kover report to CodeCov
+      # Upload the Kover report to CodeCov
       - name: Upload Code Coverage Report
         uses: codecov/codecov-action@v3
         with:
-          files: ${{ github.workspace }}/build/reports/kover/xml/report.xml
+          files: ${{ github.workspace }}/build/reports/kover/report.xml
 
   # Run Qodana inspections and provide report
   inspectCode:
@@ -159,11 +162,18 @@ jobs:
       pull-requests: write
     steps:
 
+      # Free GitHub Actions Environment Disk Space
+      - name: Maximize Build Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          large-packages: false
+
       # Check out current repository
       - name: Fetch Sources
         uses: actions/checkout@v4
 
-      # Setup Java environment for the next steps
+      # Set up Java environment for the next steps
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -172,22 +182,29 @@ jobs:
 
       # Run Qodana inspections
       - name: Qodana - Code Inspection
-        uses: JetBrains/qodana-action@v2023.3.0
+        uses: JetBrains/qodana-action@v2023.2.8
         with:
           cache-default-branch-only: true
 
   # Run plugin structure verification along with IntelliJ Plugin Verifier
   verify:
     name: Verify plugin
-    needs: [ build, test, inspectCode ]
+    needs: [ build ]
     runs-on: ubuntu-latest
     steps:
+
+      # Free GitHub Actions Environment Disk Space
+      - name: Maximize Build Space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: false
+          large-packages: false
 
       # Check out current repository
       - name: Fetch Sources
         uses: actions/checkout@v4
 
-      # Setup Java environment for the next steps
+      # Set up Java environment for the next steps
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -197,6 +214,8 @@ jobs:
       # Setup Gradle
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
+        with:
+          gradle-home-cache-cleanup: true
 
       # Cache Plugin Verifier IDEs
       - name: Setup Plugin Verifier IDEs Cache
@@ -222,7 +241,7 @@ jobs:
   releaseDraft:
     name: Release draft
     if: github.event_name != 'pull_request'
-    needs: [ build, verify ]
+    needs: [ build, test, inspectCode, verify ]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -232,7 +251,7 @@ jobs:
       - name: Fetch Sources
         uses: actions/checkout@v4
 
-      # Setup Java environment for the next steps
+      # Set up Java environment for the next steps
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
