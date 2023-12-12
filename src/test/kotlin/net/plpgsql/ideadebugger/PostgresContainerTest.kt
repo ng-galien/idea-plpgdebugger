@@ -11,7 +11,7 @@ import org.testcontainers.junit.jupiter.Testcontainers
 class PostgresContainerTest {
 
     @Container
-    var postgres = getPGContainer("14")
+    var postgres = getPGContainer("15")
 
     @BeforeEach
     fun setup() {

@@ -21,13 +21,13 @@ Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea
 
 ### Install the debugger on the server
 
->Try out the Docker image on [Docker Hub](https://hub.docker.com/repository/docker/galien0xffffff/postgres-debugger/general) with a ready to use enhanced debugger (versions 11 to 15).  
+>Try out the Docker image on [Docker Hub](https://hub.docker.com/repository/docker/galien0xffffff/postgres-debugger/general) with a ready to use enhanced debugger (versions 11 to 16).  
 Images are based on the official postgres image and are available for amd64 and arm64 architectures. 
 > [Docker Image](/docker/Dockerfile) | [Readme](/docker/README.md)
 
 
 ```shell
-docker run -p 5514:5432 --name PG14-debug -e POSTGRES_PASSWORD=postgres -d galien0xffffff/postgres-debugger:14
+docker run -p 5515:5432 --name PG15-debug -e POSTGRES_PASSWORD=postgres -d galien0xffffff/postgres-debugger:15
 ```
 
 Or install the [debugger](https://www.pgadmin.org/docs/pgadmin4/development/debugger.html) binaries on  your machine.
