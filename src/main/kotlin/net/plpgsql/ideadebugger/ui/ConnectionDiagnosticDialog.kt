@@ -10,6 +10,8 @@ import com.intellij.openapi.ui.DialogPanel
 import com.intellij.openapi.ui.DialogWrapper
 import com.intellij.ui.dsl.builder.panel
 import net.plpgsql.ideadebugger.ConnectionDiagnostic
+import net.plpgsql.ideadebugger.DEBUGGER_EXTENSION
+import net.plpgsql.ideadebugger.DEBUGGER_SHARED_LIBRARY
 import javax.swing.JComponent
 
 class ConnectionDiagnosticDialog(project: Project, private var diagnostic: ConnectionDiagnostic) :
@@ -43,7 +45,7 @@ class ConnectionDiagnosticDialog(project: Project, private var diagnostic: Conne
                 row {
                 }.comment(
                     """
-                    The library plugin_debugger detected in the database server 
+                    The library '$DEBUGGER_SHARED_LIBRARY' detected in the database server 
                     Shared libraries are set in postgresql.conf
                     """.trimIndent()
                 )
@@ -54,7 +56,7 @@ class ConnectionDiagnosticDialog(project: Project, private var diagnostic: Conne
                 row {
                 }.comment(
                     """
-                    Extension must be created in the current database
+                    Extension '$DEBUGGER_EXTENSION' must be created in the current database 
                     """.trimIndent()
                 )
                 if (!diagnostic.activityOk) {

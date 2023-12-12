@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### Maintenance
+
+- Compatibility with Intellij 2023.* [#154](https://github.com/ng-galien/idea-plpgdebugger/issues/154)
+
+### Enhancements
+
+- Diagnostic for missing extension [#153](https://github.com/ng-galien/idea-plpgdebugger/issues/153)
+
 ## [232.0.3] - 2023-08-12
 
 ### Maintenance
