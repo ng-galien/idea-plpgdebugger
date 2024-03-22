@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Maintenance
+
+- Bump library versions
+
 ## [233.0.1] - 2023-12-12
 
 ### Maintenance
