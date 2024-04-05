@@ -87,7 +87,7 @@ class PlFacade : SqlDebuggerFacade {
     }
 
     /**
-     * TODO: remove this method when DatabaseTools will be fixed
+     * Deprecation must be addressed soon as possible
      */
     @Deprecated("Deprecated in Java")
     override fun createController(
