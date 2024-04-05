@@ -21,10 +21,13 @@ Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea
 
 ### Install the debugger on the server
 
->Try out the Docker image on [Docker Hub](https://hub.docker.com/repository/docker/galien0xffffff/postgres-debugger/general) with a ready to use enhanced debugger (versions 11 to 16).  
-Images are based on the official postgres image and are available for amd64 and arm64 architectures. 
-> [Docker Image](/docker/Dockerfile) | [Readme](/docker/README.md)
+You can use the plugin with the standard pldbgapi extension, but you will not be able to inspect every variable type.  
+To get the full experience, you can use an [enhanced version](https://github.com/ng-galien/pldebugger) with the plugin.  
 
+You can compile the extension from the source code or use one of the [Docker images](https://hub.docker.com/repository/docker/galien0xffffff/postgres-debugger/general) available.
+
+> The Docker image is based on the official PostgreSQL image and includes the debugger extension, from version 11 to 16 for amd64 and arm64.
+> To build your own image, you can use the [Dockerfile](https://github.com/ng-galien/pldebugger/tree/print-vars/docker) provided.
 
 ```shell
 docker run -p 5515:5432 --name PG15-debug -e POSTGRES_PASSWORD=postgres -d galien0xffffff/postgres-debugger:15

@@ -7,6 +7,7 @@
 ### Maintenance
 
 - Compatibility with Intellij 2024.*
+- Update documentation for dockerized debugger [#214](https://github.com/ng-galien/idea-plpgdebugger/issues/214)
 - Bump dependencies to latest version
 
 ## [233.0.1] - 2023-12-12
