@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [241.0.0] - 2024-04-05
+
 ### Maintenance
 
 - Compatibility with Intellij 2024.*
@@ -256,7 +258,8 @@
 - View variables
 - Explore arrays and composite type
 
-[Unreleased]: https://github.com/ng-galien/idea-plpgdebugger/compare/v233.0.1...HEAD
+[Unreleased]: https://github.com/ng-galien/idea-plpgdebugger/compare/v241.0.0...HEAD
+[241.0.0]: https://github.com/ng-galien/idea-plpgdebugger/compare/v233.0.1...v241.0.0
 [233.0.1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v232.0.3...v233.0.1
 [232.0.3]: https://github.com/ng-galien/idea-plpgdebugger/compare/v231.0.1...v232.0.3
 [231.0.1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v222.3.3...v231.0.1
