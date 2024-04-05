@@ -6,7 +6,8 @@
 
 ### Maintenance
 
-- Bump library versions
+- Compatibility with Intellij 2024.*
+- Bump dependencies to latest version
 
 ## [233.0.1] - 2023-12-12
 
