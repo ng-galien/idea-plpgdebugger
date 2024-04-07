@@ -31,6 +31,7 @@ class PlSourceManager(private val project: Project, private val executor: PlExec
                 runInEdt {
                     FileEditorManager.getInstance(project).openFile(it, true, true)
                 }
+                return it
             }
         }
         return vfs.findFileByPath("${stack.oid}")
