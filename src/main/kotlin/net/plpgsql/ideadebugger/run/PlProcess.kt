@@ -105,7 +105,7 @@ class PlProcess(
     }
 
     /**
-     *
+     * Update stack and breakpoints
      */
     fun updateStack(): StepInfo? {
 
