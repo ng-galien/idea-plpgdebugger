@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Bugfixes
+
+- Fix debugger commands not showing up at first [#162](https://github.com/ng-galien/idea-plpgdebugger/issues/162)
+
 ### Maintenance
 
 - Compatibility with Intellij 2024.*
