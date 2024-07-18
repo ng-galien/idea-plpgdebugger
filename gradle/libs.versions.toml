@@ -16,7 +16,7 @@ logback = "1.5.6"
 jansi = "2.4.1"
 junit = "5.10.2"
 junitPlatformRunner = "1.10.2"
-guava = "33.1.0-jre"
+guava = "33.2.1-jre"
 
 
 [libraries]
