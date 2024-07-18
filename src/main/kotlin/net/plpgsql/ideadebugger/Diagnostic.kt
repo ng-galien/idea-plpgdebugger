@@ -19,6 +19,18 @@ import com.intellij.openapi.project.Project
 import net.plpgsql.ideadebugger.command.PlActivity
 import net.plpgsql.ideadebugger.ui.ConnectionDiagnosticDialog
 
+/**
+ * Represents a diagnostic for the connection, including information about various components of the connection.
+ *
+ * @property customCommandMessage The message related to the custom command executed on the connection.
+ * @property customCommandOk Indicates whether the custom command executed successfully.
+ * @property sharedLibraries The shared libraries used by the connection.
+ * @property sharedLibraryOk Indicates whether the shared libraries are available.
+ * @property extensions The extensions installed on the connection.
+ * @property extensionOk Indicates whether the extensions are enabled.
+ * @property activities The list of PL/pgSQL activities running on the connection.
+ * @property activityOk Indicates whether the activities are active.
+ */
 data class ConnectionDiagnostic (
     var customCommandMessage: String,
     var customCommandOk: Boolean,
@@ -30,9 +42,21 @@ data class ConnectionDiagnostic (
     var activityOk: Boolean
 )
 
+/**
+ * Checks if the given ConnectionDiagnostic object indicates that the extension is OK.
+ *
+ * @param diag The ConnectionDiagnostic object to check
+ * @return true if the extension is OK, false otherwise
+ */
 fun extensionOk(diag: ConnectionDiagnostic): Boolean =
     diag.customCommandOk && diag.extensionOk && diag.sharedLibraryOk && diag.activityOk
 
+/**
+ * Displays a diagnostic dialog for a connection diagnostic.
+ *
+ * @param project The current project.
+ * @param diag The connection diagnostic object containing the diagnostic information.
+ */
 fun showExtensionDiagnostic(project: Project, diag: ConnectionDiagnostic) {
     val dialog = ConnectionDiagnosticDialog(project, diag)
     runInEdt {

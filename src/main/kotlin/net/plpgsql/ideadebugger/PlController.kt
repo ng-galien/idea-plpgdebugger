@@ -33,6 +33,15 @@ import net.plpgsql.ideadebugger.command.PlExecutor
 import net.plpgsql.ideadebugger.run.PlProcess
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 
+/**
+ * This class represents the PL Controller which extends the SqlDebugController.
+ * It is responsible for managing the PL debugging process.
+ *
+ * @property project The project associated with the PL controller.
+ * @property connectionPoint The database connection point.
+ * @property searchPath The search path for the PL controller.
+ * @property callDefinition The call definition for the PL controller.
+ */
 class PlController(
     val project: Project,
     val connectionPoint: DatabaseConnectionPoint,

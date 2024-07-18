@@ -22,6 +22,8 @@ import com.intellij.openapi.vfs.ex.dummy.DummyCachingFileSystem
 import java.util.*
 
 
+/**
+ * PlVirtualFileSystem is a class that represents a virtual file system for Pl*/
 class PlVirtualFileSystem : DummyCachingFileSystem<PlFunctionSource>(PROTOCOL) {
 
     override fun findFileByPathInner(path: String): PlFunctionSource?{

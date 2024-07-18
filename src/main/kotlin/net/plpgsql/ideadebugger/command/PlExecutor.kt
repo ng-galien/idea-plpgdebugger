@@ -25,12 +25,24 @@ import net.plpgsql.ideadebugger.*
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Debugger SQL executor.
- * Executes queries from the debugger API
+ * This variable represents an empty entry point value.
+ *
+ * @property EMPTY_ENTRY_POINT The value of the empty entry point.
  */
 const val EMPTY_ENTRY_POINT = 0L
+
+/**
+ * This variable represents an invalid session value.
+ *
+ * @property INVALID_SESSION The value of the invalid session.
+ */
 const val INVALID_SESSION = 0
 
+/**
+ * Executes PostgreSQL PL Debugger commands and queries.
+ *
+ * @property guardedRef The guarded reference to the database connection.
+ */
 class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Disposable {
 
     var entryPoint = EMPTY_ENTRY_POINT
@@ -147,6 +159,12 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         )
     }
 
+    /**
+     * Runs a step in the PL/pgSQL API execution.
+     *
+     * @param step the step to execute, can be one of `ApiQuery.STEP_OVER`, `ApiQuery.STEP_INTO`, or `ApiQuery.STEP_CONTINUE`
+     * @return the result of the step execution as a `PlApiStep` object, or `null` if the session is invalid or an invalid step command is provided
+     */
     fun runStep(step: ApiQuery): PlApiStep? {
         if (invalidSession()) {
             return null
@@ -168,6 +186,11 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         return res
     }
 
+    /**
+     * Retrieves the PL/pgSQL API stack frames.
+     *
+     * @return a list of `PlApiStackFrame` objects representing the stack frames
+     */
     fun getStack(): List<PlApiStackFrame> {
         if (invalidSession()) {
             return listOf()
@@ -175,9 +198,20 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         return executeQuery(query = ApiQuery.GET_STACK, args = listOf("$plSession"))
     }
 
+    /**
+     * Retrieves the PL/pgSQL API function definition with the specified OID.
+     *
+     * @param oid the OID of the function
+     * @return the PL/pgSQL API function definition as a PlApiFunctionDef object, or null if no function is found
+     */
     fun getFunctionDef(oid: Long): PlApiFunctionDef? =
         executeQuery<PlApiFunctionDef>(query = ApiQuery.GET_FUNCTION_DEF, args = listOf("$oid")).firstOrNull()
 
+    /**
+     * Retrieves the PL/pgSQL API stack variables.
+     *
+     * @return a list of PlApiStackVariable objects representing the stack variables.
+     */
     fun getVariables(): List<PlApiStackVariable> {
         if (invalidSession()) {
             return listOf()
@@ -211,6 +245,13 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         return executeQuery(query = ApiQuery.GET_JSON_VARIABLES, args = listOf(query))
     }
 
+    /**
+     * Explodes a PL/pgSQL API value.
+     *
+     * @param value the value to explode
+     * @return a list of PL/pgSQL API values
+     * @throws IllegalArgumentException if the value is not an array or a composite value
+     */
     fun explode(value: PlApiValue): List<PlApiValue> {
         if (invalidSession()) {
             return listOf()
@@ -231,6 +272,14 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         return executeQuery(query = ApiQuery.EXPLODE, args = listOf(query), ignoreError = true)
     }
 
+    /**
+     * Retrieves the list of PL/pgSQL API debug steps.
+     *
+     * This method returns a list of `PlApiStep` objects representing the breakpoints set in the PL/pgSQL API execution.
+     * If the session is invalid, an empty list will be returned.
+     *
+     * @return a list of `PlApiStep` objects representing the breakpoints
+     */
     fun getBreakPoints(): List<PlApiStep>{
         if (invalidSession()) {
             return listOf()
@@ -239,6 +288,11 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
     }
 
 
+    /**
+     * Sets a global breakpoint for debugging in the PL/pgSQL API.
+     *
+     * @param oid the object ID of the breakpoint to set
+     */
     fun setGlobalBreakPoint(oid: Long) {
         if (invalidSession()) {
             return
@@ -249,10 +303,21 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         )
     }
 
+    /**
+     * Sets a global breakpoint for debugging.
+     */
     fun setGlobalBreakPoint() {
         setGlobalBreakPoint(entryPoint)
     }
 
+    /**
+     * Updates the breakpoint for a given command, object ID, and line number.
+     *
+     * @param cmd the API command representing the breakpoint action
+     * @param oid the object ID
+     * @param line the line number
+     * @return true if the breakpoint was successfully updated, false otherwise
+     */
     fun updateBreakPoint(cmd: ApiQuery, oid: Long, line: Int): Boolean {
         if (invalidSession()) {
             return false
@@ -270,6 +335,16 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         }
     }
 
+    /**
+     * Executes a database query and returns a list of results.
+     *
+     * @param query the query to execute
+     * @param args the arguments to use in the query (default is an empty list)
+     * @param dc the database connection to use (default is the internal connection)
+     * @param additionalCommand an additional command to include in the query (default is null)
+     * @param ignoreError a flag indicating whether to ignore any errors that occur during the query (default is false)
+     * @return a list of results of type T
+     */
     @Suppress("UNCHECKED_CAST")
     private fun <T> executeQuery(
         query: ApiQuery,
@@ -312,6 +387,13 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         return res ?: listOf()
     }
 
+    /**
+     * Executes a custom command with the given raw SQL.
+     *
+     * @param rawSql the raw SQL command to execute
+     * @param connection the database connection to use (optional, defaults to internalConnection)
+     * @return true if the command executed successfully, false otherwise
+     */
     private fun executeCustomCommand(rawSql: String, connection: DatabaseConnection = internalConnection): Boolean {
         setDebug("Execute session command: rawSQL=$rawSql")
         executeQuery<PlApiVoid>(
@@ -323,6 +405,12 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         return lastError == null
     }
 
+    /**
+     * Executes a custom query based on the given `ApiQuery` command.
+     *
+     * @param cmd the `ApiQuery` command to execute
+     * @return the resulting query string
+     */
     private fun customQuery(cmd: ApiQuery): String {
 
         if (settings.customQuery) {
@@ -337,14 +425,41 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         }
     }
 
+    /**
+     * Sets the specified message as an information message.
+     *
+     * @param msg the content of the message
+     */
     fun setInfo(msg: String) = addMessage(Message(level = Level.INFO, content = msg))
 
+    /**
+     * Sets a command message with CMD level.
+     *
+     * @param msg the content of the message
+     */
     private fun setCmd(msg: String) = addMessage(Message(level = Level.CMD, content = msg))
 
+    /**
+     * Sets the debug message with the specified content.
+     *
+     * @param msg the content of the debug message
+     */
     fun setDebug(msg: String) = addMessage(Message(level = Level.DEBUG, content = msg))
 
+    /**
+     * Sets the SQL message for logging.
+     *
+     * @param msg the SQL message to set
+     */
     private fun setSQL(msg: String) = addMessage(Message(level = Level.SQL, content = msg))
 
+    /**
+     * Sets an error message with the given content, optional cause, and optional hint.
+     *
+     * @param msg the content of the error message
+     * @param thw the cause of the error message (optional)
+     * @param hint the hint for the error message (optional)
+     */
     fun setError(msg: String, thw: Throwable? = null, hint: String? = null) {
         val err = Message(
             level = Level.ERROR,
@@ -356,6 +471,9 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         lastError = err
     }
 
+    /**
+     * Prints the stack of messages to the console view.
+     */
     fun printStack() {
         xSession?.consoleView?.let {
             val copy = ArrayList(messages)
@@ -377,6 +495,12 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         }
     }
 
+    /**
+     * Checks if the given log level can be printed based on the settings.
+     *
+     * @param level the log level to check
+     * @return true if the log level can be printed, false otherwise.
+     */
     private fun canPrint(level: Level): Boolean = when (level) {
         Level.CMD -> settings.showCmd
         Level.DEBUG -> settings.showDebug
@@ -386,6 +510,11 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         else -> true
     }
 
+    /**
+     * Adds a message to the internal message log.
+     *
+     * @param msg the message to add
+     */
     private fun addMessage(msg: Message) {
         if (!canPrint(msg.level)) {
             return
@@ -394,8 +523,19 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         messages.add(msg)
     }
 
+    /**
+     * Checks if there is an error.
+     *
+     * @return true if there is an error, false otherwise.
+     */
     private fun hasError(): Boolean = ready && (lastError != null)
 
+    /**
+     * Checks if there is an error and displays an error message.
+     * If there is an error, cancels and closes the connection.
+     *
+     * @return true if there is an error, false otherwise.
+     */
     fun interrupted(): Boolean {
         if (hasError()) {
             val msg = messages.firstOrNull {
@@ -415,6 +555,9 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         return false
     }
 
+    /**
+     * Cancels the currently executing statement.
+     */
     fun cancelStatement() {
         console("cancelConnection")
         if (!internalConnection.remoteConnection.isClosed) {
@@ -423,6 +566,9 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         }
     }
 
+    /**
+     * Closes the database connection.
+     */
     private fun closeConnection() {
         console("cancelConnection")
         if (!internalConnection.remoteConnection.isClosed) {
@@ -431,11 +577,24 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         }
     }
 
+    /**
+     * Cancels the statement and closes the connection.
+     */
     fun cancelAndCloseConnection() {
         cancelStatement()
         closeConnection()
     }
 
+    /**
+     * Retrieves a list of objects of type T from the database.
+     *
+     * @param producer the producer function that consumes a RowIterator and returns an object of type T
+     * @param cmd the SQL command used to retrieve the data
+     * @param disableDecoration a flag indicating whether to disable query decoration
+     * @param connection the database connection to use
+     * @param builder a lambda function that customizes the DBRowSet object
+     * @return a list of objects of type T
+     */
     private inline fun <T> getRowSet(
         producer: Producer<T>,
         cmd: String,
@@ -451,6 +610,11 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         ).apply(builder).values
 
 
+    /**
+     * Enum class representing different levels of logging.
+     *
+     * @property ct the corresponding ConsoleViewContentType for the level
+     */
     enum class Level(val ct: ConsoleViewContentType) {
         ERROR(ConsoleViewContentType.ERROR_OUTPUT),
         NOTICE(ConsoleViewContentType.NORMAL_OUTPUT),
@@ -460,6 +624,14 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
         DEBUG(ConsoleViewContentType.LOG_DEBUG_OUTPUT),
     }
 
+    /**
+     * Represents a message with a specific level, content, cause, and hint.
+     *
+     * @param level the level of the message
+     * @param content the content of the message
+     * @param cause the cause of the message (optional)
+     * @param hint the hint for the message (optional)
+     */
     data class Message(
         val level: Level,
         val content: String,

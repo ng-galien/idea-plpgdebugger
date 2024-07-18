@@ -37,15 +37,29 @@ const val DEBUGGER_EXTENSION = "pldbgapi"
 const val DEBUGGER_SHARED_LIBRARY = "plugin_debugger"
 const val DEBUGGER_SESSION_NAME = "idea_debugger"
 
+/**
+ * Debug mode.
+ * NONE: No debugging.
+ * DIRECT: Direct debugging, when the function is called directly from the editor.
+ * INDIRECT: Indirect debugging, when the function is called from another function.
+ */
 enum class DebugMode {
     NONE, DIRECT, INDIRECT
 }
 
-
+/**
+ * Get the PL/pgSQL language.
+ */
 fun getPlLanguage(): Language = PgDialect.INSTANCE
 
+/**
+ * Check if a string is null.
+ */
 fun plNull(value: String) = (value.uppercase() == "NULL")
 
+/**
+ * Print a message to the console.
+ */
 fun console(msg: String, throwable: Throwable? = null) {
     if (CONSOLE) {
         println(msg)
@@ -53,10 +67,16 @@ fun console(msg: String, throwable: Throwable? = null) {
     }
 }
 
+/**
+ * Get the settings.
+ */
 fun getSettings(): PlPluginSettings {
     return PlDebuggerSettingsState.getInstance().state
 }
 
+/**
+ * Get the auxiliary connection.
+ */
 fun getAuxiliaryConnection(
     project: Project,
     connectionPoint: DatabaseConnectionPoint,
@@ -74,7 +94,7 @@ fun getAuxiliaryConnection(
 }
 
 /**
- *
+ * Get the call statement from a SQL statement.
  */
 fun getCallStatement(statement: SqlStatement): CallDefinition {
     val callElement =
@@ -83,7 +103,7 @@ fun getCallStatement(statement: SqlStatement): CallDefinition {
 }
 
 /**
- *
+ * Sanitize the query by removing leading and trailing spaces, and the trailing semicolon.
  *@param sql
  */
 fun sanitizeQuery(sql: String): String {
@@ -94,6 +114,10 @@ fun sanitizeQuery(sql: String): String {
     return res
 }
 
+/**
+ * Remove the quotes from a string.
+ *@param s
+ */
 fun unquote(s: String): String = s.removeSurrounding("\"")
 
 

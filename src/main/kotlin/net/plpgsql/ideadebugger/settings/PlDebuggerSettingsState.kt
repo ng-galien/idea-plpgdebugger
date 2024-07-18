@@ -20,6 +20,15 @@ import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.util.xmlb.XmlSerializerUtil
 
+/**
+ * Represents the state of the PL debugger settings.
+ *
+ * This class is used to store and retrieve persistent state information for the PL debugger plugin.
+ * It implements the `PersistentStateComponent` interface with the `PlPluginSettings` class as the state type.
+ * The state data is stored in an XML file named "PlDebuggerPlugin.xml".
+ *
+ * @property data The PL plugin settings data.
+ */
 @State(
     name = "net.plpgsql.ideadebugger.settings.PlProjectSettingState",
     storages = [Storage("PlDebuggerPlugin.xml")]

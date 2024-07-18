@@ -16,4 +16,10 @@ package net.plpgsql.ideadebugger
 import com.intellij.openapi.diagnostic.Logger
 import kotlin.reflect.KClass
 
+/**
+ * Retrieves an instance of the Logger class for the specified Kotlin class.
+ *
+ * @param clazz The Kotlin class for which to retrieve the Logger instance.
+ * @return The Logger instance for the specified class.
+ */
 fun getLogger(clazz: KClass<*>): Logger = Logger.getInstance(clazz.java)

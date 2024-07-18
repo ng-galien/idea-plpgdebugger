@@ -25,6 +25,12 @@ import net.plpgsql.ideadebugger.command.PlApiFunctionDef
 import net.plpgsql.ideadebugger.command.PlApiStackFrame
 import net.plpgsql.ideadebugger.command.PlExecutor
 
+/**
+ * Manages the PL source code for a given project.
+ *
+ * @param project The project in which the PL source code is managed.
+ * @param executor The executor used to interact with the PL database.
+ */
 class PlSourceManager(private val project: Project, private val executor: PlExecutor) {
 
     private val vfs = PlVirtualFileSystem.Util.getInstance()

@@ -26,9 +26,10 @@ fun interface Producer<R> {
 }
 
 /**
- * Iterates over and consumes a RowIterator.
+ * Abstract class representing a row iterator.
  *
- * @author Alexandre Boyer
+ * @param R the type of the row
+ * @property producer the producer that consumes the row iterator
  */
 abstract class RowIterator<R>(private val producer: Producer<R>) : Iterator<R>, AutoCloseable {
 
@@ -43,11 +44,24 @@ abstract class RowIterator<R>(private val producer: Producer<R>) : Iterator<R>, 
     }
 }
 
+/**
+ * A generic interface representing a row set.
+ *
+ * @param R the type of each row in the row set
+ */
 interface RowSet<R> {
     fun open(): RowIterator<R>?
     fun fetch(args: List<String>)
 }
 
+/**
+ * AbstractRowSet is an abstract class that provides a basic implementation of the RowSet interface.
+ * It holds a list of items, a path string, and a producer object.
+ *
+ * @param R the generic type parameter representing the type of the items in the row set.
+ * @param producer the producer object responsible for consuming the RowIterator.
+ * @param cmd the command string used to fetch the data.
+ */
 abstract class AbstractRowSet<R>(protected val producer: Producer<R>, private val cmd: String) : RowSet<R> {
 
     private val _items: MutableList<R> = mutableListOf()

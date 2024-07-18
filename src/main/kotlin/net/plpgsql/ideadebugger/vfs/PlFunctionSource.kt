@@ -29,6 +29,15 @@ import net.plpgsql.ideadebugger.getPlLanguage
 import net.plpgsql.ideadebugger.unquote
 import java.nio.charset.Charset
 
+/**
+ * PlFunctionSource represents a PL/pgSQL function source code file.
+ *
+ * @param project The project associated with the function source code.
+ * @param def The PL/pgSQL function definition.
+ * @param md5 The MD5 hash of the function source code.
+ *
+ * Extends LightVirtualFile to represent a virtual file that contains the function source code.
+ */
 class PlFunctionSource(project: Project, def: PlApiFunctionDef, val md5: String) : LightVirtualFile(
     "${def.schema}.${def.name}[${def.oid}]",
     getPlLanguage(),

@@ -15,35 +15,35 @@
 package net.plpgsql.ideadebugger.command
 
 /**
- *
+ * PL/pgSQL API void.
  */
 data class PlApiVoid(
     val void: Int = 0
 )
 
 /**
- *
+ * PL/pgSQL API boolean.
  */
 data class PlApiBoolean(
     val value: Boolean
 )
 
 /**
- *
+ * PL/pgSQL API integer.
  */
 data class PlApiInt(
     val value: Int
 )
 
 /**
- *
+ * PL/pgSQL API string.
  */
 data class PlApiString(
     val value: String
 )
 
 /**
- *
+ * PL/pgSQL Activity.
  */
 data class PlActivity(
     val pid: Long,
@@ -53,7 +53,7 @@ data class PlActivity(
 )
 
 /**
- *
+ * PL/pgSQL API debug step
  */
 data class PlApiStep(
     val oid: Long,
@@ -62,7 +62,7 @@ data class PlApiStep(
 )
 
 /**
- *
+ * PL/pgSQL API stack frame
  */
 data class PlApiStackFrame(
     val level: Int,
@@ -72,7 +72,7 @@ data class PlApiStackFrame(
 )
 
 /**
- *
+ * PL/pgSQL API stack value
  */
 data class PlApiValue(
     val oid: Long,
@@ -87,7 +87,7 @@ data class PlApiValue(
 )
 
 /**
- *
+ * PL/pgSQL API stack variable
  */
 data class PlApiStackVariable(
     val isArg: Boolean,
@@ -96,7 +96,7 @@ data class PlApiStackVariable(
 )
 
 /**
- *
+ * PL/pgSQL API procedure argument
  */
 data class PlApiFunctionArg(
     val oid: Long,
@@ -108,7 +108,7 @@ data class PlApiFunctionArg(
 )
 
 /**
- *
+ * PL/pgSQL API function definition
  */
 data class PlApiFunctionDef(
     val oid: Long,
@@ -119,7 +119,7 @@ data class PlApiFunctionDef(
 )
 
 /**
- *
+ * PL/pgSQL API extension
  */
 data class PlApiExtension(
     val schema: String,

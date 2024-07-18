@@ -24,6 +24,12 @@ import net.plpgsql.ideadebugger.DEBUGGER_EXTENSION
 import net.plpgsql.ideadebugger.DEBUGGER_SHARED_LIBRARY
 import javax.swing.JComponent
 
+/**
+ * Represents a dialog for displaying connection diagnostics.
+ *
+ * @param project The current project.
+ * @param diagnostic The connection diagnostic object containing the diagnostic information.
+ */
 class ConnectionDiagnosticDialog(project: Project, private var diagnostic: ConnectionDiagnostic) :
     DialogWrapper(project, true) {
 

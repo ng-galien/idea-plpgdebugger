@@ -23,15 +23,23 @@ import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import javax.swing.Icon
 
-
+/**
+ * PL/pgSQL line breakpoint type.
+ */
 class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>(
     "plpg_line_breakpoint",
     "PL/pg SQL") {
 
+    /**
+     * Create a new PL/pgSQL line breakpoint properties.
+     */
     override fun createBreakpointProperties(file: VirtualFile, line: Int): PlLineBreakpointProperties {
         return PlLineBreakpointProperties(file, line)
     }
 
+    /**
+     * Check if a breakpoint can be put at a specific location.
+     */
     override fun canPutAt(file: VirtualFile, line: Int, project: Project): Boolean {
         if (file !is PlFunctionSource) {
             return false
@@ -39,6 +47,9 @@ class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>(
         return (file.codeRange.first < line) && (file.codeRange.second > line)
     }
 
+    /**
+     * Get the editors provider.
+     */
     override fun getEditorsProvider(
         breakpoint: XLineBreakpoint<PlLineBreakpointProperties>,
         project: Project
@@ -46,6 +57,9 @@ class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>(
         return null
     }
 
+    /**
+     * Get the enabled icon.
+     */
     override fun getEnabledIcon(): Icon {
         return AllIcons.Providers.Postgresql
     }

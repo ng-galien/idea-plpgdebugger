@@ -17,6 +17,9 @@ package net.plpgsql.ideadebugger.service
 import net.plpgsql.ideadebugger.DebugMode
 import net.plpgsql.ideadebugger.run.PlProcess
 
+/**
+ * Represents a watcher for a PL process.
+ */
 interface PlProcessWatcher {
     fun isDebugging(): Boolean
     fun processStarted(process: PlProcess, debugMode: DebugMode, functionOid: Long)

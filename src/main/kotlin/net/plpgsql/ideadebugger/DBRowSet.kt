@@ -26,19 +26,14 @@ class DBIterator<R>(producer: Producer<R>,
                     connection: DatabaseConnection,
                     sql: String): RowIterator<R>(producer) {
 
-    private var empty: Boolean
+    private var empty: Boolean = !sql.lowercase().trimStart().startsWith("select")
     private var pos = 0
     private val stmt = connection.remoteConnection.createStatement()
-    private val rs: RemoteResultSet?
-
-    init {
-        empty = !sql.lowercase().trimStart().startsWith("select")
-        rs = if (empty) {
-            stmt.execute(sql)
-            null
-        } else {
-            stmt.executeQuery(sql)
-        }
+    private val rs: RemoteResultSet? = if (empty) {
+        stmt.execute(sql)
+        null
+    } else {
+        stmt.executeQuery(sql)
     }
 
     override fun hasNext(): Boolean {

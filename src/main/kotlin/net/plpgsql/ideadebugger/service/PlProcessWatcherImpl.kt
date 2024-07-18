@@ -19,6 +19,9 @@ import net.plpgsql.ideadebugger.DebugMode
 import net.plpgsql.ideadebugger.console
 import net.plpgsql.ideadebugger.run.PlProcess
 
+/**
+ * This class implements the PlProcessWatcher interface. It provides methods to track the state of PL processes.
+ */
 @Service
 class PlProcessWatcherImpl: PlProcessWatcher {
 

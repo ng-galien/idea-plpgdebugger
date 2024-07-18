@@ -19,24 +19,32 @@ import net.plpgsql.ideadebugger.Producer
 import net.plpgsql.ideadebugger.SELECT_NULL
 
 /**
+ * API queries.
  *
+ * @property sql The SQL query.
+ * @property producer The producer.
+ * @property disableDecoration Disable decoration.
+ * @property print Print.
  */
 enum class ApiQuery(val sql: String,
                     val producer: Producer<Any>,
                     val disableDecoration: Boolean = false,
                     val print: Boolean = true) {
-
+    // Do nothing.
     VOID(
         SELECT_NULL,
         Producer { PlApiVoid() }),
+    // Execute a simple query
     RAW_VOID(
         "%s",
         Producer { PlApiVoid() },
         true
     ),
+    // Execute a simple query and return a boolean.
     RAW_BOOL(
         "%s",
         Producer { PlApiBoolean(it.bool()) }),
+    // Get the current session.
     PG_ACTIVITY(
         """
         SELECT pid,
@@ -48,21 +56,26 @@ enum class ApiQuery(val sql: String,
         AND pid <> pg_backend_pid();
         """,
         Producer { PlActivity(it.long(), it.string(), it.string(), it.string()) }),
+    // Terminate a session.
     PG_CANCEL(
         """
         SELECT pg_terminate_backend(%s);
         """,
         Producer { PlApiBoolean(it.bool()) }
     ),
+    // Create a debugger listener.
     CREATE_LISTENER(
         "pldbg_create_listener()",
         Producer { PlApiInt(it.int()) }),
+    // Wait for a target.
     WAIT_FOR_TARGET(
         "pldbg_wait_for_target(%s)",
         Producer { PlApiInt(it.int()) }),
+    // Abort a target.
     ABORT(
         "pldbg_abort_target(%s)",
         Producer { PlApiBoolean(it.bool()) }),
+    // Step over and return the line number and the function source
     STEP_OVER(
         """
             SELECT step.func,
