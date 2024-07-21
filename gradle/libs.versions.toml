@@ -14,7 +14,7 @@ postgres = "42.7.3"
 jbdi3 = "3.45.1"
 logback = "1.5.6"
 jansi = "2.4.1"
-junit = "5.10.2"
+junit = "5.10.3"
 junitPlatformRunner = "1.10.2"
 guava = "33.2.1-jre"
 
