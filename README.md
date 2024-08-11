@@ -35,6 +35,49 @@ docker run -p 5515:5432 --name PG15-debug -e POSTGRES_PASSWORD=postgres -d galie
 
 Or install the [debugger](https://www.pgadmin.org/docs/pgadmin4/development/debugger.html) binaries on  your machine.
 
+## Server Configuration
+
+To ensure the debugger shared libraries are correctly configured on your PostgreSQL server, follow these steps:
+
+1. **Check if the shared library is loaded**:
+   Run the following SQL command to verify if the `pldbgapi` extension is loaded:
+
+   ```sql
+   SELECT * FROM pg_extension WHERE extname = 'pldbgapi';
+   ```
+
+   If the extension is not listed, you need to install it.
+
+2. **Verify the shared library path**:
+   Ensure that the `shared_preload_libraries` parameter in your `postgresql.conf` file includes `pldbgapi`. You can check this by running:
+
+   ```sql
+   SHOW shared_preload_libraries;
+   ```
+
+   If `pldbgapi` is not included, add it to the `postgresql.conf` file:
+
+   ```conf
+   shared_preload_libraries = 'pldbgapi'
+   ```
+
+   After making changes, restart the PostgreSQL server.
+
+3. **Check the installation of the debugger extension**:
+   Run the following command to ensure the debugger extension is installed in the correct schema:
+
+   ```sql
+    SELECT * FROM pg_extension;
+   ```
+
+   Look for `pldbgapi` in the list of installed extensions. If it is not present, install it using:
+
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS pldbgapi;
+   ```
+
+By following these steps, you can confirm that the debugger shared libraries are properly configured on your PostgreSQL server.
+
 ### Activate the debugger on the database
 
 Run the following command on the database where you want to debug routines
@@ -43,6 +86,8 @@ Run the following command on the database where you want to debug routines
 --Take care to install the extension on the public schema
 CREATE EXTENSION IF NOT EXISTS pldbgapi;
 ```
+
+
 
 ### Debug a routine from the editor
 
