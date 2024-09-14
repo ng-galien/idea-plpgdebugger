@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+### Maintenance
+
+- Compatibility with Intellij 2024.*
+- Update dependencies
+- Move to IntelliJ gradle plugin 2.X
+- Fix Monitor issue when creating debug session
+
+## [241.0.1] - 2024-04-07
+
 ### Bugfixes
 
 - Fix debugger commands not showing up at first [#162](https://github.com/ng-galien/idea-plpgdebugger/issues/162)
@@ -260,7 +269,8 @@
 - View variables
 - Explore arrays and composite type
 
-[Unreleased]: https://github.com/ng-galien/idea-plpgdebugger/compare/v233.0.1...HEAD
+[Unreleased]: https://github.com/ng-galien/idea-plpgdebugger/compare/v241.0.1...HEAD
+[241.0.1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v233.0.1...v241.0.1
 [233.0.1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v232.0.3...v233.0.1
 [232.0.3]: https://github.com/ng-galien/idea-plpgdebugger/compare/v231.0.1...v232.0.3
 [231.0.1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v222.3.3...v231.0.1

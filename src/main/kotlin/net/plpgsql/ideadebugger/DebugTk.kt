@@ -1,5 +1,15 @@
 /*
- * Copyright (c) 2022. Alexandre Boyer
+ * MIT License
+ *
+ * IntelliJ PL/pg SQL Debugger
+ *
+ * Copyright (c) 2022-2024. Alexandre Boyer.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 package net.plpgsql.ideadebugger
@@ -12,6 +22,9 @@ import com.intellij.database.util.ErrorHandler
 import com.intellij.database.util.GuardedRef
 import com.intellij.database.util.SearchPath
 import com.intellij.lang.Language
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.PgDialect
@@ -27,15 +40,29 @@ const val DEBUGGER_EXTENSION = "pldbgapi"
 const val DEBUGGER_SHARED_LIBRARY = "plugin_debugger"
 const val DEBUGGER_SESSION_NAME = "idea_debugger"
 
+/**
+ * Debug mode.
+ * NONE: No debugging.
+ * DIRECT: Direct debugging, when the function is called directly from the editor.
+ * INDIRECT: Indirect debugging, when the function is called from another function.
+ */
 enum class DebugMode {
     NONE, DIRECT, INDIRECT
 }
 
-
+/**
+ * Get the PL/pgSQL language.
+ */
 fun getPlLanguage(): Language = PgDialect.INSTANCE
 
+/**
+ * Check if a string is null.
+ */
 fun plNull(value: String) = (value.uppercase() == "NULL")
 
+/**
+ * Print a message to the console.
+ */
 fun console(msg: String, throwable: Throwable? = null) {
     if (CONSOLE) {
         println(msg)
@@ -43,28 +70,48 @@ fun console(msg: String, throwable: Throwable? = null) {
     }
 }
 
+/**
+ * Get the settings.
+ */
 fun getSettings(): PlPluginSettings {
     return PlDebuggerSettingsState.getInstance().state
 }
 
+/**
+ * Get the auxiliary connection.
+ */
 fun getAuxiliaryConnection(
     project: Project,
     connectionPoint: DatabaseConnectionPoint,
     searchPath: SearchPath?
-): GuardedRef<DatabaseConnection> {
-    return DatabaseSessionManager.getFacade(
-        project,
-        connectionPoint,
-        null,
-        searchPath,
-        true,
-        object : ErrorHandler() {},
-        DGDepartment.DEBUGGER
-    ).connect()
+): GuardedRef<DatabaseConnection>? {
+    var connection: GuardedRef<DatabaseConnection>? = null
+
+    ProgressManager.getInstance().run(object : Task.Modal(project, "Getting Auxiliary Connection", true) {
+        override fun run(indicator: ProgressIndicator) {
+            try {
+                val facade = DatabaseSessionManager.getFacade(
+                    project,
+                    connectionPoint,
+                    null,
+                    searchPath,
+                    true,
+                    object : ErrorHandler() {
+                    },
+                    DGDepartment.DEBUGGER
+                )
+                connection = facade.runSync { facade.connect() }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    })
+
+    return connection
 }
 
 /**
- *
+ * Get the call statement from a SQL statement.
  */
 fun getCallStatement(statement: SqlStatement): CallDefinition {
     val callElement =
@@ -73,7 +120,7 @@ fun getCallStatement(statement: SqlStatement): CallDefinition {
 }
 
 /**
- *
+ * Sanitize the query by removing leading and trailing spaces, and the trailing semicolon.
  *@param sql
  */
 fun sanitizeQuery(sql: String): String {
@@ -84,6 +131,10 @@ fun sanitizeQuery(sql: String): String {
     return res
 }
 
+/**
+ * Remove the quotes from a string.
+ *@param s
+ */
 fun unquote(s: String): String = s.removeSurrounding("\"")
 
 

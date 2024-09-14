@@ -4,19 +4,19 @@ annotations = "24.1.0"
 
 # plugins
 kotlin = "1.9.23"
-changelog = "2.2.0"
-gradleIntelliJPlugin = "1.17.3"
+changelog = "2.2.1"
+gradleIntelliJPlugin = "2.0.1"
 qodana = "0.1.13"
 kover = "0.7.6"
 arrow = "1.2.4"
-testcontainers = "1.19.7"
+testcontainers = "1.19.8"
 postgres = "42.7.3"
-jbdi3 = "3.45.1"
-logback = "1.5.3"
+jbdi3 = "3.45.2"
+logback = "1.5.6"
 jansi = "2.4.1"
-junit = "5.10.2"
-junitPlatformRunner = "1.10.2"
-guava = "33.1.0-jre"
+junit = "5.10.3"
+junitPlatformRunner = "1.11.0"
+guava = "33.2.1-jre"
 
 
 [libraries]
@@ -52,7 +52,8 @@ testcontainersJunitJupiter = { module = "org.testcontainers:junit-jupiter", vers
 
 [plugins]
 changelog = { id = "org.jetbrains.changelog", version.ref = "changelog" }
-gradleIntelliJPlugin = { id = "org.jetbrains.intellij", version.ref = "gradleIntelliJPlugin" }
+gradleIntelliJPlugin = { id = "org.jetbrains.intellij.platform", version.ref = "gradleIntelliJPlugin" }
+gradleIntelliJPluginMigration = { id = "org.jetbrains.intellij.platform.migration", version.ref = "gradleIntelliJPlugin" }
 kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kover = { id = "org.jetbrains.kotlinx.kover", version.ref = "kover" }
 qodana = { id = "org.jetbrains.qodana", version.ref = "qodana" }
