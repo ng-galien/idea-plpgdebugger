@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### Maintenance
+
+- Compatibility with Intellij 2024.*
+- Update dependencies
+- Move to IntelliJ gradle plugin 2.X
+- Fix Monitor issue when creating debug session
+
 ## [241.0.1] - 2024-04-07
 
 ### Bugfixes
