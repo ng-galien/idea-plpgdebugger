@@ -110,15 +110,16 @@ class PlDebugRoutineAction : AnAction() {
                 watcher.getProcess()?.let { process ->
                     val frame = PlApiStackFrame(1, callDef.oid, 0, "")
                     if (debugWaiting()) {
-                        val executor = PlExecutor(
-                            getAuxiliaryConnection(
-                                project = project,
-                                connectionPoint = dataSource,
-                                searchPath = searchPath
-                            )
+                        val connection = getAuxiliaryConnection(
+                            project = project,
+                            connectionPoint = dataSource,
+                            searchPath = searchPath
                         )
-                        PlSourceManager(project, executor).update(frame)
-                        executor.cancelAndCloseConnection()
+                        connection?.let {
+                            val executor = PlExecutor(connection)
+                            PlSourceManager(project, executor).update(frame)
+                            executor.cancelAndCloseConnection()
+                        }
                     } else {
                         process.executor.setGlobalBreakPoint(callDef.oid)
                         process.fileManager.update(frame)
@@ -130,15 +131,15 @@ class PlDebugRoutineAction : AnAction() {
 
         //Starts the debugger
         if (callDef.canStartDebug()) {
-
-            val executor = PlExecutor(
-                getAuxiliaryConnection(
-                    project = project,
-                    connectionPoint = dataSource,
-                    searchPath = searchPath
-                )
+            val connection = getAuxiliaryConnection(
+                project = project,
+                connectionPoint = dataSource,
+                searchPath = searchPath
             )
-
+            if(connection == null) {
+                return
+            }
+            val executor = PlExecutor(connection)
             val diag = executor.checkDebugger()
             if (settings.failExtension || !extensionOk(diag)) {
                 showExtensionDiagnostic(project, diag)

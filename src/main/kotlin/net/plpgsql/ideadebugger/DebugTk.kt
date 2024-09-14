@@ -22,6 +22,9 @@ import com.intellij.database.util.ErrorHandler
 import com.intellij.database.util.GuardedRef
 import com.intellij.database.util.SearchPath
 import com.intellij.lang.Language
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.PgDialect
@@ -81,16 +84,30 @@ fun getAuxiliaryConnection(
     project: Project,
     connectionPoint: DatabaseConnectionPoint,
     searchPath: SearchPath?
-): GuardedRef<DatabaseConnection> {
-    return DatabaseSessionManager.getFacade(
-        project,
-        connectionPoint,
-        null,
-        searchPath,
-        true,
-        object : ErrorHandler() {},
-        DGDepartment.DEBUGGER
-    ).connect()
+): GuardedRef<DatabaseConnection>? {
+    var connection: GuardedRef<DatabaseConnection>? = null
+
+    ProgressManager.getInstance().run(object : Task.Modal(project, "Getting Auxiliary Connection", true) {
+        override fun run(indicator: ProgressIndicator) {
+            try {
+                val facade = DatabaseSessionManager.getFacade(
+                    project,
+                    connectionPoint,
+                    null,
+                    searchPath,
+                    true,
+                    object : ErrorHandler() {
+                    },
+                    DGDepartment.DEBUGGER
+                )
+                connection = facade.runSync { facade.connect() }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    })
+
+    return connection
 }
 
 /**

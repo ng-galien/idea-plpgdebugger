@@ -30,6 +30,7 @@ import com.intellij.openapi.wm.ex.ToolWindowManagerListener
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugSession
 import net.plpgsql.ideadebugger.command.PlExecutor
+import net.plpgsql.ideadebugger.run.DummyProcess
 import net.plpgsql.ideadebugger.run.PlProcess
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 
@@ -63,7 +64,19 @@ class PlController(
 
     override fun initLocal(session: XDebugSession): XDebugProcess {
         xSession = session
-        executor = PlExecutor(getAuxiliaryConnection(project, connectionPoint, searchPath))
+        val maybeConnection = getAuxiliaryConnection(project, connectionPoint, searchPath)
+
+        if (maybeConnection == null) {
+            val notification = Notification(
+                "PL/pg Notifications",
+                "PL/pg Debugger",
+                String.format("You must select only one valid query"),
+                NotificationType.WARNING
+            )
+            notification.notify(project)
+            return DummyProcess(session)
+        }
+        executor = PlExecutor(maybeConnection)
 
         plProcess = PlProcess(session, executor!!)
         @Suppress("DialogTitleCapitalization")
