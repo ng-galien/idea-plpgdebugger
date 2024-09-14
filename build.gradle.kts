@@ -39,6 +39,8 @@ dependencies {
     implementation(libs.arrowCore)
     implementation(libs.arrowFxCoroutines)
 
+//    implementation("net.java.dev.jna:jna:6.1.6")
+
     // Kotlin and logging
     testImplementation(kotlin("test"))
     testImplementation(kotlin("reflect"))
@@ -59,6 +61,7 @@ dependencies {
     testImplementation(libs.jdbi3Testing)
     // Guava
     testImplementation(libs.guava)
+    testRuntimeOnly("junit:junit:4.13.2")
 
     intellijPlatform {
         create(providers.gradleProperty("platformType"), providers.gradleProperty("platformVersion"))
@@ -161,9 +164,14 @@ tasks {
     wrapper {
         gradleVersion = providers.gradleProperty("gradleVersion").get()
     }
-
     publishPlugin {
         dependsOn(patchChangelog)
+    }
+
+    test {
+        useJUnitPlatform {
+            includeEngines("junit-vintage", "junit-jupiter")
+        }
     }
 }
 
