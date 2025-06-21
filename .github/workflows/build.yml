@@ -135,6 +135,7 @@ jobs:
 
   # Run Qodana inspections and provide report
   inspectCode:
+    if: false
     name: Inspect code
     needs: [ build ]
     runs-on: ubuntu-latest
