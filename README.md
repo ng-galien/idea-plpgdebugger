@@ -11,7 +11,7 @@ Debug PL/pg stored procedures, functions, triggers and views from Intellij IDEs 
 
 - Debug queries from editor by selecting a [function call](#debug-a-routine-from-the-editor)
 - Debug routines and triggers from [database explorer](#debug-a-routine-from-the-database-explorer)
-- Full support for variables inspection with [Docker custom debugger](https://github.com/ng-galien/idea-plpgdebugger/blob/221/docker/README.md)
+- Full support for variables inspection with [Docker custom debugger](https://github.com/ng-galien/pldebugger/tree/print-vars/docker)
 
 Visit the plugin [page](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger) at JetBrains.  
 Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea-plpgdebugger/issues/new/choose)
@@ -149,14 +149,13 @@ The standard pldbgapi does not send back composite variable, but you can put it 
 You must first install the debugger extension and activate the shared library onto the server.  
 
 ```shell
-EXPORT TAG = 11 # or 11, 12, 13, 14, 15
-EXPORT PG_LIB=postgresql-server-dev-${TAG}
-EXPORT PG_BRANCH=REL_${TAG}_STABLE
-EXPORT PLUGIN_BRANCH=print-vars
+export TAG=11 # or 11, 12, 13, 14, 15
+export PG_LIB=postgresql-server-dev-${TAG}
+export PG_BRANCH=REL_${TAG}_STABLE
+export PLUGIN_BRANCH=print-vars
 
 # Install dependencies
-apt --yes update && apt --yes upgrade && apt --yes install git build-essential libreadline-dev zlib1g-dev bison libkrb5-dev flex $PG_LIB \
-#
+apt --yes update && apt --yes upgrade && apt --yes install git build-essential libreadline-dev zlib1g-dev bison libkrb5-dev flex $PG_LIB
 cd /usr/src/
 # Install postgres source
 git clone -b $PG_BRANCH --single-branch https://github.com/postgres/postgres.git
@@ -176,10 +175,10 @@ Follow these [instructions for PgAdmin](https://www.pgadmin.org/docs/pgadmin4/de
 ### Intellij IDE
 
 - Using IDE built-in plugin system:
-  
+
   <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd> > <kbd>Search for "idea-plpgdebugger"</kbd> >
   <kbd>Install Plugin</kbd>
-  
+
 - Manually:
 
   Download the [latest release](https://github.com/ng-galien/idea-plpgdebugger/releases/latest) and install it manually using

@@ -19,32 +19,50 @@ import net.plpgsql.ideadebugger.Producer
 import net.plpgsql.ideadebugger.SELECT_NULL
 
 /**
- * API queries.
+ * API queries for the PL/pgSQL debugger.
  *
- * @property sql The SQL query.
- * @property producer The producer.
- * @property disableDecoration Disable decoration.
- * @property print Print.
+ * This enum defines all the SQL queries used by the debugger to interact with the PostgreSQL database.
+ * Each enum value represents a specific query operation with its corresponding SQL statement and result producer.
+ *
+ * @property sql The SQL query to be executed.
+ * @property producer The producer that converts the query result to a specific data type.
+ * @property disableDecoration Whether to disable SQL decoration for this query.
+ * @property print Whether to print the query execution in the debug console.
  */
 enum class ApiQuery(val sql: String,
                     val producer: Producer<Any>,
                     val disableDecoration: Boolean = false,
                     val print: Boolean = true) {
-    // Do nothing.
+    /**
+     * A void query that does nothing.
+     * Used as a placeholder or when no operation is needed.
+     */
     VOID(
         SELECT_NULL,
         Producer { PlApiVoid() }),
-    // Execute a simple query
+
+    /**
+     * Executes a raw SQL query without returning any result.
+     * The query is passed as a parameter and executed as-is without decoration.
+     */
     RAW_VOID(
         "%s",
         Producer { PlApiVoid() },
         true
     ),
-    // Execute a simple query and return a boolean.
+
+    /**
+     * Executes a raw SQL query and returns a boolean result.
+     * Used for simple boolean operations.
+     */
     RAW_BOOL(
         "%s",
         Producer { PlApiBoolean(it.bool()) }),
-    // Get the current session.
+
+    /**
+     * Retrieves information about the current debugging sessions.
+     * Returns active PostgreSQL sessions with the debugger application name.
+     */
     PG_ACTIVITY(
         """
         SELECT pid,
@@ -56,26 +74,46 @@ enum class ApiQuery(val sql: String,
         AND pid <> pg_backend_pid();
         """,
         Producer { PlActivity(it.long(), it.string(), it.string(), it.string()) }),
-    // Terminate a session.
+
+    /**
+     * Terminates a PostgreSQL backend session.
+     * Used to cancel a debugging session.
+     */
     PG_CANCEL(
         """
         SELECT pg_terminate_backend(%s);
         """,
         Producer { PlApiBoolean(it.bool()) }
     ),
-    // Create a debugger listener.
+
+    /**
+     * Creates a debugger listener in the PostgreSQL server.
+     * This is the first step in establishing a debugging session.
+     */
     CREATE_LISTENER(
         "pldbg_create_listener()",
         Producer { PlApiInt(it.int()) }),
-    // Wait for a target.
+
+    /**
+     * Waits for a target function to be executed in debug mode.
+     * Blocks until a function is called with debugging enabled.
+     */
     WAIT_FOR_TARGET(
         "pldbg_wait_for_target(%s)",
         Producer { PlApiInt(it.int()) }),
-    // Abort a target.
+
+    /**
+     * Aborts the current debugging target.
+     * Terminates the current debugging session.
+     */
     ABORT(
         "pldbg_abort_target(%s)",
         Producer { PlApiBoolean(it.bool()) }),
-    // Step over and return the line number and the function source
+
+    /**
+     * Steps over the current line in the debugged function.
+     * Returns the new position (function OID, line number) and a hash of the function source.
+     */
     STEP_OVER(
         """
             SELECT step.func,
@@ -84,6 +122,11 @@ enum class ApiQuery(val sql: String,
             FROM pldbg_step_over(%s) step;
         """,
         Producer { PlApiStep(it.long(), it.int(), it.string()) }),
+
+    /**
+     * Steps into a function call at the current line.
+     * Returns the new position (function OID, line number) and a hash of the function source.
+     */
     STEP_INTO(
         """
             SELECT step.func,
@@ -92,6 +135,11 @@ enum class ApiQuery(val sql: String,
             FROM pldbg_step_into(%s) step;
         """,
         Producer { PlApiStep(it.long(), it.int(), it.string()) }),
+
+    /**
+     * Continues execution until the next breakpoint or the end of the function.
+     * Returns the new position (function OID, line number) and a hash of the function source.
+     */
     STEP_CONTINUE(
         """
             SELECT step.func,
@@ -101,6 +149,10 @@ enum class ApiQuery(val sql: String,
         """,
         Producer { PlApiStep(it.long(), it.int(), it.string()) }),
 
+    /**
+     * Lists all breakpoints in the current debugging session.
+     * Returns the function OID and line number for each breakpoint.
+     */
     LIST_BREAKPOINT(
         """
             SELECT bp.func,
@@ -109,16 +161,35 @@ enum class ApiQuery(val sql: String,
             FROM pldbg_get_breakpoints(%s) bp;
         """,
         Producer { PlApiStep(it.long(), it.int(), it.string()) }),
+
+    /**
+     * Sets a global breakpoint for a specific function.
+     * Global breakpoints are triggered whenever the function is called.
+     */
     SET_GLOBAL_BREAKPOINT(
         "pldbg_set_global_breakpoint(%s, %s, -1, NULL)",
         Producer { PlApiBoolean(it.bool()) }),
+
+    /**
+     * Sets a breakpoint at a specific line in a function.
+     * Returns true if the breakpoint was successfully set.
+     */
     SET_BREAKPOINT(
         "pldbg_set_breakpoint(%s, %s, %s)",
         Producer { PlApiBoolean(it.bool()) }),
+
+    /**
+     * Removes a breakpoint from a specific line in a function.
+     * Returns true if the breakpoint was successfully removed.
+     */
     DROP_BREAKPOINT(
         "pldbg_drop_breakpoint(%s, %s, %s)",
         Producer { PlApiBoolean(it.bool()) }),
 
+    /**
+     * Retrieves the current call stack of the debugged function.
+     * Returns information about each stack frame including function OID, line number, and source hash.
+     */
     GET_STACK(
         """
         SELECT 
@@ -137,6 +208,12 @@ enum class ApiQuery(val sql: String,
             )
         }
     ),
+
+    /**
+     * Retrieves all variables in the current stack frame.
+     * Joins with pg_type to get detailed type information for each variable.
+     * Returns variable information including name, type, value, and metadata.
+     */
     GET_RAW_VARIABLES(
         """
         SELECT
@@ -172,6 +249,12 @@ enum class ApiQuery(val sql: String,
             )
         }
     ),
+
+    /**
+     * Retrieves variables in JSON format.
+     * Used for custom variable queries with JSON output.
+     * The SQL query is provided as a parameter.
+     */
     GET_JSON_VARIABLES(
         sql = "%s",
         producer = Producer {
@@ -365,6 +448,3 @@ enum class ApiQuery(val sql: String,
         }
     ),
 }
-
-
-
