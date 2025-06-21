@@ -48,6 +48,7 @@ class CallDetectionTest(private val sql: String, private val expected: FunctionD
     fun `test run query with call parsing`() {
 
         val psiFile = createLightFile("dummy.sql", PgDialect.INSTANCE, sql)
+        Assertions.assertNotNull(psiFile)
         val stmt = psiFile.children.first() as SqlStatement
         val call = getCallStatement(stmt)
         call.parseFunctionCall()

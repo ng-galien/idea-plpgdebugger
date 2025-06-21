@@ -1,3 +1,4 @@
+import org.gradle.api.internal.tasks.testing.TestFramework
 import org.gradle.internal.classpath.Instrumented.systemProperty
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
@@ -63,6 +64,7 @@ dependencies {
         pluginVerifier()
         zipSigner()
         testFramework(TestFrameworkType.Platform)
+        testBundledPlugin(providers.gradleProperty("platformBundledPlugins"))
     }
 }
 
