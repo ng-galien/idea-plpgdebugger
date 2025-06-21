@@ -1,4 +1,11 @@
 .gradle
 .idea
+.fleet
 .qodana
-build
+.vscode
+.DS_Store
+bin/    
+build/
+.run/
+
+

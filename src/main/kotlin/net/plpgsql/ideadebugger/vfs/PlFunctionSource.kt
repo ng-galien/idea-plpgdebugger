@@ -1,5 +1,15 @@
 /*
- * Copyright (c) 2022. Alexandre Boyer
+ * MIT License
+ *
+ * IntelliJ PL/pg SQL Debugger
+ *
+ * Copyright (c) 2022-2024. Alexandre Boyer.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 package net.plpgsql.ideadebugger.vfs
@@ -19,7 +29,16 @@ import net.plpgsql.ideadebugger.getPlLanguage
 import net.plpgsql.ideadebugger.unquote
 import java.nio.charset.Charset
 
-class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFile(
+/**
+ * PlFunctionSource represents a PL/pgSQL function source code file.
+ *
+ * @param project The project associated with the function source code.
+ * @param def The PL/pgSQL function definition.
+ * @param md5 The MD5 hash of the function source code.
+ *
+ * Extends LightVirtualFile to represent a virtual file that contains the function source code.
+ */
+class PlFunctionSource(project: Project, def: PlApiFunctionDef, val md5: String) : LightVirtualFile(
     "${def.schema}.${def.name}[${def.oid}]",
     getPlLanguage(),
     def.source
@@ -31,10 +50,8 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
     }
 
     val oid: Long = def.oid
-    val md5 = def.md5
-    var isTrigger = false
+    private var isTrigger = false
     var start: Int = 0
-    var end: Int = 0
     var codeRange = Pair(0, 0)
     val lineRangeCount: Int by lazy {
         codeRange.second - codeRange.first
@@ -42,7 +59,6 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
     val psiArgs = mutableMapOf<String, PsiElement>()
     val psiVariables = mutableMapOf<String, PsiElement>()
     val psiUse = mutableMapOf<String, MutableList<Pair<Int, PsiElement>>>()
-
 
     init {
         runReadAction {
@@ -60,11 +76,15 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
                         psiVariables[unquote(v.text)] = v
                     }
                 }
+                PsiTreeUtil.collectElements(psi){
+                    it is SqlTokenElement && it.text.lowercase() == "\$function\$"
+                }.firstOrNull()?.let { el ->
+                    PsiDocumentManager.getInstance(psi.project).getDocument(psi)?.let { doc ->
+                        start = doc.getLineNumber(el.textOffset) - 1
+                    }
+                }
                 PsiTreeUtil.findChildOfType(psi, SqlBlockStatement::class.java)?.let { block ->
                     PsiDocumentManager.getInstance(psi.project).getDocument(psi)?.let { doc ->
-                        start = doc.getLineNumber(block.textOffset) - 2
-                        end = doc.getLineNumber(block.textOffset + block.textLength) - 2
-
                         val beginEl = PsiTreeUtil.collectElements(block){
                             it is SqlTokenElement && it.text.uppercase() == "BEGIN"
                         }.firstOrNull()
@@ -107,9 +127,13 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef) : LightVirtualFi
         }
     }
 
+    fun positionToLine(position: Int): Int {
+        return position + start
+    }
+
     override fun getCharset(): Charset = Charsets.UTF_8
 
-    override fun getFileSystem(): VirtualFileSystem = PlVirtualFileSystem.getInstance()
+    override fun getFileSystem(): VirtualFileSystem = PlVirtualFileSystem.Util.getInstance()
 
     override fun getPath(): String = "$oid"
 

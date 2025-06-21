@@ -1,5 +1,15 @@
 /*
- * Copyright (c) 2022. Alexandre Boyer
+ * MIT License
+ *
+ * IntelliJ PL/pg SQL Debugger
+ *
+ * Copyright (c) 2022-2024. Alexandre Boyer.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 package net.plpgsql.ideadebugger
@@ -15,14 +25,24 @@ import com.intellij.openapi.application.runInEdt
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindow
+import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.openapi.wm.ex.ToolWindowManagerListener
-import com.intellij.ui.content.Content
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugSession
 import net.plpgsql.ideadebugger.command.PlExecutor
+import net.plpgsql.ideadebugger.run.DummyProcess
 import net.plpgsql.ideadebugger.run.PlProcess
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 
+/**
+ * This class represents the PL Controller which extends the SqlDebugController.
+ * It is responsible for managing the PL debugging process.
+ *
+ * @property project The project associated with the PL controller.
+ * @property connectionPoint The database connection point.
+ * @property searchPath The search path for the PL controller.
+ * @property callDefinition The call definition for the PL controller.
+ */
 class PlController(
     val project: Project,
     val connectionPoint: DatabaseConnectionPoint,
@@ -31,25 +51,35 @@ class PlController(
 ) : SqlDebugController() {
 
     private lateinit var plProcess: PlProcess
-    lateinit var xSession: XDebugSession
-    internal val windowLister = ToolListener()
+    private lateinit var xSession: XDebugSession
     private val settings = PlDebuggerSettingsState.getInstance().state
     private var executor: PlExecutor? = null
-
 
     override fun getReady() {
         console("Controller: getReady")
         executor?.let { Disposer.register(xSession.consoleView, it) }
+        val windowLister = ToolListener()
         project.messageBus.connect(xSession.consoleView).subscribe(ToolWindowManagerListener.TOPIC, windowLister)
     }
 
-
     override fun initLocal(session: XDebugSession): XDebugProcess {
         xSession = session
-        executor = PlExecutor(getAuxiliaryConnection(project, connectionPoint, searchPath))
+        val maybeConnection = getAuxiliaryConnection(project, connectionPoint, searchPath)
+
+        if (maybeConnection == null) {
+            val notification = Notification(
+                "PL/pg Notifications",
+                "PL/pg Debugger",
+                String.format("You must select only one valid query"),
+                NotificationType.WARNING
+            )
+            notification.notify(project)
+            return DummyProcess(session)
+        }
+        executor = PlExecutor(maybeConnection)
 
         plProcess = PlProcess(session, executor!!)
-
+        @Suppress("DialogTitleCapitalization")
         if (!callDefinition.canDebug()) {
             val notification = Notification(
                 "PL/pg Notifications",
@@ -59,13 +89,6 @@ class PlController(
             )
             notification.notify(project)
             return plProcess
-        }
-
-        if (settings.enableDebuggerCommand) {
-            executor!!.executeSessionCommand(settings.debuggerCommand)
-            if (executor!!.interrupted()) {
-                return plProcess
-            }
         }
 
         val diag = executor!!.checkDebugger()
@@ -120,8 +143,20 @@ class PlController(
     override fun close() {
         console("Controller: close")
         if (callDefinition.debugMode == DebugMode.DIRECT) {
-            windowLister.close()
+            closeDebugWindow(xSession.sessionName)
             Disposer.dispose(DatabaseSessionManager.getSession(project, connectionPoint))
+        }
+    }
+
+    private fun closeDebugWindow(sessionName: String) {
+        runInEdt {
+            ToolWindowManager.getInstance(project).getToolWindow("Debug")?.let { toolWindow ->
+                toolWindow.contentManager.contents.first {
+                    it.tabName == sessionName
+                }.let {
+                    it.manager?.removeContent(it, true)
+                }
+            }
         }
     }
 
@@ -129,31 +164,18 @@ class PlController(
 
         private var debugWindow: ToolWindow? = null
         private var first: Boolean = false
-        private var acutal: Content? = null
-        var hasShown = false
-
         override fun toolWindowShown(toolWindow: ToolWindow) {
+
             if (toolWindow.id == "Debug") {
                 debugWindow = toolWindow
                 first = true
             }
             if (first && toolWindow.id != "Debug") {
                 debugWindow?.show()
-                acutal = debugWindow?.contentManager?.contents?.find {
-                    it.tabName == xSession.sessionName
-                }
                 first = false
-                hasShown = true
-            }
-        }
-
-        fun close() {
-            runInEdt {
-                windowLister.acutal?.let { debugWindow?.contentManager?.removeContent(it, true) }
             }
         }
     }
-
 }
 
 

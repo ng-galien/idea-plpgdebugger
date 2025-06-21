@@ -1,9 +1,20 @@
 /*
- * Copyright (c) 2022. Alexandre Boyer
+ * MIT License
+ *
+ * IntelliJ PL/pg SQL Debugger
+ *
+ * Copyright (c) 2022-2024. Alexandre Boyer.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 package net.plpgsql.ideadebugger
 
+import com.google.gson.*
 import com.intellij.icons.AllIcons
 import com.intellij.util.ThreeState
 import com.intellij.xdebugger.XDebuggerUtil
@@ -73,7 +84,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             return XDebuggerUtil.getInstance().createPosition(file, getSourceLine())
         }
 
-        fun getSourceLine(): Int = plFrame.line + file.start
+        fun getSourceLine(): Int = file.positionToLine(plFrame.line)
 
         override fun computeChildren(node: XCompositeNode) {
             val list = XValueChildrenList()
@@ -97,7 +108,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             return variableRegistry[plFrame.oid] ?: mutableListOf()
         }
 
-        private fun getFrameInfo(): List<PlApiStackVariable> = listOf<PlApiStackVariable>(
+        private fun getFrameInfo(): List<PlApiStackVariable> = listOf(
             PlApiStackVariable(
                 false,
                 0,
@@ -106,10 +117,11 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     "Function",
                     "text",
                     'b',
-                    false,
-                    "",
-                    file.name,
-                    file.name,
+                    isArray = false,
+                    isText = false,
+                    arrayType = "",
+                    value = file.name,
+                    pretty = file.name,
                 )
             ),
             PlApiStackVariable(
@@ -120,10 +132,11 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     "Oid",
                     "int8",
                     'b',
-                    false,
-                    "",
-                    "${plFrame.oid}",
-                    "${plFrame.oid}",
+                    isArray = false,
+                    isText = false,
+                    arrayType = "",
+                    value = "${plFrame.oid}",
+                    pretty = "${plFrame.oid}",
                 )
             ),
             PlApiStackVariable(
@@ -134,10 +147,11 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     "Level",
                     "int4",
                     'b',
-                    false,
-                    "",
-                    "${plFrame.level}",
-                    "${plFrame.level}",
+                    isArray = false,
+                    isText = false,
+                    arrayType = "",
+                    value = "${plFrame.level}",
+                    pretty = "${plFrame.level}",
                 )
             ),
             PlApiStackVariable(
@@ -148,10 +162,11 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     "Line",
                     "int4",
                     'b',
-                    false,
-                    "",
-                    "${getSourceLine()}",
-                    "${getSourceLine()}",
+                    isArray = false,
+                    isText = false,
+                    arrayType = "",
+                    value = "${getSourceLine()}",
+                    pretty = "${getSourceLine()}",
                 )
             ),
             PlApiStackVariable(
@@ -162,10 +177,11 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     "Range Start",
                     "int4",
                     'b',
-                    false,
-                    "",
-                    "${file.codeRange.first}",
-                    "${file.codeRange.first}",
+                    isArray = false,
+                    isText = false,
+                    arrayType = "",
+                    value = "${file.codeRange.first}",
+                    pretty = "${file.codeRange.first}",
                 )
             ),
             PlApiStackVariable(
@@ -176,10 +192,11 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     "Range End",
                     "int4",
                     'b',
-                    false,
-                    "",
-                    "${file.codeRange.second}",
-                    "${file.codeRange.second}",
+                    isArray = false,
+                    isText = false,
+                    arrayType = "",
+                    value = "${file.codeRange.second}",
+                    pretty = "${file.codeRange.second}",
                 )
             ),
         )
@@ -230,9 +247,9 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                     override fun renderValue(renderer: XValueTextRenderer) {
                         val type = if (isArray()) "${plVar.arrayType}[]" else plVar.type
                         renderer.renderComment("$type => ")
-                        renderer.renderValue(plVar.value.substring(0, min(plVar.value.length, 50)))
+                        val renderedValue = plVar.value
+                        renderer.renderValue(renderedValue.substring(0, min(renderedValue.length, 50)))
                     }
-
                 },
                 canExplode()
             )
@@ -247,7 +264,26 @@ class XStack(process: PlProcess) : XExecutionStack("") {
         }
 
         override fun computeChildren(node: XCompositeNode) {
-            explode(node, executor.explode(plVar))
+            val list = if (isJSON()) {
+                when(val jsonElement = JsonParser.parseString(plVar.value)) {
+                    is JsonObject -> {
+                        jsonElement.entrySet().map {
+                            fromJson(plVar.type, it.key, it.value)
+                        }
+                    }
+                    is JsonArray -> {
+                        listOf<PlApiValue>().toMutableList().apply {
+                            jsonElement.forEachIndexed { index, jsonElement ->
+                                add(fromJson(plVar.type, "${plVar.name}[$index]", jsonElement))
+                            }
+                        }
+                    }
+                    else -> listOf()
+                }
+            } else {
+                executor.explode(plVar)
+            }
+            explode(node, list)
             executor.printStack()
         }
 
@@ -269,6 +305,58 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             }
         }
 
+        private fun fromJson(type: String, name: String, jsonElement: JsonElement): PlApiValue {
+            val displayType = when(jsonElement) {
+                is JsonPrimitive -> {
+                    when {
+                        jsonElement.isString -> "string"
+                        jsonElement.isNumber -> "number"
+                        jsonElement.isBoolean -> "boolean"
+                        else -> "unknown"
+                    }
+                }
+                else -> type
+            }
+            return when(jsonElement) {
+
+                is JsonObject -> {
+                    PlApiValue(0, name, displayType, 'b',
+                        isArray = false,
+                        isText = false,
+                        arrayType = "",
+                        value = jsonElement.toString(),
+                        pretty = jsonElement.toString()
+                    )
+                }
+                is JsonArray -> {
+                    PlApiValue(0, name, displayType, 'b',
+                        isArray = true,
+                        isText = false,
+                        arrayType = "json",
+                        value = jsonElement.toString(),
+                        pretty = jsonElement.toString()
+                    )
+                }
+                is JsonPrimitive -> {
+                    PlApiValue(0, name, displayType, 'b',
+                        isArray = false,
+                        isText = false,
+                        arrayType = "",
+                        value = jsonElement.toString(),
+                        pretty = jsonElement.toString()
+                    )
+                }
+                else -> {
+                    PlApiValue(0, name, displayType, 'b',
+                        isArray = false,
+                        isText = false,
+                        arrayType = "",
+                        value = jsonElement.toString(),
+                        pretty = jsonElement.toString()
+                    )
+                }
+            }
+        }
 
         override fun computeInlineDebuggerData(callback: XInlineDebuggerDataCallback): ThreeState {
 
@@ -296,7 +384,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             return if (compute) ThreeState.YES else ThreeState.NO
         }
 
-        override fun getEvaluationExpression(): String? {
+        override fun getEvaluationExpression(): String {
             return plVar.value
         }
 
@@ -316,6 +404,8 @@ class XStack(process: PlProcess) : XExecutionStack("") {
 
         private fun isComposite() = plVar.kind == 'c'
 
+        private fun isJSON() = plVar.type in listOf("json", "jsonb", "record", "jsonArray")
+
         private fun canExplode(): Boolean {
             if (plNull(plVar.value)) {
                 return false
@@ -323,7 +413,14 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             if (isArray()) {
                 return plVar.value != "[]"
             }
-            return isComposite()
+            if (isJSON()) {
+                return when(val jsonElement = JsonParser.parseString(plVar.value)) {
+                    is JsonObject -> jsonElement.entrySet().isNotEmpty()
+                    is JsonArray -> !jsonElement.isEmpty
+                    else -> false
+                }
+            }
+            return isComposite() || isJSON()
         }
     }
 

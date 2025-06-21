@@ -1,20 +1,25 @@
 /*
- * Copyright (c) 2022. Alexandre Boyer
+ * MIT License
+ *
+ * IntelliJ PL/pg SQL Debugger
+ *
+ * Copyright (c) 2022-2024. Alexandre Boyer.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 package net.plpgsql.ideadebugger.ui
 
 import com.intellij.openapi.options.Configurable
 import com.intellij.openapi.ui.DialogPanel
-import com.intellij.ui.dsl.builder.bindIntText
-import com.intellij.ui.dsl.builder.bindSelected
-import com.intellij.ui.dsl.builder.bindText
-import com.intellij.ui.dsl.builder.panel
-import com.intellij.ui.dsl.gridLayout.HorizontalAlign
+import com.intellij.ui.dsl.builder.*
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
 import javax.swing.JComponent
 
-@Suppress("UnstableApiUsage")
 class PlDebuggerSettingsDialog : Configurable {
 
     private var panel: DialogPanel? = null
@@ -58,36 +63,17 @@ class PlDebuggerSettingsDialog : Configurable {
                     checkBox("Display variables in code")
                         .bindSelected(formData::showInlineVariable)
                 }
-                row {
-                    checkBox("Enable indirect debug (experimental)")
-                        .bindSelected(formData::enableIndirect)
-                }
             }
             collapsibleGroup("Custom Commands") {
                 row {
-                    checkBox("Enable session command")
-                        .bindSelected(formData::enableSessionCommand)
+                    checkBox("Enable custom command")
+                        .bindSelected(formData::enableCustomCommand)
                 }
-                row("Session command") {
+                row("Custom command") {
                     textArea()
-                        .bindText(formData::sessionCommand)
+                        .bindText(formData::customCommand)
                         .resizableColumn()
-                        .horizontalAlign(HorizontalAlign.FILL)
-                        .comment(
-                            """
-                            Optional command run on the running session 
-                            """.trimIndent()
-                        )
-                }
-                row {
-                    checkBox("Enable debugger command")
-                        .bindSelected(formData::enableDebuggerCommand)
-                }
-                row("Debugger command") {
-                    textArea()
-                        .bindText(formData::debuggerCommand)
-                        .resizableColumn()
-                        .horizontalAlign(HorizontalAlign.FILL)
+                        .align(AlignX.CENTER)
                         .comment(
                             """
                             Optional command run on the internal debugger session 
@@ -133,7 +119,7 @@ class PlDebuggerSettingsDialog : Configurable {
                         textArea()
                             .bindText(formData::queryFuncArgs)
                             .resizableColumn()
-                            .horizontalAlign(HorizontalAlign.FILL)
+                            .align(AlignX.CENTER)
                             .comment(
                                 """
                                 Fetch arguments of the function<br/>
@@ -144,7 +130,7 @@ class PlDebuggerSettingsDialog : Configurable {
                         textArea()
                             .bindText(formData::queryRawVars)
                             .resizableColumn()
-                            .horizontalAlign(HorizontalAlign.FILL)
+                            .align(AlignX.CENTER)
                             .comment(
                                 """
                                 Fetch variable definition and values<br/>
@@ -156,7 +142,7 @@ class PlDebuggerSettingsDialog : Configurable {
                         textArea()
                             .bindText(formData::queryExplodeComposite)
                             .resizableColumn()
-                            .horizontalAlign(HorizontalAlign.FILL)
+                            .align(AlignX.CENTER)
                             .comment(
                                 """
                                 Fetch members of a composite value in the stack<br/>
@@ -168,7 +154,7 @@ class PlDebuggerSettingsDialog : Configurable {
                         textArea()
                             .bindText(formData::queryExplodeArray)
                             .resizableColumn()
-                            .horizontalAlign(HorizontalAlign.FILL)
+                            .align(AlignX.CENTER)
                             .comment(
                                 """
                                 Fetch members of an array value in the stack<br/>
