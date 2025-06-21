@@ -18,7 +18,7 @@ jobs:
       pull-requests: write
     steps:
 
-      # Check out current repository
+      # Check out the current repository
       - name: Fetch Sources
         uses: actions/checkout@v4
         with:
@@ -29,13 +29,11 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: zulu
-          java-version: 17
+          java-version: 21
 
       # Setup Gradle
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-home-cache-cleanup: true
+        uses: gradle/actions/setup-gradle@v4
 
       # Set environment variables
       - name: Export Properties
@@ -46,7 +44,7 @@ jobs:
           ${{ github.event.release.body }}
           EOM
           )"
-          
+
           echo "changelog<<EOF" >> $GITHUB_OUTPUT
           echo "$CHANGELOG" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -76,13 +74,13 @@ jobs:
 
       # Create a pull request
       - name: Create Pull Request
-
         if: ${{ steps.properties.outputs.changelog != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ github.event.release.tag_name }}"
           BRANCH="changelog-update-$VERSION"
+          LABEL="release changelog"
 
           git config user.email "action@github.com"
           git config user.name "GitHub Action"
@@ -91,7 +89,13 @@ jobs:
           git commit -am "Changelog update - $VERSION"
           git push --set-upstream origin $BRANCH
 
+          gh label create "$LABEL" \
+            --description "Pull requests with release changelog update" \
+            --force \
+            || true
+
           gh pr create \
             --title "Changelog update - \`$VERSION\`" \
             --body "Current pull request contains patched \`CHANGELOG.md\` file for the \`$VERSION\` version." \
+            --label "$LABEL" \
             --head $BRANCH
