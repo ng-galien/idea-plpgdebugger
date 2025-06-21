@@ -1,3 +1,4 @@
+import org.gradle.internal.classpath.Instrumented.systemProperty
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
@@ -23,14 +24,9 @@ repositories {
 }
 
 dependencies {
+
     // Postgres
     implementation(libs.postgres)
-    // JDBI
-    implementation(libs.jdbi3Core)
-    implementation(libs.jdbi3Kotlin)
-    implementation(libs.jdbi3Kotlin)
-    implementation(libs.jdbi3SqlObject)
-    implementation(libs.jdbi3Postgres)
     // Arrow
     implementation(libs.arrowCore)
     implementation(libs.arrowFxCoroutines)
@@ -48,10 +44,14 @@ dependencies {
     testImplementation(libs.junitPlatformRunner)
     testRuntimeOnly(libs.junitJupiterEngine)
     testRuntimeOnly(libs.junitVintageEngine)
-    // Container and driver
-    testImplementation(libs.testcontainers)
-    testImplementation(libs.testcontainersJunitJupiter)
+    testImplementation("org.opentest4j:opentest4j:1.3.0")
+
     // JDBI testing
+    testImplementation(libs.jdbi3Core)
+    testImplementation(libs.jdbi3Kotlin)
+    testImplementation(libs.jdbi3Kotlin)
+    testImplementation(libs.jdbi3SqlObject)
+    testImplementation(libs.jdbi3Postgres)
     testImplementation(libs.jdbi3Testing)
     // Guava
     testImplementation(libs.guava)
@@ -72,6 +72,7 @@ kotlin {
 
 // Configure Gradle IntelliJ Plugin - read more: https://plugins.jetbrains.com/docs/intellij/tools-gradle-intellij-plugin.html
 intellijPlatform {
+    buildSearchableOptions = true
     pluginConfiguration {
         version = providers.gradleProperty("pluginVersion")
 
@@ -159,5 +160,9 @@ tasks {
 
     publishPlugin {
         dependsOn(patchChangelog)
+    }
+    all {
+        //Set jna.nosys system property to true to avoid loading native JNA library
+        systemProperty("jna.nosys", "true")
     }
 }

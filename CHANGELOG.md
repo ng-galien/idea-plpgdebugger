@@ -6,6 +6,10 @@
 
 ### Maintenance
 
+- Compatibility with Intellij 2025.*
+
+### Maintenance
+
 - Compatibility with Intellij 2024.*
 - Update dependencies
 - Move to IntelliJ gradle plugin 2.X

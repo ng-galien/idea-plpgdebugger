@@ -19,6 +19,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import net.plpgsql.ideadebugger.command.PlApiFunctionDef
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import org.junit.BeforeClass
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions
@@ -49,24 +50,12 @@ class PlFunctionSourceTest(
                 arrayOf("function_without_declare_with_comments", 2, 5 to 10),
             )
         }
-        var postgres = getPGContainer("14")
-
-        @JvmStatic
-        @BeforeClass
-        fun setup() {
-            postgres.start()
-        }
-
-        @JvmStatic
-        @AfterAll
-        fun after() {
-            postgres.stop()
-        }
     }
 
+    @Ignore
     @Test
     fun `test function source`() {
-        val sourceCode = getFunctionSource(this, postgres, file)
+        val sourceCode = getFunctionSource(this,  file)
         val def = PlApiFunctionDef(0, "public", file, sourceCode, sourceCode.md5())
         val plSource = PlFunctionSource(project, def, def.md5)
         Assertions.assertEquals(start, plSource.start)

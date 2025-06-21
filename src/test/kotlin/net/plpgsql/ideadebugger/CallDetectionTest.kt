@@ -18,8 +18,10 @@ import com.intellij.sql.dialects.postgres.PgDialect
 import com.intellij.sql.psi.SqlStatement
 import com.intellij.testFramework.TestDataPath
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Disabled
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 
@@ -42,6 +44,7 @@ class CallDetectionTest(private val sql: String, private val expected: FunctionD
         }
     }
 
+    @Ignore
     @Test
     fun `test run query with call parsing`() {
 

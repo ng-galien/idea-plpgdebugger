@@ -19,8 +19,6 @@ import org.jdbi.v3.core.Handle
 import org.jdbi.v3.core.Jdbi
 import org.jdbi.v3.core.kotlin.KotlinPlugin
 import org.jdbi.v3.postgres.PostgresPlugin
-import org.testcontainers.containers.GenericContainer
-import org.testcontainers.utility.DockerImageName
 
 const val PG_PORT = 5432
 
@@ -40,24 +38,17 @@ fun getProcedureDefinition(handle: Handle, procedureName: String): String? {
         .firstOrNull()
 }
 
-fun getPGContainer(pgVersion: String): GenericContainer<*> {
-    return GenericContainer(DockerImageName.parse("galien0xffffff/postgres-debugger:$pgVersion"))
-        .withExposedPorts(PG_PORT)
-        .withEnv("POSTGRES_PASSWORD", "postgres")
-        .withEnv("POSTGRES_USER", "postgres")
-        .withEnv("POSTGRES_DB", "postgres")
-}
 
-fun getHandle(container: GenericContainer<*>): Handle {
-    val host = container.host
-    val port = container.getMappedPort(PG_PORT)
+fun getHandle(): Handle {
+    val host = "localhost"
+    val port = 5515
     val jdbi = Jdbi.create("jdbc:postgresql://${host}:${port}/postgres", "postgres", "postgres")
         .installPlugin(PostgresPlugin()).installPlugin(KotlinPlugin())
     return jdbi.open()
 }
 
-fun getFunctionSource(obj: Any, container: GenericContainer<*>, functionName: String): String {
-    return getHandle(container).use {
+fun getFunctionSource(obj: Any, functionName: String): String {
+    return getHandle().use {
         loadProcedure(obj, it, functionName)
         getProcedureDefinition(it, functionName)?: throw Exception("Function $functionName not found")
     }

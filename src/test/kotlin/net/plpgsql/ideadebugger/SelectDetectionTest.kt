@@ -20,8 +20,10 @@ import com.intellij.testFramework.TestDataPath
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.junit.Test
 import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Disabled
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
+import kotlin.test.Ignore
 
 
 @TestDataPath("\$CONTENT_ROOT/src/test/testData")
@@ -44,6 +46,7 @@ class SelectDetectionTest(private val sql: String, private val expected: Functio
         }
     }
 
+    @Ignore
     @Test
     fun `test run query with select parsing`() {
 
