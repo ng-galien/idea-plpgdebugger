@@ -277,6 +277,10 @@ enum class ApiQuery(val sql: String,
         print = false
     ),
 
+    /**
+     * Retrieves the list of shared libraries loaded in PostgreSQL.
+     * Used to check if the debugger extension is properly loaded.
+     */
     GET_SHARED_LIBRARIES(
         sql = """
         SELECT setting
@@ -289,6 +293,11 @@ enum class ApiQuery(val sql: String,
         disableDecoration = true
     ),
 
+    /**
+     * Retrieves information about installed PostgreSQL extensions.
+     * Used to check if the debugger extension is installed.
+     * Returns the namespace, extension name, and version.
+     */
     GET_EXTENSION(
         """
         SELECT 
@@ -302,6 +311,12 @@ enum class ApiQuery(val sql: String,
             PlApiExtension(it.string(), it.string(), it.string())
         }
     ),
+
+    /**
+     * Retrieves the arguments of a function by schema and name.
+     * Used to get information about function parameters for debugging.
+     * Returns detailed information about each argument including name, type, and default value status.
+     */
     GET_FUNCTION_CALL_ARGS(
         """
         SELECT 
@@ -345,6 +360,11 @@ enum class ApiQuery(val sql: String,
         }
     ),
 
+    /**
+     * Retrieves the definition of a function by its OID.
+     * Used to get the source code of a function for debugging.
+     * Returns the function OID, schema, name, definition, and a hash of the definition.
+     */
     GET_FUNCTION_DEF(
         """
         SELECT t_proc.oid,
@@ -366,6 +386,11 @@ enum class ApiQuery(val sql: String,
         }
     ),
 
+    /**
+     * Executes a custom query to explode (expand) a complex value.
+     * Used for inspecting complex variable values during debugging.
+     * The SQL query is provided as a parameter.
+     */
     EXPLODE("%s", Producer {
         PlApiValue(
             it.long(),
@@ -380,6 +405,15 @@ enum class ApiQuery(val sql: String,
         )
     }),
 
+    /**
+     * Explodes (expands) an array value into its individual elements.
+     * Used for inspecting array variables during debugging.
+     * Returns detailed information about each array element including type, value, and metadata.
+     * 
+     * @param varName The name of the variable to use in the result
+     * @param jsonValue The JSON representation of the array
+     * @param typeOid The OID of the array type
+     */
     EXPLODE_ARRAY(
         """
         SELECT t_arr_type.oid                          AS oid,
@@ -411,6 +445,14 @@ enum class ApiQuery(val sql: String,
         }
     ),
 
+    /**
+     * Explodes (expands) a composite type value into its individual fields.
+     * Used for inspecting composite variables (records, custom types) during debugging.
+     * Returns detailed information about each field including name, type, value, and metadata.
+     * 
+     * @param jsonValue The JSON representation of the composite value
+     * @param typeOid The OID of the composite type
+     */
     EXPLODE_COMPOSITE(
         """
         SELECT t_att_type.oid                                                               AS oid,
