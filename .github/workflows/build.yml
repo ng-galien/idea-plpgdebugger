@@ -14,15 +14,18 @@
 
 name: Build
 on:
-  # Trigger the workflow on pushes to 'main' branch, but ignore changelog files
+  # Trigger the workflow on pushes to 'main' branch, but ignore changelog files and workflow files
   push:
     branches: [ main ]
     paths-ignore:
       - '**/CHANGELOG.md'
-  # Trigger the workflow on any pull request, but ignore changelog-update branches
+      - '.github/workflows/**'
+  # Trigger the workflow on any pull request, but ignore changelog-update branches and workflow files
   pull_request:
     branches-ignore:
-      - changelog-update.*
+      - 'changelog-update.*'
+    paths-ignore:
+      - '.github/workflows/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
