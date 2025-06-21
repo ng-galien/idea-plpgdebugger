@@ -2,21 +2,17 @@ import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
-fun properties(key: String) = providers.gradleProperty(key)
-fun environment(key: String) = providers.environmentVariable(key)
-
 plugins {
     id("java") // Java support
     alias(libs.plugins.kotlin) // Kotlin support
-    alias(libs.plugins.gradleIntelliJPlugin) // Gradle IntelliJ Plugin
-    //alias(libs.plugins.gradleIntelliJPluginMigration) // Gradle Kotlin Plugin
+    alias(libs.plugins.intelliJPlatform) // IntelliJ Platform Gradle Plugin
     alias(libs.plugins.changelog) // Gradle Changelog Plugin
     alias(libs.plugins.qodana) // Gradle Qodana Plugin
     alias(libs.plugins.kover) // Gradle Kover Plugin
 }
 
-group = properties("pluginGroup").get()
-version = properties("pluginVersion").get()
+group = providers.gradleProperty("pluginGroup").get()
+version = providers.gradleProperty("pluginVersion").get()
 
 // Configure project's dependencies
 repositories {
@@ -64,7 +60,6 @@ dependencies {
         create(providers.gradleProperty("platformType"), providers.gradleProperty("platformVersion"))
         bundledPlugins(providers.gradleProperty("platformBundledPlugins").map { it.split(',') })
         plugins(providers.gradleProperty("platformPlugins").map { it.split(',') })
-        instrumentationTools()
         pluginVerifier()
         zipSigner()
         testFramework(TestFrameworkType.Platform)
@@ -72,7 +67,7 @@ dependencies {
 }
 
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(21)
 }
 
 // Configure Gradle IntelliJ Plugin - read more: https://plugins.jetbrains.com/docs/intellij/tools-gradle-intellij-plugin.html
@@ -137,7 +132,7 @@ intellijPlatform {
 // Configure Gradle Changelog Plugin - read more: https://github.com/JetBrains/gradle-changelog-plugin
 changelog {
     groups.empty()
-    repositoryUrl = properties("pluginRepositoryUrl")
+    repositoryUrl = providers.gradleProperty("pluginRepositoryUrl")
 }
 
 // Configure Gradle Qodana Plugin - read more: https://github.com/JetBrains/gradle-qodana-plugin
@@ -145,7 +140,7 @@ qodana {
     cachePath = provider { file(".qodana").canonicalPath }
     reportPath = provider { file("build/reports/inspections").canonicalPath }
     saveReport = true
-    showReport = environment("QODANA_SHOW_REPORT").map { it.toBoolean() }.getOrElse(false)
+    showReport = providers.environmentVariable("QODANA_SHOW_REPORT").map { it.toBoolean() }.getOrElse(false)
 }
 
 // Configure Gradle Kover Plugin - read more: https://github.com/Kotlin/kotlinx-kover#configuration
@@ -166,4 +161,3 @@ tasks {
         dependsOn(patchChangelog)
     }
 }
-

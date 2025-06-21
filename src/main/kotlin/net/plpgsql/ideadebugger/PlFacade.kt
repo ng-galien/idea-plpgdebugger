@@ -139,32 +139,6 @@ class PlFacade : SqlDebuggerFacade {
     }
 
     /**
-     * Creates an instance of SqlDebugController.
-     *
-     * @param p0 The project.
-     * @param p1 The database connection point.
-     * @param p2 The data request owner.
-     * @param p3 Indicates if the script is meaningful.
-     * @param p4 The virtual file.
-     * @param p5 The range marker.
-     * @param p6 The search path.
-     * @return The created SqlDebugController instance.
-     * @deprecated Deprecated in Java.
-     */
-    @Deprecated("Deprecated in Java")
-    override fun createController(
-        p0: Project,
-        p1: DatabaseConnectionPoint,
-        p2: DataRequest.OwnerEx,
-        p3: Boolean,
-        p4: VirtualFile?,
-        p5: RangeMarker?,
-        p6: SearchPath?
-    ): SqlDebugController {
-        TODO("Deprecated")
-    }
-
-    /**
      * Checks if the provided LocalDataSource uses a Postgres database management system.
      *
      * @param ds The LocalDataSource to check.

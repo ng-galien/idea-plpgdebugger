@@ -41,7 +41,10 @@ import net.plpgsql.ideadebugger.service.PlProcessWatcher
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import net.plpgsql.ideadebugger.vfs.PlSourceManager
 import net.plpgsql.ideadebugger.vfs.PlVirtualFileSystem
-import java.util.concurrent.LinkedBlockingQueue
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -86,7 +89,7 @@ class PlProcess(
     /**
      *
      */
-    internal val command = LinkedBlockingQueue<ApiQuery>()
+    internal val command = Channel<ApiQuery>(Channel.UNLIMITED)
     /**
      * Represents the debugging mode.
      *
@@ -99,12 +102,6 @@ class PlProcess(
     /**
      * Represents a background task for proxying PL/pg Debug operations.
      *
-     * @property project The project associated with the task.
-     * @property title The title of the task.
-     * @property running A boolean indicating whether the task is currently running.
-     * @property logger1 The logger for the task.
-     * @property watcher The PlProcessWatcher service.
-     * @property innerThread The inner thread used by the task.
      */
     private val proxyTask = ProxyTask(session.project, "PL/pg Debug")
     /**
@@ -116,24 +113,12 @@ class PlProcess(
     private var proxyProgress: ProxyIndicator? = null
     /**
      * Manages the PL source code for a given project.
-     * @param project The project in which the PL source code is managed.
-     * @param executor The executor used to interact with the PL database.
      */
     val fileManager = PlSourceManager(session.project, executor)
     /**
      * Represents the call definition for a routine.
      * This variable holds information about the routine call, such as the debug mode, the PSI element, and the query.
      *
-     * @property debugMode The debug mode of the routine call.
-     * @property psi The PSI element associated with the routine call.
-     * @property query The query used for the routine call.
-     * @property schema The schema of the routine call.
-     * @property routine The name of the routine.
-     * @property oid The object ID of the routine.
-     * @property args The arguments of the routine call.
-     * @property selectionOk Flag indicating if the routine call can be selected.
-     *
-     * @constructor Creates a CallDefinition object with the given debug mode, PSI element, and query.
      */
     private var callDef: CallDefinition? = null
 
@@ -148,7 +133,9 @@ class PlProcess(
      */
     override fun startStepOver(context: XSuspendContext?) {
         logger.debug("User request: startStepOver")
-        command.add(ApiQuery.STEP_OVER)
+        runBlocking {
+            command.send(ApiQuery.STEP_OVER)
+        }
     }
 
     /**
@@ -158,7 +145,9 @@ class PlProcess(
      */
     override fun startStepInto(context: XSuspendContext?) {
         logger.debug("User request: startStepInto")
-        command.add(ApiQuery.STEP_INTO)
+        runBlocking {
+            command.send(ApiQuery.STEP_INTO)
+        }
     }
 
     /**
@@ -168,7 +157,9 @@ class PlProcess(
      */
     override fun resume(context: XSuspendContext?) {
         logger.debug("User request: resume")
-        command.add(ApiQuery.STEP_CONTINUE)
+        runBlocking {
+            command.send(ApiQuery.STEP_CONTINUE)
+        }
     }
 
     /**
@@ -184,7 +175,9 @@ class PlProcess(
         executor.setInfo("From auxiliary request: startDebug")
         proxyProgress = ProxyIndicator(proxyTask)
         ProgressManager.getInstance().runProcessWithProgressAsynchronously(proxyTask, proxyProgress!!)
-        command.add(ApiQuery.VOID)
+        runBlocking {
+            command.send(ApiQuery.VOID)
+        }
     }
 
     /**
@@ -194,7 +187,9 @@ class PlProcess(
      */
     override fun startForceStepInto(context: XSuspendContext?) {
         logger.debug("User request not supported: use startStepInto")
-        command.add(ApiQuery.STEP_INTO)
+        runBlocking {
+            command.send(ApiQuery.STEP_INTO)
+        }
     }
 
     /**
@@ -204,7 +199,9 @@ class PlProcess(
      */
     override fun startStepOut(context: XSuspendContext?) {
         logger.debug("User request not supported: use resume")
-        command.add(ApiQuery.STEP_OVER)
+        runBlocking {
+            command.send(ApiQuery.STEP_OVER)
+        }
     }
 
     /**
@@ -223,7 +220,9 @@ class PlProcess(
      */
     override fun runToPosition(position: XSourcePosition, context: XSuspendContext?) {
         logger.debug("User request: runToPosition")
-        command.add(ApiQuery.VOID)
+        runBlocking {
+            command.send(ApiQuery.VOID)
+        }
     }
 
     /**
@@ -262,7 +261,9 @@ class PlProcess(
                     && !fileBreakPoints.any { frame.plFrame.line == it - frame.file.start }
             if (next) {
                 executor.setDebug("Got to next")
-                command.add(ApiQuery.STEP_CONTINUE)
+                runBlocking {
+                    command.send(ApiQuery.STEP_CONTINUE)
+                }
             } else {
                 session.positionReached(context)
             }
@@ -463,9 +464,10 @@ class PlProcess(
 
         private var watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
         private val innerThread = InnerThread()
+        private val job = SupervisorJob()
+        private val scope = CoroutineScope(Dispatchers.Default + job)
 
         override fun run(indicator: ProgressIndicator) {
-
             logger1.debug("Run proxy Task")
 
             indicator.text = "PL/pg Debug (${callDef?.routine})"
@@ -474,11 +476,14 @@ class PlProcess(
             running.set(true)
             innerThread.start()
             watcher.processStarted(this@PlProcess, mode, callDef?.oid ?: 0L)
-            do {
-                Thread.sleep(100)
-            } while (!indicator.isCanceled)
-            running.set(false)
 
+            runBlocking {
+                while (!indicator.isCanceled) {
+                    delay(100)
+                }
+            }
+
+            running.set(false)
             innerThread.cancel()
             logger1.debug("ProxyTask run end")
             watcher.processFinished(this@PlProcess)
@@ -487,6 +492,8 @@ class PlProcess(
                 logger1.debug("Stops session for indirect debugging")
                 session.stop()
             }
+
+            job.cancel()
         }
 
     }
@@ -510,24 +517,34 @@ class PlProcess(
     }
 
     /**
-     * A nested inner class that extends the Thread class. This class represents a thread that performs operations
-     * related to debugging.
+     * A nested inner class that uses coroutines to perform operations related to debugging.
      */
-    inner class InnerThread : Thread() {
+    inner class InnerThread {
 
         private val logger1 = logger<InnerThread>()
+        private val job = SupervisorJob()
+        private val scope = CoroutineScope(Dispatchers.IO + job)
 
         fun cancel() {
             logger1.debug("cancel")
             executor.cancelStatement()
-            if (!command.isEmpty()) {
-                command.clear()
+            runBlocking {
+                // Clear the channel by consuming all messages
+                while (!command.isEmpty) {
+                    command.tryReceive()
+                }
+                command.send(ApiQuery.ABORT)
             }
-            command.add(ApiQuery.ABORT)
+            job.cancel()
         }
 
-        override fun run() {
+        fun start() {
+            scope.launch {
+                run()
+            }
+        }
 
+        private suspend fun run() {
             logger1.debug("Thread run")
             if (executor.entryPoint == 0L) {
                 logger1.warn("Invalid entry point")
@@ -549,8 +566,7 @@ class PlProcess(
             }
             //Loop while proxy task is not interrupted
             while (proxyTask.running.get()) {
-
-                val query = command.take()
+                val query = command.receive()
                 logger1.debug("Command was taken from queue: ${query.name}")
                 val step: PlApiStep? = getStep(query)
                 if (step != null) {
