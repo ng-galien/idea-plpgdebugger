@@ -4,13 +4,7 @@
 
 ## [Unreleased]
 
-### Maintenance
-
-- Compatibility with Intellij 2025.* [#264](https://github.com/ng-galien/idea-plpgdebugger/issues/264)
-
-### Enhancements
-
-- Use coroutines in [PlProcess](src/main/kotlin/net/plpgsql/ideadebugger/run/PlProcess.kt)
+## [252.0.0] - 2025-06-21
 
 ### Maintenance
 
@@ -18,6 +12,10 @@
 - Update dependencies
 - Move to IntelliJ gradle plugin 2.X
 - Fix Monitor issue when creating debug session
+
+### Enhancements
+
+- Use coroutines in [PlProcess](src/main/kotlin/net/plpgsql/ideadebugger/run/PlProcess.kt)
 
 ## [241.0.1] - 2024-04-07
 
@@ -164,12 +162,6 @@
 
 ### Fixed
 
-=======
-## [213.1.1]
-### Added
-- Change version scheme
-
-### Fixed
 - NPE on database tree
 
 ## [1.2.1]
@@ -283,7 +275,8 @@
 - View variables
 - Explore arrays and composite type
 
-[Unreleased]: https://github.com/ng-galien/idea-plpgdebugger/compare/v241.0.1...HEAD
+[Unreleased]: https://github.com/ng-galien/idea-plpgdebugger/compare/v252.0.0...HEAD
+[252.0.0]: https://github.com/ng-galien/idea-plpgdebugger/compare/v241.0.1...v252.0.0
 [241.0.1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v233.0.1...v241.0.1
 [233.0.1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v232.0.3...v233.0.1
 [232.0.3]: https://github.com/ng-galien/idea-plpgdebugger/compare/v231.0.1...v232.0.3
@@ -310,7 +303,7 @@
 [1.0.3]: https://github.com/ng-galien/idea-plpgdebugger/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/ng-galien/idea-plpgdebugger/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v1.0.0-rc1...v1.0.1
-[1.0.0-alpha]: https://github.com/ng-galien/idea-plpgdebugger/commits/v1.0.0-alpha
-[1.0.0-alpha1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v1.0.0-alpha...v1.0.0-alpha1
-[1.0.0-beta]: https://github.com/ng-galien/idea-plpgdebugger/compare/v1.0.0-alpha1...v1.0.0-beta
 [1.0.0-rc1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v1.0.0-beta...v1.0.0-rc1
+[1.0.0-beta]: https://github.com/ng-galien/idea-plpgdebugger/compare/v1.0.0-alpha1...v1.0.0-beta
+[1.0.0-alpha1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v1.0.0-alpha...v1.0.0-alpha1
+[1.0.0-alpha]: https://github.com/ng-galien/idea-plpgdebugger/commits/v1.0.0-alpha
