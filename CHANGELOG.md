@@ -6,7 +6,11 @@
 
 ### Maintenance
 
-- Compatibility with Intellij 2025.*
+- Compatibility with Intellij 2025.* [#264](https://github.com/ng-galien/idea-plpgdebugger/issues/264)
+
+### Enhancements
+
+- Use coroutines in [PlProcess](src/main/kotlin/net/plpgsql/ideadebugger/run/PlProcess.kt)
 
 ### Maintenance
 
