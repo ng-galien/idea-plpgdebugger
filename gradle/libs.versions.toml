@@ -16,7 +16,7 @@ jansi = "2.4.1"
 junit = "5.10.3"
 jbdi3 = "3.49.5"
 junitPlatformRunner = "1.11.0"
-guava = "33.2.1-jre"
+guava = "33.5.0-jre"
 
 
 [libraries]
