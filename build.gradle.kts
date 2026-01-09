@@ -32,6 +32,12 @@ dependencies {
     implementation(libs.arrowCore)
     implementation(libs.arrowFxCoroutines)
 
+    // JDBI
+    implementation(libs.jdbi3Core)
+    implementation(libs.jdbi3Kotlin)
+    implementation(libs.jdbi3KotlinSqlObject)
+    implementation(libs.jdbi3Postgres)
+
     // Kotlin and logging
     testImplementation(kotlin("test"))
     testImplementation(kotlin("reflect"))
@@ -48,14 +54,11 @@ dependencies {
     testImplementation("org.opentest4j:opentest4j:1.3.0")
 
     // JDBI testing
-    testImplementation(libs.jdbi3Core)
-    testImplementation(libs.jdbi3Kotlin)
-    testImplementation(libs.jdbi3Kotlin)
-    testImplementation(libs.jdbi3SqlObject)
-    testImplementation(libs.jdbi3Postgres)
     testImplementation(libs.jdbi3Testing)
     // Guava
     testImplementation(libs.guava)
+
+    testImplementation(kotlin("test"))
 
     intellijPlatform {
         intellijIdeaUltimate(version = providers.gradleProperty("platformVersion"))
@@ -147,10 +150,12 @@ qodana {
 }
 
 // Configure Gradle Kover Plugin - read more: https://github.com/Kotlin/kotlinx-kover#configuration
-koverReport {
-    defaults {
-        xml {
-            onCheck = true
+kover {
+    reports {
+        total {
+            xml {
+                onCheck = true
+            }
         }
     }
 }
@@ -166,5 +171,13 @@ tasks {
     all {
         //Set jna.nosys system property to true to avoid loading native JNA library
         systemProperty("jna.nosys", "true")
+    }
+
+    test {
+        useJUnitPlatform()
+        // Exclude tests using IntelliJ Platform test framework due to kotlinx-coroutines conflict
+        exclude("**/SelectDetectionTest.class")
+        exclude("**/CallDetectionTest.class")
+        exclude("**/PlFunctionSourceTest.class")
     }
 }
