@@ -1,147 +1,183 @@
+import org.gradle.api.internal.tasks.testing.TestFramework
+import org.gradle.internal.classpath.Instrumented.systemProperty
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
-
-fun properties(key: String) = project.findProperty(key).toString()
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
 plugins {
-    // Java support
-    java
-    // Kotlin support
-    kotlin("jvm") version "1.7.21"
-    // Gradle IntelliJ Plugin
-    id("org.jetbrains.intellij") version "1.12.0"
-    // Gradle Changelog Plugin
-    id("org.jetbrains.changelog") version "2.0.0"
-    // Gradle Qodana Plugin
-    id("org.jetbrains.qodana") version "0.1.13"
+    id("java") // Java support
+    alias(libs.plugins.kotlin) // Kotlin support
+    alias(libs.plugins.intelliJPlatform) // IntelliJ Platform Gradle Plugin
+    alias(libs.plugins.changelog) // Gradle Changelog Plugin
+    alias(libs.plugins.qodana) // Gradle Qodana Plugin
+    alias(libs.plugins.kover) // Gradle Kover Plugin
 }
 
-group = properties("pluginGroup")
-version = properties("pluginVersion")
+group = providers.gradleProperty("pluginGroup").get()
+version = providers.gradleProperty("pluginVersion").get()
 
 // Configure project's dependencies
 repositories {
     mavenCentral()
+    intellijPlatform {
+        defaultRepositories()
+    }
 }
 
 dependencies {
 
+    // Postgres
+    implementation(libs.postgres)
+    // Arrow
+    implementation(libs.arrowCore)
+    implementation(libs.arrowFxCoroutines)
+
+    // JDBI
+    implementation(libs.jdbi3Core)
+    implementation(libs.jdbi3Kotlin)
+    implementation(libs.jdbi3KotlinSqlObject)
+    implementation(libs.jdbi3Postgres)
+
     // Kotlin and logging
     testImplementation(kotlin("test"))
     testImplementation(kotlin("reflect"))
-    testRuntimeOnly("ch.qos.logback:logback-classic:1.4.5")
-    testRuntimeOnly("org.fusesource.jansi:jansi:2.4.0")
-
+    testRuntimeOnly(libs.logbackClassic)
+    testRuntimeOnly(libs.jansi)
     // Junit 5 for IntelliJ
-    testImplementation("org.junit.platform:junit-platform-runner:1.9.0")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.9.1")
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.1")
-    testImplementation("org.junit.jupiter:junit-jupiter-params:5.9.1")
-    testImplementation(platform("org.junit:junit-bom:5.9.1"))
-    testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.9.1")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.9.1")
-    // Postgres container and driver
-    testImplementation("org.testcontainers:testcontainers:1.17.6")
-    testImplementation("org.testcontainers:junit-jupiter:1.17.6")
-    testImplementation("org.jdbi:jdbi3-kotlin:3.34.0")
-    testImplementation("org.jdbi:jdbi3-kotlin-sqlobject:3.34.0")
-    testImplementation("org.postgresql:postgresql:42.5.1")
-    // JDBI
-    testImplementation("org.jdbi:jdbi3-postgres:3.34.0")
-    testImplementation("org.jdbi:jdbi3-testing:3.34.0")
-    // Guava
-    testImplementation("com.google.guava:guava:31.1-jre")
-}
+    testImplementation(platform(libs.junitBom))
+    testImplementation(libs.junitJupiterApi)
+    testImplementation(libs.junitJupiter)
+    testImplementation(libs.junitJupiterParams)
+    testImplementation(libs.junitPlatformRunner)
+    testRuntimeOnly(libs.junitJupiterEngine)
+    testRuntimeOnly(libs.junitVintageEngine)
+    testImplementation("org.opentest4j:opentest4j:1.3.0")
 
-kotlin {
-    jvmToolchain {
-        languageVersion.set(JavaLanguageVersion.of(17))
+    // JDBI testing
+    testImplementation(libs.jdbi3Testing)
+    // Guava
+    testImplementation(libs.guava)
+
+    testImplementation(kotlin("test"))
+
+    intellijPlatform {
+        intellijIdeaUltimate(version = providers.gradleProperty("platformVersion"))
+        bundledPlugins(providers.gradleProperty("platformBundledPlugins").map { it.split(',') })
+        plugins(providers.gradleProperty("platformPlugins").map { it.split(',') })
+        pluginVerifier()
+        zipSigner()
+        testFramework(TestFrameworkType.Platform)
+        testBundledPlugin(providers.gradleProperty("platformBundledPlugins"))
     }
 }
 
-// Configure Gradle IntelliJ Plugin - read more: https://github.com/JetBrains/gradle-intellij-plugin
-intellij {
-    pluginName.set(properties("pluginName"))
-    version.set(properties("platformVersion"))
-    type.set(properties("platformType"))
-
-    // Plugin Dependencies. Uses `platformPlugins` property from the gradle.properties file.
-    plugins.set(properties("platformPlugins").split(',').map(String::trim).filter(String::isNotEmpty))
+kotlin {
+    jvmToolchain(21)
 }
+
+// Configure Gradle IntelliJ Plugin - read more: https://plugins.jetbrains.com/docs/intellij/tools-gradle-intellij-plugin.html
+intellijPlatform {
+    buildSearchableOptions = true
+    pluginConfiguration {
+        version = providers.gradleProperty("pluginVersion")
+
+        // Extract the <!-- Plugin description --> section from README.md and provide for the plugin's manifest
+        description = providers.fileContents(layout.projectDirectory.file("README.md")).asText.map {
+            val start = "<!-- Plugin description -->"
+            val end = "<!-- Plugin description end -->"
+
+            with(it.lines()) {
+                if (!containsAll(listOf(start, end))) {
+                    throw GradleException("Plugin description section not found in README.md:\n$start ... $end")
+                }
+                subList(indexOf(start) + 1, indexOf(end)).joinToString("\n").let(::markdownToHTML)
+            }
+        }
+
+        val changelog = project.changelog // local variable for configuration cache compatibility
+        // Get the latest available change notes from the changelog file
+        changeNotes = providers.gradleProperty("pluginVersion").map { pluginVersion ->
+            with(changelog) {
+                renderItem(
+                    (getOrNull(pluginVersion) ?: getUnreleased())
+                        .withHeader(false)
+                        .withEmptySections(false),
+                    Changelog.OutputType.HTML,
+                )
+            }
+        }
+
+        ideaVersion {
+            sinceBuild = providers.gradleProperty("pluginSinceBuild")
+            untilBuild = providers.gradleProperty("pluginUntilBuild")
+        }
+    }
+
+    signing {
+        certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
+        privateKey = providers.environmentVariable("PRIVATE_KEY")
+        password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+    }
+
+    publishing {
+        token = providers.environmentVariable("PUBLISH_TOKEN")
+        // The pluginVersion is based on the SemVer (https://semver.org) and supports pre-release labels, like 2.1.7-alpha.3
+        // Specify pre-release label to publish the plugin in a custom Release Channel automatically. Read more:
+        // https://plugins.jetbrains.com/docs/intellij/deployment.html#specifying-a-release-channel
+        channels = providers.gradleProperty("pluginVersion").map { listOf(it.substringAfter('-', "").substringBefore('.').ifEmpty { "default" }) }
+    }
+
+    pluginVerification {
+        ides {
+            recommended()
+        }
+    }
+}
+
 
 // Configure Gradle Changelog Plugin - read more: https://github.com/JetBrains/gradle-changelog-plugin
 changelog {
-    version.set(properties("pluginVersion"))
-    groups.set(emptyList())
+    groups.empty()
+    repositoryUrl = providers.gradleProperty("pluginRepositoryUrl")
 }
 
 // Configure Gradle Qodana Plugin - read more: https://github.com/JetBrains/gradle-qodana-plugin
 qodana {
-    cachePath.set(projectDir.resolve(".qodana").canonicalPath)
-    reportPath.set(projectDir.resolve("build/reports/inspections").canonicalPath)
-    saveReport.set(true)
-    showReport.set(System.getenv("QODANA_SHOW_REPORT")?.toBoolean() ?: false)
+    cachePath = provider { file(".qodana").canonicalPath }
+    reportPath = provider { file("build/reports/inspections").canonicalPath }
+    saveReport = true
+    showReport = providers.environmentVariable("QODANA_SHOW_REPORT").map { it.toBoolean() }.getOrElse(false)
+}
+
+// Configure Gradle Kover Plugin - read more: https://github.com/Kotlin/kotlinx-kover#configuration
+kover {
+    reports {
+        total {
+            xml {
+                onCheck = true
+            }
+        }
+    }
 }
 
 tasks {
-
     wrapper {
-        gradleVersion = properties("gradleVersion")
-    }
-
-    patchPluginXml {
-        version.set(properties("pluginVersion"))
-        sinceBuild.set(properties("pluginSinceBuild"))
-        untilBuild.set(properties("pluginUntilBuild"))
-
-        // Extract the <!-- Plugin description --> section from README.md and provide for the plugin's manifest
-        pluginDescription.set(
-            projectDir.resolve("README.md").readText().lines().run {
-                val start = "<!-- Plugin description -->"
-                val end = "<!-- Plugin description end -->"
-
-                if (!containsAll(listOf(start, end))) {
-                    throw GradleException("Plugin description section not found in README.md:\n$start ... $end")
-                }
-                subList(indexOf(start) + 1, indexOf(end))
-            }.joinToString("\n").run { markdownToHTML(this) }
-        )
-
-        // Get the latest available change notes from the changelog file
-        changeNotes.set(provider {
-            changelog.renderItem(changelog.run {
-                getOrNull(properties("pluginVersion")) ?: getLatest()
-            }, Changelog.OutputType.HTML)
-        })
-    }
-
-    // Configure UI tests plugin
-    // Read more: https://github.com/JetBrains/intellij-ui-test-robot
-    runIdeForUiTests {
-        systemProperty("robot-server.port", "8082")
-        systemProperty("ide.mac.message.dialogs.as.sheets", "false")
-        systemProperty("jb.privacy.policy.text", "<!--999.999-->")
-        systemProperty("jb.consents.confirmation.enabled", "false")
-    }
-
-    signPlugin {
-        certificateChain.set(System.getenv("CERTIFICATE_CHAIN"))
-        privateKey.set(System.getenv("PRIVATE_KEY"))
-        password.set(System.getenv("PRIVATE_KEY_PASSWORD"))
+        gradleVersion = providers.gradleProperty("gradleVersion").get()
     }
 
     publishPlugin {
-        dependsOn("patchChangelog")
-        token.set(System.getenv("PUBLISH_TOKEN"))
-        // pluginVersion is based on the SemVer (https://semver.org) and supports pre-release labels, like 2.1.7-alpha.3
-        // Specify pre-release label to publish the plugin in a custom Release Channel automatically. Read more:
-        // https://plugins.jetbrains.com/docs/intellij/deployment.html#specifying-a-release-channel
-        //channels.set(listOf(properties("pluginVersion").split('-').getOrElse(1) { "default" }.split('.').first()))
+        dependsOn(patchChangelog)
+    }
+    all {
+        //Set jna.nosys system property to true to avoid loading native JNA library
+        systemProperty("jna.nosys", "true")
     }
 
     test {
-        useJUnitPlatform {
-            includeEngines("junit-vintage", "junit-jupiter")
-        }
+        useJUnitPlatform()
+        // Exclude tests using IntelliJ Platform test framework due to kotlinx-coroutines conflict
+        exclude("**/SelectDetectionTest.class")
+        exclude("**/CallDetectionTest.class")
+        exclude("**/PlFunctionSourceTest.class")
     }
 }

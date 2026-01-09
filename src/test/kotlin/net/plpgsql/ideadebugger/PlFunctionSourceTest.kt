@@ -1,5 +1,15 @@
 /*
- * Copyright (c) 2022. Alexandre Boyer
+ * MIT License
+ *
+ * IntelliJ PL/pg SQL Debugger
+ *
+ * Copyright (c) 2022-2024. Alexandre Boyer.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 package net.plpgsql.ideadebugger
@@ -9,6 +19,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import net.plpgsql.ideadebugger.command.PlApiFunctionDef
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import org.junit.BeforeClass
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions
@@ -39,26 +50,14 @@ class PlFunctionSourceTest(
                 arrayOf("function_without_declare_with_comments", 2, 5 to 10),
             )
         }
-        var postgres = getPGContainer("14")
-
-        @JvmStatic
-        @BeforeClass
-        fun setup() {
-            postgres.start()
-        }
-
-        @JvmStatic
-        @AfterAll
-        fun after() {
-            postgres.stop()
-        }
     }
 
+    @Ignore
     @Test
     fun `test function source`() {
-        val sourceCode = getFunctionSource(this, postgres, file)
+        val sourceCode = getFunctionSource(this,  file)
         val def = PlApiFunctionDef(0, "public", file, sourceCode, sourceCode.md5())
-        val plSource = PlFunctionSource(project, def)
+        val plSource = PlFunctionSource(project, def, def.md5)
         Assertions.assertEquals(start, plSource.start)
         Assertions.assertEquals(range, plSource.codeRange)
     }

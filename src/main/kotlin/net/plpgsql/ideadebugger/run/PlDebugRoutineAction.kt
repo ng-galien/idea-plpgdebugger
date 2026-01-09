@@ -1,5 +1,15 @@
 /*
- * Copyright (c) 2022. Alexandre Boyer
+ * MIT License
+ *
+ * IntelliJ PL/pg SQL Debugger
+ *
+ * Copyright (c) 2022-2024. Alexandre Boyer.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 package net.plpgsql.ideadebugger.run
@@ -100,15 +110,16 @@ class PlDebugRoutineAction : AnAction() {
                 watcher.getProcess()?.let { process ->
                     val frame = PlApiStackFrame(1, callDef.oid, 0, "")
                     if (debugWaiting()) {
-                        val executor = PlExecutor(
-                            getAuxiliaryConnection(
-                                project = project,
-                                connectionPoint = dataSource,
-                                searchPath = searchPath
-                            )
+                        val connection = getAuxiliaryConnection(
+                            project = project,
+                            connectionPoint = dataSource,
+                            searchPath = searchPath
                         )
-                        PlSourceManager(project, executor).update(frame)
-                        executor.cancelAndCloseConnection()
+                        connection?.let {
+                            val executor = PlExecutor(connection)
+                            PlSourceManager(project, executor).update(frame)
+                            executor.cancelAndCloseConnection()
+                        }
                     } else {
                         process.executor.setGlobalBreakPoint(callDef.oid)
                         process.fileManager.update(frame)
@@ -120,15 +131,15 @@ class PlDebugRoutineAction : AnAction() {
 
         //Starts the debugger
         if (callDef.canStartDebug()) {
-
-            val executor = PlExecutor(
-                getAuxiliaryConnection(
-                    project = project,
-                    connectionPoint = dataSource,
-                    searchPath = searchPath
-                )
+            val connection = getAuxiliaryConnection(
+                project = project,
+                connectionPoint = dataSource,
+                searchPath = searchPath
             )
-
+            if(connection == null) {
+                return
+            }
+            val executor = PlExecutor(connection)
             val diag = executor.checkDebugger()
             if (settings.failExtension || !extensionOk(diag)) {
                 showExtensionDiagnostic(project, diag)

@@ -1,4 +1,4 @@
-create extension pldbgapi;
+create extension if not exists pldbgapi;
 
 create type custom_type as
 (

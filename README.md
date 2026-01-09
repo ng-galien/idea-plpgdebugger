@@ -11,7 +11,7 @@ Debug PL/pg stored procedures, functions, triggers and views from Intellij IDEs 
 
 - Debug queries from editor by selecting a [function call](#debug-a-routine-from-the-editor)
 - Debug routines and triggers from [database explorer](#debug-a-routine-from-the-database-explorer)
-- Full support for variables inspection with [Docker custom debugger](https://github.com/ng-galien/idea-plpgdebugger/blob/221/docker/README.md)
+- Full support for variables inspection with [Docker custom debugger](https://github.com/ng-galien/pldebugger/tree/print-vars/docker)
 
 Visit the plugin [page](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger) at JetBrains.  
 Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea-plpgdebugger/issues/new/choose)
@@ -21,16 +21,62 @@ Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea
 
 ### Install the debugger on the server
 
->Try out the Docker image on [Docker Hub](https://hub.docker.com/repository/docker/galien0xffffff/postgres-debugger/general) with a ready to use enhanced debugger (versions 11 to 15).  
-Images are based on the official postgres image and are available for amd64 and arm64 architectures. 
-> [Docker Image](/docker/Dockerfile) | [Readme](/docker/README.md)
+You can use the plugin with the standard pldbgapi extension, but you will not be able to inspect every variable type.  
+To get the full experience, you can use an [enhanced version](https://github.com/ng-galien/pldebugger) with the plugin.  
 
+You can compile the extension from the source code or use one of the [Docker images](https://hub.docker.com/repository/docker/galien0xffffff/postgres-debugger/general) available.
+
+> The Docker image is based on the official PostgreSQL image and includes the debugger extension, from version 11 to 16 for amd64 and arm64.
+> To build your own image, you can use the [Dockerfile](https://github.com/ng-galien/pldebugger/tree/print-vars/docker) provided.
 
 ```shell
-docker run -p 5514:5432 --name PG14-debug -e POSTGRES_PASSWORD=postgres -d galien0xffffff/postgres-debugger:14
+docker run -p 5515:5432 --name PG15-debug -e POSTGRES_PASSWORD=postgres -d galien0xffffff/postgres-debugger:15
 ```
 
 Or install the [debugger](https://www.pgadmin.org/docs/pgadmin4/development/debugger.html) binaries on  your machine.
+
+## Server Configuration
+
+To ensure the debugger shared libraries are correctly configured on your PostgreSQL server, follow these steps:
+
+1. **Check if the shared library is loaded**:
+   Run the following SQL command to verify if the `pldbgapi` extension is loaded:
+
+   ```sql
+   SELECT * FROM pg_extension WHERE extname = 'pldbgapi';
+   ```
+
+   If the extension is not listed, you need to install it.
+
+2. **Verify the shared library path**:
+   Ensure that the `shared_preload_libraries` parameter in your `postgresql.conf` file includes `pldbgapi`. You can check this by running:
+
+   ```sql
+   SHOW shared_preload_libraries;
+   ```
+
+   If `pldbgapi` is not included, add it to the `postgresql.conf` file:
+
+   ```conf
+   shared_preload_libraries = 'pldbgapi'
+   ```
+
+   After making changes, restart the PostgreSQL server.
+
+3. **Check the installation of the debugger extension**:
+   Run the following command to ensure the debugger extension is installed in the correct schema:
+
+   ```sql
+    SELECT * FROM pg_extension;
+   ```
+
+   Look for `pldbgapi` in the list of installed extensions. If it is not present, install it using:
+
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS pldbgapi;
+   ```
+
+By following these steps, you can confirm that the debugger shared libraries are properly configured on your PostgreSQL server.
 
 ### Activate the debugger on the database
 
@@ -40,6 +86,8 @@ Run the following command on the database where you want to debug routines
 --Take care to install the extension on the public schema
 CREATE EXTENSION IF NOT EXISTS pldbgapi;
 ```
+
+
 
 ### Debug a routine from the editor
 
@@ -101,14 +149,13 @@ The standard pldbgapi does not send back composite variable, but you can put it 
 You must first install the debugger extension and activate the shared library onto the server.  
 
 ```shell
-EXPORT TAG = 11 # or 11, 12, 13, 14, 15
-EXPORT PG_LIB=postgresql-server-dev-${TAG}
-EXPORT PG_BRANCH=REL_${TAG}_STABLE
-EXPORT PLUGIN_BRANCH=print-vars
+export TAG=11 # or 11, 12, 13, 14, 15
+export PG_LIB=postgresql-server-dev-${TAG}
+export PG_BRANCH=REL_${TAG}_STABLE
+export PLUGIN_BRANCH=print-vars
 
 # Install dependencies
-apt --yes update && apt --yes upgrade && apt --yes install git build-essential libreadline-dev zlib1g-dev bison libkrb5-dev flex $PG_LIB \
-#
+apt --yes update && apt --yes upgrade && apt --yes install git build-essential libreadline-dev zlib1g-dev bison libkrb5-dev flex $PG_LIB
 cd /usr/src/
 # Install postgres source
 git clone -b $PG_BRANCH --single-branch https://github.com/postgres/postgres.git
@@ -128,10 +175,10 @@ Follow these [instructions for PgAdmin](https://www.pgadmin.org/docs/pgadmin4/de
 ### Intellij IDE
 
 - Using IDE built-in plugin system:
-  
+
   <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd> > <kbd>Search for "idea-plpgdebugger"</kbd> >
   <kbd>Install Plugin</kbd>
-  
+
 - Manually:
 
   Download the [latest release](https://github.com/ng-galien/idea-plpgdebugger/releases/latest) and install it manually using
