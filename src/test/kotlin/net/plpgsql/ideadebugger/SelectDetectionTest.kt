@@ -18,46 +18,39 @@ import com.intellij.sql.dialects.postgres.PgDialect
 import com.intellij.sql.psi.SqlStatement
 import com.intellij.testFramework.TestDataPath
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
-import org.junit.Test
-import org.junit.jupiter.api.Assertions
-import org.junit.jupiter.api.Disabled
-import org.junit.runner.RunWith
-import org.junit.runners.Parameterized
-import kotlin.test.Ignore
 
 
 @TestDataPath("\$CONTENT_ROOT/src/test/testData")
-@RunWith(Parameterized::class)
-class SelectDetectionTest(private val sql: String, private val expected: FunctionDef) : BasePlatformTestCase() {
+class SelectDetectionTest : BasePlatformTestCase() {
 
-    companion object {
-        @JvmStatic
-        @Parameterized.Parameters(name= "{index}: {0}")
-        fun data() : Collection<Array<Any>> {
-            return listOf(
-                arrayOf("SELECT\n * \nFROM \nfunc();", FunctionDef(DEFAULT_SCHEMA, "func", mapOf())),
-                arrayOf("SELECT * FROM func();", FunctionDef(DEFAULT_SCHEMA, "func", mapOf())),
-                arrayOf("SELECT func();", FunctionDef(DEFAULT_SCHEMA, "func", mapOf())),
-                arrayOf("SELECT sch.func();", FunctionDef("sch", "func", mapOf())),
-                arrayOf("SELECT sch.func('arg');", FunctionDef("sch", "func", mapOf("arg_0" to "'arg'"))),
-                arrayOf("SELECT sch.func('arg', 123);", FunctionDef("sch", "func", mapOf("arg_0" to "'arg'", "arg_1" to "123"))),
-                arrayOf("SELECT sch.func(\n'arg', \n123);", FunctionDef("sch", "func", mapOf("arg_0" to "'arg'", "arg_1" to "123"))),
-            )
+    fun testSelectParsing() {
+        val cases = listOf(
+            "SELECT\n * \nFROM \nfunc();" to FunctionDef(DEFAULT_SCHEMA, "func", mapOf()),
+            "SELECT * FROM func();" to FunctionDef(DEFAULT_SCHEMA, "func", mapOf()),
+            "SELECT func();" to FunctionDef(DEFAULT_SCHEMA, "func", mapOf()),
+            "SELECT sch.func();" to FunctionDef("sch", "func", mapOf()),
+            "SELECT sch.func('arg');" to FunctionDef("sch", "func", mapOf("arg_0" to "'arg'")),
+            "SELECT sch.func('arg', 123);" to FunctionDef(
+                "sch",
+                "func",
+                mapOf("arg_0" to "'arg'", "arg_1" to "123"),
+            ),
+            "SELECT sch.func(\n'arg', \n123);" to FunctionDef(
+                "sch",
+                "func",
+                mapOf("arg_0" to "'arg'", "arg_1" to "123"),
+            ),
+        )
+
+        cases.forEachIndexed { index, (sql, expected) ->
+            val psiFile = createLightFile("select-$index.sql", PgDialect.INSTANCE, sql)
+            val stmt = psiFile.children.first() as SqlStatement
+            val call = getCallStatement(stmt)
+            call.parseFunctionCall()
+            assertEquals(DebugMode.DIRECT, call.debugMode)
+            assertEquals(expected.schema, call.schema)
+            assertEquals(expected.routine, call.routine)
+            assertEquals(expected.args, call.args)
         }
-    }
-
-    @Ignore
-    @Test
-    fun `test run query with select parsing`() {
-
-        val psiFile = createLightFile("dummy.sql", PgDialect.INSTANCE, sql)
-        val stmt = psiFile.children.first() as SqlStatement
-        val call = getCallStatement(stmt)
-        call.parseFunctionCall()
-        Assertions.assertNotNull(call)
-        Assertions.assertEquals(DebugMode.DIRECT, call.debugMode)
-        Assertions.assertEquals(expected.schema, call.schema)
-        Assertions.assertEquals(expected.routine, call.routine)
-        Assertions.assertEquals(expected.args, call.args)
     }
 }

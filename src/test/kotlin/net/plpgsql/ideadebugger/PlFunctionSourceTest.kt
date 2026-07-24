@@ -18,13 +18,7 @@ import com.intellij.testFramework.TestDataPath
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import net.plpgsql.ideadebugger.command.PlApiFunctionDef
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
-import org.junit.BeforeClass
-import org.junit.Ignore
-import org.junit.Test
-import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.Assertions
-import org.junit.runner.RunWith
-import org.junit.runners.Parameterized
+import java.security.MessageDigest
 
 /**
  * Function source test
@@ -32,33 +26,29 @@ import org.junit.runners.Parameterized
  * @author Alexandre Boyer
  */
 @TestDataPath("\$CONTENT_ROOT/src/test/testData")
-@RunWith(Parameterized::class)
-class PlFunctionSourceTest(
-    private val file: String,
-    private val start: Int,
-    private val range: Pair<Int, Int>,
-) : BasePlatformTestCase() {
+class PlFunctionSourceTest : BasePlatformTestCase() {
 
-    companion object {
-        @JvmStatic
-        @Parameterized.Parameters(name= "{index}: {0}")
-        fun data() : Collection<Array<Any>> {
-            return listOf(
-                arrayOf("function_with_declare", 2, 7 to 14),
-                arrayOf("function_with_declare_with_comments", 2, 9 to 15),
-                arrayOf("function_without_declare", 2, 4 to 9),
-                arrayOf("function_without_declare_with_comments", 2, 5 to 10),
-            )
+    fun testFunctionSourceRanges() {
+        val cases = listOf(
+            Triple("function_with_declare", 2, 7 to 14),
+            Triple("function_with_declare_with_comments", 2, 9 to 15),
+            Triple("function_without_declare", 2, 4 to 9),
+            Triple("function_without_declare_with_comments", 2, 5 to 10),
+        )
+
+        cases.forEach { (file, start, range) ->
+            val sourceCode = requireNotNull(javaClass.getResource("/$file.sql")) {
+                "Missing test resource: $file.sql"
+            }.readText().replace("$$", "\$function\$")
+            val def = PlApiFunctionDef(0, "public", file, sourceCode, sourceCode.md5())
+            val plSource = PlFunctionSource(project, def, def.md5)
+            assertEquals(start, plSource.start)
+            assertEquals(range, plSource.codeRange)
         }
     }
-
-    @Ignore
-    @Test
-    fun `test function source`() {
-        val sourceCode = getFunctionSource(this,  file)
-        val def = PlApiFunctionDef(0, "public", file, sourceCode, sourceCode.md5())
-        val plSource = PlFunctionSource(project, def, def.md5)
-        Assertions.assertEquals(start, plSource.start)
-        Assertions.assertEquals(range, plSource.codeRange)
-    }
 }
+
+private fun String.md5(): String =
+    MessageDigest.getInstance("MD5")
+        .digest(toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it.toInt() and 0xff) }

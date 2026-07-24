@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+### Bugfixes
+
+- Adapt auxiliary database connections to DatabaseTools API changes in IntelliJ Platform 2026.2.
+
+### Maintenance
+
+- Support IntelliJ IDEA and DataGrip 2025.2 through 2026.2.
+- Upgrade to IntelliJ Platform Gradle Plugin 2.18.1 and Gradle 9.6.1.
+- Restore IntelliJ Platform tests on a single JUnit 3/4 test runtime.
+- Remove unused Arrow dependencies and rely on the Kotlin and Coroutines runtime bundled with IntelliJ.
+- Remove obsolete PostgreSQL, JDBI, Testcontainers, logging, and test utility dependencies.
+
 ## [252.0.0] - 2025-06-21
 
 ### Maintenance

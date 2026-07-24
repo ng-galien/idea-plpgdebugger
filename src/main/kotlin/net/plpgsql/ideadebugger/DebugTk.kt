@@ -18,7 +18,6 @@ import com.intellij.database.console.session.DatabaseSessionManager
 import com.intellij.database.dataSource.DatabaseConnection
 import com.intellij.database.dataSource.DatabaseConnectionPoint
 import com.intellij.database.dataSource.connection.DGDepartment
-import com.intellij.database.util.ErrorHandler
 import com.intellij.database.util.GuardedRef
 import com.intellij.database.util.SearchPath
 import com.intellij.lang.Language
@@ -96,9 +95,7 @@ fun getAuxiliaryConnection(
                     null,
                     searchPath,
                     true,
-                    object : ErrorHandler() {
-                    },
-                    DGDepartment.DEBUGGER
+                    department = DGDepartment.DEBUGGER,
                 )
                 connection = facade.runSync { facade.connect() }
             } catch (e: Exception) {
@@ -136,7 +133,6 @@ fun sanitizeQuery(sql: String): String {
  *@param s
  */
 fun unquote(s: String): String = s.removeSurrounding("\"")
-
 
 
 

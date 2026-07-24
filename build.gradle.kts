@@ -1,5 +1,3 @@
-import org.gradle.api.internal.tasks.testing.TestFramework
-import org.gradle.internal.classpath.Instrumented.systemProperty
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
@@ -9,7 +7,6 @@ plugins {
     alias(libs.plugins.kotlin) // Kotlin support
     alias(libs.plugins.intelliJPlatform) // IntelliJ Platform Gradle Plugin
     alias(libs.plugins.changelog) // Gradle Changelog Plugin
-    alias(libs.plugins.qodana) // Gradle Qodana Plugin
     alias(libs.plugins.kover) // Gradle Kover Plugin
 }
 
@@ -25,40 +22,8 @@ repositories {
 }
 
 dependencies {
-
-    // Postgres
-    implementation(libs.postgres)
-    // Arrow
-    implementation(libs.arrowCore)
-    implementation(libs.arrowFxCoroutines)
-
-    // JDBI
-    implementation(libs.jdbi3Core)
-    implementation(libs.jdbi3Kotlin)
-    implementation(libs.jdbi3KotlinSqlObject)
-    implementation(libs.jdbi3Postgres)
-
-    // Kotlin and logging
-    testImplementation(kotlin("test"))
-    testImplementation(kotlin("reflect"))
-    testRuntimeOnly(libs.logbackClassic)
-    testRuntimeOnly(libs.jansi)
-    // Junit 5 for IntelliJ
-    testImplementation(platform(libs.junitBom))
-    testImplementation(libs.junitJupiterApi)
-    testImplementation(libs.junitJupiter)
-    testImplementation(libs.junitJupiterParams)
-    testImplementation(libs.junitPlatformRunner)
-    testRuntimeOnly(libs.junitJupiterEngine)
-    testRuntimeOnly(libs.junitVintageEngine)
-    testImplementation("org.opentest4j:opentest4j:1.3.0")
-
-    // JDBI testing
-    testImplementation(libs.jdbi3Testing)
-    // Guava
-    testImplementation(libs.guava)
-
-    testImplementation(kotlin("test"))
+    // IntelliJ Platform test framework is JUnit 3/4 based.
+    testImplementation("junit:junit:4.13.2")
 
     intellijPlatform {
         intellijIdeaUltimate(version = providers.gradleProperty("platformVersion"))
@@ -141,14 +106,6 @@ changelog {
     repositoryUrl = providers.gradleProperty("pluginRepositoryUrl")
 }
 
-// Configure Gradle Qodana Plugin - read more: https://github.com/JetBrains/gradle-qodana-plugin
-qodana {
-    cachePath = provider { file(".qodana").canonicalPath }
-    reportPath = provider { file("build/reports/inspections").canonicalPath }
-    saveReport = true
-    showReport = providers.environmentVariable("QODANA_SHOW_REPORT").map { it.toBoolean() }.getOrElse(false)
-}
-
 // Configure Gradle Kover Plugin - read more: https://github.com/Kotlin/kotlinx-kover#configuration
 kover {
     reports {
@@ -168,16 +125,8 @@ tasks {
     publishPlugin {
         dependsOn(patchChangelog)
     }
-    all {
-        //Set jna.nosys system property to true to avoid loading native JNA library
+    withType<Test>().configureEach {
+        // Avoid loading a system JNA library in the IntelliJ test process.
         systemProperty("jna.nosys", "true")
-    }
-
-    test {
-        useJUnitPlatform()
-        // Exclude tests using IntelliJ Platform test framework due to kotlinx-coroutines conflict
-        exclude("**/SelectDetectionTest.class")
-        exclude("**/CallDetectionTest.class")
-        exclude("**/PlFunctionSourceTest.class")
     }
 }
