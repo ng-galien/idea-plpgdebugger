@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [262.0.0] - 2026-07-24
+
 ### Bugfixes
 
 - Adapt auxiliary database connections to DatabaseTools API changes in IntelliJ Platform 2026.2.
@@ -287,7 +289,8 @@
 - View variables
 - Explore arrays and composite type
 
-[Unreleased]: https://github.com/ng-galien/idea-plpgdebugger/compare/v252.0.0...HEAD
+[Unreleased]: https://github.com/ng-galien/idea-plpgdebugger/compare/v262.0.0...HEAD
+[262.0.0]: https://github.com/ng-galien/idea-plpgdebugger/compare/v252.0.0...v262.0.0
 [252.0.0]: https://github.com/ng-galien/idea-plpgdebugger/compare/v241.0.1...v252.0.0
 [241.0.1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v233.0.1...v241.0.1
 [233.0.1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v232.0.3...v233.0.1
