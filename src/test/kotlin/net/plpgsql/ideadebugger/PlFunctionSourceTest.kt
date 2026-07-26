@@ -14,11 +14,13 @@
 
 package net.plpgsql.ideadebugger
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.testFramework.TestDataPath
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import net.plpgsql.ideadebugger.command.PlApiFunctionDef
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
 import java.security.MessageDigest
+import java.util.concurrent.Callable
 
 /**
  * Function source test
@@ -45,6 +47,26 @@ class PlFunctionSourceTest : BasePlatformTestCase() {
             assertEquals(start, plSource.start)
             assertEquals(range, plSource.codeRange)
         }
+    }
+
+    fun testInlineVariablePositionsFromBackgroundThread() {
+        val sourceCode = requireNotNull(javaClass.getResource("/inline_variables.sql")) {
+            "Missing test resource: inline_variables.sql"
+        }.readText().replace("$$", "\$function\$")
+        val def = PlApiFunctionDef(0, "public", "inline_variables", sourceCode, sourceCode.md5())
+        val plSource = PlFunctionSource(project, def, def.md5)
+
+        val positions = ApplicationManager.getApplication().executeOnPooledThread(Callable {
+            mapOf(
+                "argument" to plSource.sourcePositions("start_n", true, Int.MAX_VALUE).map { it.line },
+                "variable" to plSource.sourcePositions("n", false, Int.MAX_VALUE).map { it.line },
+                "missing" to plSource.sourcePositions("missing", false, Int.MAX_VALUE).map { it.line },
+            )
+        }).get()
+
+        assertEquals(listOf(0, 10), positions["argument"])
+        assertEquals(listOf(5, 8), positions["variable"])
+        assertEmpty(positions["missing"].orEmpty())
     }
 }
 

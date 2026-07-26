@@ -25,6 +25,9 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugProcessStarter
@@ -43,6 +46,7 @@ import net.plpgsql.ideadebugger.vfs.PlSourceManager
  */
 class PlDebugRoutineAction : AnAction() {
 
+    private val logger = logger<PlDebugRoutineAction>()
     private var routineToDebug: PgRoutine? = null
 
     private var localDataSource: LocalDataSource? = null
@@ -54,7 +58,7 @@ class PlDebugRoutineAction : AnAction() {
     override fun update(e: AnActionEvent) {
 
         val p = e.presentation
-        val ready = watcher.getDebugMode() != DebugMode.DIRECT
+        val ready = watcher.getDebugMode() != DebugMode.DIRECT && !watcher.isInitializing()
 
         if (ready) {
             getDbRoutine(e)?.let { routine ->
@@ -92,20 +96,58 @@ class PlDebugRoutineAction : AnAction() {
 
 
     override fun actionPerformed(e: AnActionEvent) {
-        if (e.project != null && localDataSource != null && routineToDebug != null) {
-            runDebugger(e.project!!, localDataSource!!, routineToDebug!!)
+        val project = e.project ?: return
+        val dataSource = localDataSource ?: return
+        val routine = routineToDebug ?: return
+        val currentSearchPath = searchPath
+        val openExistingDebug = watcher.isDebugging()
+        val ownsInitialization = !openExistingDebug && watcher.tryReserveInitialization()
+        if (!openExistingDebug && !ownsInitialization) {
+            return
         }
+        object : Task.Backgroundable(project, "Getting Auxiliary Connection", true) {
+            override fun run(indicator: ProgressIndicator) {
+                if (indicator.isCanceled) {
+                    if (ownsInitialization) {
+                        watcher.releaseInitialization()
+                    }
+                    return
+                }
+                try {
+                    runDebugger(
+                        project,
+                        dataSource,
+                        routine,
+                        currentSearchPath,
+                        openExistingDebug,
+                        ownsInitialization,
+                    )
+                } catch (error: Throwable) {
+                    if (ownsInitialization) {
+                        watcher.releaseInitialization()
+                    }
+                    throw error
+                }
+            }
+        }.queue()
     }
 
 
-    private fun runDebugger(project: Project, dataSource: LocalDataSource, routine: PgRoutine) {
+    private fun runDebugger(
+        project: Project,
+        dataSource: LocalDataSource,
+        routine: PgRoutine,
+        currentSearchPath: SearchPath?,
+        openExistingDebug: Boolean,
+        ownsInitialization: Boolean,
+    ) {
 
         val settings = getSettings()
         val callDef = CallDefinition(routine)
         val watcher = ApplicationManager.getApplication().getService(PlProcessWatcher::class.java)
 
         // Just open source file
-        if (watcher.isDebugging()) {
+        if (openExistingDebug) {
             if(watcher.getFunctionOid() != callDef.oid) {
                 watcher.getProcess()?.let { process ->
                     val frame = PlApiStackFrame(1, callDef.oid, 0, "")
@@ -113,7 +155,7 @@ class PlDebugRoutineAction : AnAction() {
                         val connection = getAuxiliaryConnection(
                             project = project,
                             connectionPoint = dataSource,
-                            searchPath = searchPath
+                            searchPath = currentSearchPath
                         )
                         connection?.let {
                             val executor = PlExecutor(connection)
@@ -134,9 +176,12 @@ class PlDebugRoutineAction : AnAction() {
             val connection = getAuxiliaryConnection(
                 project = project,
                 connectionPoint = dataSource,
-                searchPath = searchPath
+                searchPath = currentSearchPath
             )
             if(connection == null) {
+                if (ownsInitialization) {
+                    watcher.releaseInitialization()
+                }
                 return
             }
             val executor = PlExecutor(connection)
@@ -144,22 +189,58 @@ class PlDebugRoutineAction : AnAction() {
             if (settings.failExtension || !extensionOk(diag)) {
                 showExtensionDiagnostic(project, diag)
                 executor.cancelAndCloseConnection()
+                if (ownsInitialization) {
+                    watcher.releaseInitialization()
+                }
                 return
             }
 
-            val manager = XDebuggerManager.getInstance(project)
-            manager.startSessionAndShowTab(
-                "${routine.name}[${routine.objectId}]",
-                null,
-                object : XDebugProcessStarter() {
-                    override fun start(session: XDebugSession): XDebugProcess {
-                        val process = PlProcess(session = session, executor = executor)
-                        process.fileManager.update(PlApiStackFrame(1, callDef.oid, 0, ""))
-                        process.startDebug(callDef)
-                        return process
+            ApplicationManager.getApplication().invokeLater {
+                if (project.isDisposed) {
+                    executor.cancelAndCloseConnection()
+                    if (ownsInitialization) {
+                        watcher.releaseInitialization()
                     }
+                    return@invokeLater
                 }
-            )
+                try {
+                    XDebuggerManager.getInstance(project)
+                        .newSessionBuilder(object : XDebugProcessStarter() {
+                        override fun start(session: XDebugSession): XDebugProcess {
+                            val process = PlProcess(session = session, initialExecutor = executor)
+                            ApplicationManager.getApplication().executeOnPooledThread {
+                                try {
+                                    process.fileManager.update(PlApiStackFrame(1, callDef.oid, 0, ""))
+                                    if (!process.startDebug(callDef)) {
+                                        executor.cancelAndCloseConnection()
+                                        if (ownsInitialization) {
+                                            watcher.releaseInitialization()
+                                        }
+                                    }
+                                } catch (error: Throwable) {
+                                    executor.cancelAndCloseConnection()
+                                    if (ownsInitialization) {
+                                        watcher.releaseInitialization()
+                                    }
+                                    logger.error("Unable to start the PL/pg debugger process", error)
+                                }
+                            }
+                            return process
+                        }
+                    })
+                        .sessionName("${routine.name}[${routine.objectId}]")
+                        .showTab(true)
+                        .startSession()
+                } catch (error: Throwable) {
+                    executor.cancelAndCloseConnection()
+                    if (ownsInitialization) {
+                        watcher.releaseInitialization()
+                    }
+                    logger.error("Unable to create the PL/pg debugger session", error)
+                }
+            }
+        } else if (ownsInitialization) {
+            watcher.releaseInitialization()
         }
     }
 

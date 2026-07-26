@@ -6,6 +6,22 @@
 
 ### Bugfixes
 
+- Avoid the IntelliJ 2026.2 modal-task deadlock while acquiring the auxiliary database connection.
+- Restore inline variable positions from background debugger threads by protecting PostgreSQL PSI access.
+- Keep debugger commands, stack frames, breakpoints, and process watcher state safe across UI and worker threads.
+- Handle both `:=` and `=>` PostgreSQL named call arguments.
+- Improve initialization diagnostics and clean session shutdown.
+
+### Maintenance
+
+- Support IntelliJ IDEA and DataGrip 2026.1 through 2026.2.
+- Upgrade Kover to 0.9.8 for Kotlin 2.4 and Gradle 9 compatibility.
+- Restore IntelliJ Platform tests on a single JUnit 3/4 runtime and add DataGrip 2026.1 and 2026.2 test targets.
+
+## [262.0.0] - 2026-07-24
+
+### Bugfixes
+
 - Adapt auxiliary database connections to DatabaseTools API changes in IntelliJ Platform 2026.2.
 
 ### Maintenance
@@ -287,7 +303,8 @@
 - View variables
 - Explore arrays and composite type
 
-[Unreleased]: https://github.com/ng-galien/idea-plpgdebugger/compare/v252.0.0...HEAD
+[Unreleased]: https://github.com/ng-galien/idea-plpgdebugger/compare/v262.0.0...HEAD
+[262.0.0]: https://github.com/ng-galien/idea-plpgdebugger/compare/v252.0.0...v262.0.0
 [252.0.0]: https://github.com/ng-galien/idea-plpgdebugger/compare/v241.0.1...v252.0.0
 [241.0.1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v233.0.1...v241.0.1
 [233.0.1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v232.0.3...v233.0.1

@@ -21,9 +21,9 @@ import com.intellij.database.dataSource.connection.DGDepartment
 import com.intellij.database.util.GuardedRef
 import com.intellij.database.util.SearchPath
 import com.intellij.lang.Language
-import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.progress.Task
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.diagnostic.Logger
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.project.Project
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.PgDialect
@@ -38,6 +38,8 @@ const val DEFAULT_SCHEMA = "public"
 const val DEBUGGER_EXTENSION = "pldbgapi"
 const val DEBUGGER_SHARED_LIBRARY = "plugin_debugger"
 const val DEBUGGER_SESSION_NAME = "idea_debugger"
+
+private val connectionLogger = Logger.getInstance("net.plpgsql.ideadebugger.connection")
 
 /**
  * Debug mode.
@@ -84,36 +86,46 @@ fun getAuxiliaryConnection(
     connectionPoint: DatabaseConnectionPoint,
     searchPath: SearchPath?
 ): GuardedRef<DatabaseConnection>? {
-    var connection: GuardedRef<DatabaseConnection>? = null
-
-    ProgressManager.getInstance().run(object : Task.Modal(project, "Getting Auxiliary Connection", true) {
-        override fun run(indicator: ProgressIndicator) {
-            try {
-                val facade = DatabaseSessionManager.getFacade(
-                    project,
-                    connectionPoint,
-                    null,
-                    searchPath,
-                    true,
-                    department = DGDepartment.DEBUGGER,
-                )
-                connection = facade.runSync { facade.connect() }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+    val startedAt = System.nanoTime()
+    connectionLogger.info(
+        "Requesting auxiliary connection " +
+            "(thread=${Thread.currentThread().name}, edt=${ApplicationManager.getApplication().isDispatchThread})"
+    )
+    return try {
+        val facade = DatabaseSessionManager.getFacade(
+            project,
+            connectionPoint,
+            null,
+            searchPath,
+            true,
+            department = DGDepartment.DEBUGGER,
+        )
+        // DatabaseTools 262 deprecates connect(), but its coroutine replacement deadlocks
+        // this debugger flow while the SQL runner is waiting for initRemote(). Keep the
+        // synchronous facade contract until JetBrains exposes a safe replacement.
+        @Suppress("DEPRECATION")
+        facade.runSync { facade.connect() }.also {
+            val elapsedMs = (System.nanoTime() - startedAt) / 1_000_000
+            connectionLogger.info("Auxiliary connection acquired in ${elapsedMs}ms")
         }
-    })
-
-    return connection
+    } catch (e: ProcessCanceledException) {
+        connectionLogger.info("Auxiliary connection request canceled")
+        throw e
+    } catch (e: Exception) {
+        connectionLogger.error("Auxiliary connection request failed", e)
+        null
+    }
 }
 
 /**
  * Get the call statement from a SQL statement.
  */
 fun getCallStatement(statement: SqlStatement): CallDefinition {
-    val callElement =
-        PsiTreeUtil.findChildrenOfType(statement, SqlFunctionCallExpression::class.java).firstOrNull()
-    return CallDefinition(DebugMode.DIRECT, callElement, statement.text)
+    return withReadAction {
+        val callElement =
+            PsiTreeUtil.findChildrenOfType(statement, SqlFunctionCallExpression::class.java).firstOrNull()
+        CallDefinition(DebugMode.DIRECT, callElement, statement.text)
+    }
 }
 
 /**
@@ -133,8 +145,3 @@ fun sanitizeQuery(sql: String): String {
  *@param s
  */
 fun unquote(s: String): String = s.removeSurrounding("\"")
-
-
-
-
-

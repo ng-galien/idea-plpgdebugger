@@ -14,7 +14,6 @@
 
 package net.plpgsql.ideadebugger.vfs
 
-import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFileSystem
 import com.intellij.psi.PsiDocumentManager
@@ -24,9 +23,12 @@ import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.psi.*
 import com.intellij.sql.psi.impl.SqlTokenElement
 import com.intellij.testFramework.LightVirtualFile
+import com.intellij.xdebugger.XDebuggerUtil
+import com.intellij.xdebugger.XSourcePosition
 import net.plpgsql.ideadebugger.command.PlApiFunctionDef
 import net.plpgsql.ideadebugger.getPlLanguage
 import net.plpgsql.ideadebugger.unquote
+import net.plpgsql.ideadebugger.withReadAction
 import java.nio.charset.Charset
 
 /**
@@ -56,15 +58,15 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef, val md5: String)
     val lineRangeCount: Int by lazy {
         codeRange.second - codeRange.first
     }
-    val psiArgs = mutableMapOf<String, PsiElement>()
-    val psiVariables = mutableMapOf<String, PsiElement>()
-    val psiUse = mutableMapOf<String, MutableList<Pair<Int, PsiElement>>>()
+    private val psiArgs = mutableMapOf<String, PsiElement>()
+    private val psiVariables = mutableMapOf<String, PsiElement>()
+    private val psiUse = mutableMapOf<String, MutableList<Pair<Int, PsiElement>>>()
 
     init {
-        runReadAction {
+        withReadAction {
             PsiManager.getInstance(project).findFile(this)?.let { psi ->
 
-                PsiTreeUtil.findChildOfType(psi, SqlCreateTriggerStatement::class.java).let { isTrigger = true }
+                isTrigger = PsiTreeUtil.findChildOfType(psi, SqlCreateTriggerStatement::class.java) != null
 
                 PsiTreeUtil.findChildOfType(psi, SqlParameterList::class.java).let { params ->
                     PsiTreeUtil.findChildrenOfType(params, SqlIdentifier::class.java).toList().forEach { arg ->
@@ -130,6 +132,21 @@ class PlFunctionSource(project: Project, def: PlApiFunctionDef, val md5: String)
     fun positionToLine(position: Int): Int {
         return position + start
     }
+
+    fun sourcePositions(name: String, isArgument: Boolean, currentLine: Int): List<XSourcePosition> =
+        withReadAction {
+            buildList {
+                val declarations = if (isArgument) psiArgs else psiVariables
+                declarations[name]?.let {
+                    XDebuggerUtil.getInstance().createPositionByElement(it)?.let(::add)
+                }
+                psiUse[name]
+                    ?.filter { currentLine >= it.first }
+                    ?.forEach {
+                        XDebuggerUtil.getInstance().createPositionByElement(it.second)?.let(::add)
+                    }
+            }
+        }
 
     override fun getCharset(): Charset = Charsets.UTF_8
 

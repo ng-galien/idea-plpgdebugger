@@ -28,6 +28,8 @@ import net.plpgsql.ideadebugger.command.PlApiValue
 import net.plpgsql.ideadebugger.command.PlExecutor
 import net.plpgsql.ideadebugger.run.PlProcess
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.swing.Icon
 import kotlin.math.min
 
@@ -37,8 +39,8 @@ import kotlin.math.min
  */
 class XStack(process: PlProcess) : XExecutionStack("") {
 
-    private val frames = mutableListOf<XFrame>()
-    private val variableRegistry = mutableMapOf<Long, List<PlApiStackVariable>>()
+    private val frames = CopyOnWriteArrayList<XFrame>()
+    private val variableRegistry = ConcurrentHashMap<Long, List<PlApiStackVariable>>()
 
     val executor: PlExecutor = process.executor
     val project = process.session.project
@@ -48,7 +50,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
     }
 
     override fun computeStackFrames(firstFrameIndex: Int, container: XStackFrameContainer?) {
-        container?.addStackFrames(frames.subList(firstFrameIndex, frames.size), true)
+        container?.addStackFrames(frames.toList().drop(firstFrameIndex.coerceAtLeast(0)), true)
     }
 
     fun clear() {
@@ -105,7 +107,7 @@ class XStack(process: PlProcess) : XExecutionStack("") {
                 val plVars = executor.getVariables()
                 variableRegistry[plFrame.oid] = plVars
             }
-            return variableRegistry[plFrame.oid] ?: mutableListOf()
+            return variableRegistry[plFrame.oid].orEmpty()
         }
 
         private fun getFrameInfo(): List<PlApiStackVariable> = listOf(
@@ -289,21 +291,13 @@ class XStack(process: PlProcess) : XExecutionStack("") {
 
 
         override fun computeSourcePosition(navigatable: XNavigatable) {
-            xFrame?.file?.let { fs ->
-                (if (plStackVar.isArg) fs.psiArgs else fs.psiVariables).let { map ->
-                    map[plVar.name]?.let {
-                        val pos = XDebuggerUtil.getInstance().createPositionByElement(it)
-                        navigatable.setSourcePosition(pos)
-                    }
-                }
-                fs.psiUse[plVar.name]?.filter { p ->
-                    xFrame.getSourceLine() >= p.first
-                }?.forEach { p ->
-                    val pos = XDebuggerUtil.getInstance().createPositionByElement(p.second)
-                    navigatable.setSourcePosition(pos)
-                }
-            }
+            sourcePositions().forEach(navigatable::setSourcePosition)
         }
+
+        private fun sourcePositions(): List<XSourcePosition> =
+            xFrame?.let { frame ->
+                frame.file.sourcePositions(plVar.name, plStackVar.isArg, frame.getSourceLine())
+            } ?: emptyList()
 
         private fun fromJson(type: String, name: String, jsonElement: JsonElement): PlApiValue {
             val displayType = when(jsonElement) {
@@ -363,25 +357,9 @@ class XStack(process: PlProcess) : XExecutionStack("") {
             if (!getSettings().showInlineVariable) {
                 return ThreeState.NO
             }
-            var compute = false
-
-            xFrame?.file?.let { fs ->
-                (if (plStackVar.isArg) fs.psiArgs else fs.psiVariables).let { map ->
-                    map[plVar.name]?.let {
-                        val pos = XDebuggerUtil.getInstance().createPositionByElement(it)
-                        callback.computed(pos)
-                        compute = true
-                    }
-                }
-                fs.psiUse[plVar.name]?.filter { p ->
-                    xFrame.getSourceLine() >= p.first
-                }?.forEach { p ->
-                    val pos = XDebuggerUtil.getInstance().createPositionByElement(p.second)
-                    callback.computed(pos)
-                    compute = true
-                }
-            }
-            return if (compute) ThreeState.YES else ThreeState.NO
+            val positions = sourcePositions()
+            positions.forEach(callback::computed)
+            return if (positions.isNotEmpty()) ThreeState.YES else ThreeState.NO
         }
 
         override fun getEvaluationExpression(): String {

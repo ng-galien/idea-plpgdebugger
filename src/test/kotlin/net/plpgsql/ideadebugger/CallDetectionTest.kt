@@ -38,6 +38,16 @@ class CallDetectionTest : BasePlatformTestCase() {
                 "func",
                 mapOf("arg_0" to "'arg'", "arg_1" to "123"),
             ),
+            "CALL sch.func(arg_name := 123);" to FunctionDef(
+                "sch",
+                "func",
+                mapOf("arg_0" to "arg_name := 123"),
+            ),
+            "CALL sch.func(arg_name => 123);" to FunctionDef(
+                "sch",
+                "func",
+                mapOf("arg_0" to "arg_name => 123"),
+            ),
         )
 
         cases.forEachIndexed { index, (sql, expected) ->
@@ -50,5 +60,12 @@ class CallDetectionTest : BasePlatformTestCase() {
             assertEquals(expected.routine, call.routine)
             assertEquals(expected.args, call.args)
         }
+
+        assertEquals("arg_name" to "123", parseNamedCallArgument("arg_name := 123"))
+        assertEquals("arg_name" to "some_function(1, 2)", parseNamedCallArgument("arg_name => some_function(1, 2)"))
+        assertEquals("arg_name" to "some_function(\n  1,\n  2\n)", parseNamedCallArgument("arg_name =>\n some_function(\n  1,\n  2\n)"))
+        assertEquals("Quoted Name" to "'value'", parseNamedCallArgument("\"Quoted Name\" := 'value'"))
+        assertEquals("Quoted \"Name\"" to "'value'", parseNamedCallArgument("\"Quoted \"\"Name\"\"\" := 'value'"))
+        assertNull(parseNamedCallArgument("123"))
     }
 }
