@@ -1,7 +1,6 @@
-import org.gradle.api.internal.tasks.testing.TestFramework
-import org.gradle.internal.classpath.Instrumented.systemProperty
 import org.jetbrains.changelog.Changelog
 import org.jetbrains.changelog.markdownToHTML
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
 plugins {
@@ -9,7 +8,6 @@ plugins {
     alias(libs.plugins.kotlin) // Kotlin support
     alias(libs.plugins.intelliJPlatform) // IntelliJ Platform Gradle Plugin
     alias(libs.plugins.changelog) // Gradle Changelog Plugin
-    alias(libs.plugins.qodana) // Gradle Qodana Plugin
     alias(libs.plugins.kover) // Gradle Kover Plugin
 }
 
@@ -21,44 +19,21 @@ repositories {
     mavenCentral()
     intellijPlatform {
         defaultRepositories()
+        intellijDependencies()
     }
 }
 
 dependencies {
-
-    // Postgres
-    implementation(libs.postgres)
-    // Arrow
-    implementation(libs.arrowCore)
-    implementation(libs.arrowFxCoroutines)
-
-    // Kotlin and logging
-    testImplementation(kotlin("test"))
-    testImplementation(kotlin("reflect"))
-    testRuntimeOnly(libs.logbackClassic)
-    testRuntimeOnly(libs.jansi)
-    // Junit 5 for IntelliJ
-    testImplementation(platform(libs.junitBom))
-    testImplementation(libs.junitJupiterApi)
-    testImplementation(libs.junitJupiter)
-    testImplementation(libs.junitJupiterParams)
-    testImplementation(libs.junitPlatformRunner)
-    testRuntimeOnly(libs.junitJupiterEngine)
-    testRuntimeOnly(libs.junitVintageEngine)
-    testImplementation("org.opentest4j:opentest4j:1.3.0")
-
-    // JDBI testing
-    testImplementation(libs.jdbi3Core)
-    testImplementation(libs.jdbi3Kotlin)
-    testImplementation(libs.jdbi3Kotlin)
-    testImplementation(libs.jdbi3SqlObject)
-    testImplementation(libs.jdbi3Postgres)
-    testImplementation(libs.jdbi3Testing)
-    // Guava
-    testImplementation(libs.guava)
+    // IntelliJ Platform test framework is JUnit 3/4 based.
+    testImplementation("junit:junit:4.13.2")
 
     intellijPlatform {
-        intellijIdeaUltimate(version = providers.gradleProperty("platformVersion"))
+        val localIdePath = providers.gradleProperty("localIdePath").orNull
+        if (localIdePath != null) {
+            local(localIdePath)
+        } else {
+            intellijIdeaUltimate(version = providers.gradleProperty("platformVersion"))
+        }
         bundledPlugins(providers.gradleProperty("platformBundledPlugins").map { it.split(',') })
         plugins(providers.gradleProperty("platformPlugins").map { it.split(',') })
         pluginVerifier()
@@ -75,6 +50,8 @@ kotlin {
 // Configure Gradle IntelliJ Plugin - read more: https://plugins.jetbrains.com/docs/intellij/tools-gradle-intellij-plugin.html
 intellijPlatform {
     buildSearchableOptions = true
+    // The plugin contains Kotlin sources only and no GUI Designer forms.
+    instrumentCode = false
     pluginConfiguration {
         version = providers.gradleProperty("pluginVersion")
 
@@ -126,11 +103,70 @@ intellijPlatform {
 
     pluginVerification {
         ides {
-            recommended()
+            val dataGrip261Path = providers.gradleProperty("dataGrip261Path").orNull
+            val dataGrip262Path = providers.gradleProperty("dataGrip262Path").orNull
+            if (dataGrip261Path != null && dataGrip262Path != null) {
+                local(file(dataGrip261Path))
+                local(file(dataGrip262Path))
+            } else {
+                // Keep automatic resolution as a fallback. DataGrip 2026 releases currently
+                // require explicit local paths because JetBrains uses different DB/DG product codes.
+                create(IntelliJPlatformType.DataGrip, providers.gradleProperty("dataGrip261Version").get())
+                create(IntelliJPlatformType.DataGrip, providers.gradleProperty("dataGrip262Version").get())
+            }
         }
     }
 }
 
+intellijPlatformTesting.testIde.register("testDataGrip261") {
+    val testIdePath = providers.gradleProperty("dataGrip261Path").orNull
+    if (testIdePath != null) {
+        localPath = file(testIdePath)
+    } else {
+        type = IntelliJPlatformType.DataGrip
+        version = providers.gradleProperty("dataGrip261Version")
+    }
+    testFramework(TestFrameworkType.Platform, providers.gradleProperty("testFramework261Version"))
+    plugins {
+        bundledPlugin("com.intellij.database")
+    }
+    task {
+        // Avoid loading a system JNA library in the IntelliJ test process.
+        systemProperty("jna.nosys", "true")
+        // DataGrip does not bundle the IntelliJ JUnit runner classes required by BasePlatformTestCase.
+        testClassesDirs = sourceSets.test.get().output.classesDirs
+        classpath += files(intellijPlatform.platformPath.resolve("lib/idea_rt.jar"))
+        classpath += sourceSets.test.get().output
+    }
+}
+
+intellijPlatformTesting.testIde.register("testDataGrip262") {
+    val testIdePath = providers.gradleProperty("dataGrip262Path").orNull
+    if (testIdePath != null) {
+        localPath = file(testIdePath)
+    } else {
+        type = IntelliJPlatformType.DataGrip
+        version = providers.gradleProperty("dataGrip262Version")
+    }
+    testFramework(TestFrameworkType.Platform, providers.gradleProperty("testFramework262Version"))
+    plugins {
+        bundledPlugin("com.intellij.database")
+    }
+    task {
+        // Avoid loading a system JNA library in the IntelliJ test process.
+        systemProperty("jna.nosys", "true")
+        // DataGrip does not bundle the IntelliJ JUnit runner classes required by BasePlatformTestCase.
+        testClassesDirs = sourceSets.test.get().output.classesDirs
+        classpath += files(intellijPlatform.platformPath.resolve("lib/idea_rt.jar"))
+        classpath += sourceSets.test.get().output
+    }
+}
+
+tasks.register("testDataGrip") {
+    group = "verification"
+    description = "Runs the plugin tests against the supported DataGrip 261 and 262 releases."
+    dependsOn("testDataGrip261", "testDataGrip262")
+}
 
 // Configure Gradle Changelog Plugin - read more: https://github.com/JetBrains/gradle-changelog-plugin
 changelog {
@@ -138,19 +174,20 @@ changelog {
     repositoryUrl = providers.gradleProperty("pluginRepositoryUrl")
 }
 
-// Configure Gradle Qodana Plugin - read more: https://github.com/JetBrains/gradle-qodana-plugin
-qodana {
-    cachePath = provider { file(".qodana").canonicalPath }
-    reportPath = provider { file("build/reports/inspections").canonicalPath }
-    saveReport = true
-    showReport = providers.environmentVariable("QODANA_SHOW_REPORT").map { it.toBoolean() }.getOrElse(false)
-}
-
 // Configure Gradle Kover Plugin - read more: https://github.com/Kotlin/kotlinx-kover#configuration
-koverReport {
-    defaults {
-        xml {
-            onCheck = true
+kover {
+    currentProject {
+        instrumentation {
+            // DataGrip matrix tests are release gates but are intentionally excluded
+            // from the unit-test coverage report.
+            disabledForTestTasks.addAll("testDataGrip261", "testDataGrip262")
+        }
+    }
+    reports {
+        total {
+            xml {
+                onCheck = true
+            }
         }
     }
 }
@@ -163,8 +200,8 @@ tasks {
     publishPlugin {
         dependsOn(patchChangelog)
     }
-    all {
-        //Set jna.nosys system property to true to avoid loading native JNA library
+    withType<Test>().configureEach {
+        // Avoid loading a system JNA library in the IntelliJ test process.
         systemProperty("jna.nosys", "true")
     }
 }

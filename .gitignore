@@ -1,11 +1,9 @@
 .gradle
+.intellijPlatform/
 .idea
 .fleet
-.qodana
 .vscode
 .DS_Store
 bin/    
 build/
 .run/
-
-

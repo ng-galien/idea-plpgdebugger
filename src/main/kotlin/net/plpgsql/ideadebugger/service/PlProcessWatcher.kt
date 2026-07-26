@@ -22,6 +22,9 @@ import net.plpgsql.ideadebugger.run.PlProcess
  */
 interface PlProcessWatcher {
     fun isDebugging(): Boolean
+    fun isInitializing(): Boolean
+    fun tryReserveInitialization(): Boolean
+    fun releaseInitialization()
     fun processStarted(process: PlProcess, debugMode: DebugMode, functionOid: Long)
     fun processFinished(process: PlProcess)
     fun getProcess(): PlProcess?

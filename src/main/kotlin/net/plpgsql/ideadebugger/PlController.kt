@@ -21,7 +21,13 @@ import com.intellij.database.debugger.SqlDebugController
 import com.intellij.database.util.SearchPath
 import com.intellij.notification.Notification
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.runInEdt
+import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.progress.ProgressIndicator
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.openapi.progress.ProcessCanceledException
+import com.intellij.openapi.progress.Task
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindow
@@ -30,9 +36,12 @@ import com.intellij.openapi.wm.ex.ToolWindowManagerListener
 import com.intellij.xdebugger.XDebugProcess
 import com.intellij.xdebugger.XDebugSession
 import net.plpgsql.ideadebugger.command.PlExecutor
-import net.plpgsql.ideadebugger.run.DummyProcess
 import net.plpgsql.ideadebugger.run.PlProcess
 import net.plpgsql.ideadebugger.settings.PlDebuggerSettingsState
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * This class represents the PL Controller which extends the SqlDebugController.
@@ -54,94 +63,261 @@ class PlController(
     private lateinit var xSession: XDebugSession
     private val settings = PlDebuggerSettingsState.getInstance().state
     private var executor: PlExecutor? = null
+    private val logger = logger<PlController>()
+    private val listenerReady = CountDownLatch(1)
+    private val initializationResolved = AtomicBoolean(false)
+    private val initializationSucceeded = AtomicBoolean(false)
+    private val initializationFailure = AtomicReference<Throwable?>(null)
 
     override fun getReady() {
-        console("Controller: getReady")
-        executor?.let { Disposer.register(xSession.consoleView, it) }
+        logger.info("PL/pg debugger controller is ready")
         val windowLister = ToolListener()
         project.messageBus.connect(xSession.consoleView).subscribe(ToolWindowManagerListener.TOPIC, windowLister)
     }
 
     override fun initLocal(session: XDebugSession): XDebugProcess {
         xSession = session
-        val maybeConnection = getAuxiliaryConnection(project, connectionPoint, searchPath)
-
-        if (maybeConnection == null) {
-            val notification = Notification(
-                "PL/pg Notifications",
-                "PL/pg Debugger",
-                String.format("You must select only one valid query"),
-                NotificationType.WARNING
-            )
-            notification.notify(project)
-            return DummyProcess(session)
-        }
-        executor = PlExecutor(maybeConnection)
-
-        plProcess = PlProcess(session, executor!!)
-        @Suppress("DialogTitleCapitalization")
-        if (!callDefinition.canDebug()) {
-            val notification = Notification(
-                "PL/pg Notifications",
-                "PL/pg Debugger",
-                String.format("You must select only one valid query"),
-                NotificationType.WARNING
-            )
-            notification.notify(project)
-            return plProcess
-        }
-
-        val diag = executor!!.checkDebugger()
-        if (settings.failExtension || !extensionOk(diag)) {
-            showExtensionDiagnostic(project, diag)
-            executor!!.cancelAndCloseConnection()
-            return plProcess
-        }
-
-        if (settings.failDetection) {
-            executor!!.setError("[FAKE]Function not found: schema=${callDefinition.schema}, name=${callDefinition.routine}")
-        }
-
-        if (executor!!.interrupted()) {
-            return plProcess
-        }
-
-        // DatabaseTools identification
-        callDefinition.identify()
-
-        if (!callDefinition.canStartDebug()) {
-            callDefinition.identify(executor!!)
-        }
-
-        if (!callDefinition.canStartDebug()) {
-            executor!!.setError("[FAKE]Function not found: schema=${callDefinition.schema}, name=${callDefinition.routine}")
-        }
-
-        if (executor!!.interrupted()) {
-            return plProcess
-        }
-
-        plProcess.startDebug(callDefinition)
+        plProcess = PlProcess(
+            session = session,
+            onListenerReady = ::signalListenerReady,
+            onInitializationFailed = ::signalInitializationFailed
+        )
+        logger.info(
+            "Queueing PL/pg debugger initialization " +
+                "(mode=${callDefinition.debugMode}, selectionOk=${callDefinition.selectionOk}, " +
+                "canDebug=${callDefinition.canDebug()}, queryLength=${callDefinition.query.length})"
+        )
+        object : Task.Backgroundable(project, "Getting Auxiliary Connection", true) {
+            override fun run(indicator: ProgressIndicator) {
+                initializeLocal(plProcess)
+            }
+        }.queue()
         return plProcess
     }
 
-    override fun initRemote(connection: DatabaseConnection) {
+    private fun initializeLocal(process: PlProcess) {
+        var stage = "acquiring auxiliary connection"
+        var localExecutor: PlExecutor? = null
+        try {
+            logger.info("PL/pg debugger initialization started (thread=${Thread.currentThread().name})")
+            val maybeConnection = getAuxiliaryConnection(project, connectionPoint, searchPath)
 
+            if (maybeConnection == null) {
+                signalInitializationFailed(
+                    IllegalStateException("Unable to acquire the auxiliary database connection")
+                )
+                logger.warn("PL/pg debugger initialization stopped: auxiliary connection is unavailable")
+                notifyInitializationFailure("Unable to acquire the auxiliary database connection.")
+                stopSession()
+                return
+            }
+
+            stage = "attaching the debugger process"
+            localExecutor = PlExecutor(maybeConnection)
+            if (process.isStopped() || project.isDisposed) {
+                signalInitializationFailed(
+                    ProcessCanceledException(RuntimeException("Debugger process or project was stopped"))
+                )
+                logger.info("PL/pg debugger initialization canceled before process attachment")
+                localExecutor.cancelAndCloseConnection()
+                return
+            }
+
+            executor = localExecutor
+            process.initialize(localExecutor)
+            Disposer.register(xSession.consoleView, localExecutor)
+            logger.info("PL/pg debugger executor attached")
+
+            @Suppress("DialogTitleCapitalization")
+            if (!callDefinition.canDebug()) {
+                signalInitializationFailed(IllegalArgumentException("The selected SQL statement cannot be debugged"))
+                logger.warn(
+                    "PL/pg debugger initialization stopped: invalid selection " +
+                        "(selectionOk=${callDefinition.selectionOk}, mode=${callDefinition.debugMode})"
+                )
+                notifyInvalidSelection()
+                localExecutor.cancelAndCloseConnection()
+                stopSession()
+                return
+            }
+
+            stage = "checking the PostgreSQL debugger extension"
+            val diag = localExecutor.checkDebugger()
+            logger.info(
+                "PL/pg debugger diagnostic completed " +
+                    "(customCommand=${diag.customCommandOk}, sharedLibrary=${diag.sharedLibraryOk}, " +
+                    "extension=${diag.extensionOk}, activity=${diag.activityOk})"
+            )
+            if (settings.failExtension || !extensionOk(diag)) {
+                signalInitializationFailed(IllegalStateException("The PostgreSQL debugger extension diagnostic failed"))
+                logger.warn("PL/pg debugger extension diagnostic failed")
+                showExtensionDiagnostic(project, diag)
+                localExecutor.cancelAndCloseConnection()
+                stopSession()
+                return
+            }
+
+            if (settings.failDetection) {
+                localExecutor.setError("[FAKE]Function not found: schema=${callDefinition.schema}, name=${callDefinition.routine}")
+            }
+
+            if (localExecutor.interrupted()) {
+                signalInitializationFailed(IllegalStateException("Debugger executor interrupted after diagnostic"))
+                logger.warn("PL/pg debugger initialization interrupted after extension diagnostic")
+                stopSession()
+                return
+            }
+            if (process.isStopped()) {
+                logger.info("PL/pg debugger initialization canceled after extension diagnostic")
+                localExecutor.cancelAndCloseConnection()
+                return
+            }
+
+            stage = "identifying the selected routine"
+            logger.info("Identifying PL/pg routine through DatabaseTools")
+            callDefinition.identify()
+            logger.info(
+                "DatabaseTools routine identification result " +
+                    "(schema=${callDefinition.schema}, routine=${callDefinition.routine}, oid=${callDefinition.oid})"
+            )
+
+            if (!callDefinition.canStartDebug()) {
+                logger.info("Falling back to PostgreSQL catalog routine identification")
+                callDefinition.identify(localExecutor)
+                logger.info(
+                    "Catalog routine identification result " +
+                        "(schema=${callDefinition.schema}, routine=${callDefinition.routine}, oid=${callDefinition.oid})"
+                )
+            }
+
+            if (!callDefinition.canStartDebug()) {
+                localExecutor.setError(
+                    "Function not found: schema=${callDefinition.schema}, name=${callDefinition.routine}"
+                )
+            }
+
+            if (localExecutor.interrupted()) {
+                signalInitializationFailed(IllegalStateException("Unable to identify the selected PostgreSQL routine"))
+                logger.warn("PL/pg debugger initialization interrupted during routine identification")
+                stopSession()
+                return
+            }
+            if (process.isStopped()) {
+                logger.info("PL/pg debugger initialization canceled before start")
+                localExecutor.cancelAndCloseConnection()
+                return
+            }
+
+            stage = "starting the debugger process"
+            if (!process.startDebug(callDefinition)) {
+                signalInitializationFailed(
+                    ProcessCanceledException(RuntimeException("Debugger process was stopped before startup"))
+                )
+                localExecutor.cancelAndCloseConnection()
+                return
+            }
+            logger.info(
+                "PL/pg debugger process started " +
+                    "(mode=${callDefinition.debugMode}, oid=${callDefinition.oid}, routine=${callDefinition.routine})"
+            )
+        } catch (e: ProcessCanceledException) {
+            signalInitializationFailed(e)
+            logger.info("PL/pg debugger initialization canceled during $stage")
+            localExecutor?.let { runCatching { it.cancelAndCloseConnection() } }
+            throw e
+        } catch (e: Throwable) {
+            signalInitializationFailed(e)
+            logger.error("PL/pg debugger initialization failed during $stage", e)
+            localExecutor?.let { runCatching { it.cancelAndCloseConnection() } }
+            notifyInitializationFailure(
+                "Initialization failed while $stage: ${e.message ?: e.javaClass.simpleName}"
+            )
+            stopSession()
+        }
+    }
+
+    private fun signalListenerReady() {
+        if (initializationResolved.compareAndSet(false, true)) {
+            initializationSucceeded.set(true)
+            listenerReady.countDown()
+            logger.info("PL/pg debugger readiness barrier opened")
+        }
+    }
+
+    private fun signalInitializationFailed(error: Throwable) {
+        if (initializationResolved.compareAndSet(false, true)) {
+            initializationFailure.set(error)
+            listenerReady.countDown()
+            logger.warn("PL/pg debugger readiness barrier failed", error)
+        }
+    }
+
+    private fun notifyInvalidSelection() {
+        Notification(
+            "PL/pg Notifications",
+            "PL/pg Debugger",
+            "You must select only one valid query",
+            NotificationType.WARNING
+        ).notify(project)
+    }
+
+    private fun notifyInitializationFailure(message: String) {
+        Notification(
+            "PL/pg Notifications",
+            "PL/pg Debugger initialization failed",
+            "$message Full details were written to idea.log.",
+            NotificationType.ERROR
+        ).notify(project)
+    }
+
+    private fun stopSession() {
+        logger.info("Stopping PL/pg debugger session")
+        ApplicationManager.getApplication().invokeLater {
+            if (!project.isDisposed) {
+                xSession.stop()
+            }
+        }
+    }
+
+    override fun initRemote(connection: DatabaseConnection) {
+        logger.info("Remote debug request is waiting for the PL/pg listener")
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30)
+        while (!listenerReady.await(100, TimeUnit.MILLISECONDS)) {
+            ProgressManager.checkCanceled()
+            if (project.isDisposed) {
+                throw ProcessCanceledException()
+            }
+            if (System.nanoTime() >= deadline) {
+                val error = IllegalStateException("Timed out while waiting for the PL/pg debugger listener")
+                signalInitializationFailed(error)
+                notifyInitializationFailure(error.message!!)
+                stopSession()
+                throw error
+            }
+        }
+
+        initializationFailure.get()?.let {
+            throw IllegalStateException("PL/pg debugger initialization failed before query execution", it)
+        }
+        check(initializationSucceeded.get()) {
+            "PL/pg debugger readiness barrier completed without a listener"
+        }
+        logger.info("PL/pg listener ready; allowing the SQL debug request to execute")
     }
 
     override fun debugBegin() {
-        console("Controller: debugBegin")
+        logger.info("PL/pg debugger debugBegin")
     }
 
     override fun debugEnd() {
-        console("controller: debugEnd")
+        logger.info("PL/pg debugger debugEnd")
         if (callDefinition.debugMode == DebugMode.DIRECT) {
-            xSession.stop()
+            stopSession()
         }
     }
 
     override fun close() {
-        console("Controller: close")
+        logger.info("Closing PL/pg debugger controller")
         if (callDefinition.debugMode == DebugMode.DIRECT) {
             closeDebugWindow(xSession.sessionName)
             Disposer.dispose(DatabaseSessionManager.getSession(project, connectionPoint))
@@ -151,9 +327,9 @@ class PlController(
     private fun closeDebugWindow(sessionName: String) {
         runInEdt {
             ToolWindowManager.getInstance(project).getToolWindow("Debug")?.let { toolWindow ->
-                toolWindow.contentManager.contents.first {
+                toolWindow.contentManager.contents.firstOrNull {
                     it.tabName == sessionName
-                }.let {
+                }?.let {
                     it.manager?.removeContent(it, true)
                 }
             }
@@ -177,5 +353,3 @@ class PlController(
         }
     }
 }
-
-

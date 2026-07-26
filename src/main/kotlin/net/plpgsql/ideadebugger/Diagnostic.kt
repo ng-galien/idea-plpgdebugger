@@ -58,8 +58,7 @@ fun extensionOk(diag: ConnectionDiagnostic): Boolean =
  * @param diag The connection diagnostic object containing the diagnostic information.
  */
 fun showExtensionDiagnostic(project: Project, diag: ConnectionDiagnostic) {
-    val dialog = ConnectionDiagnosticDialog(project, diag)
     runInEdt {
-        dialog.show()
+        ConnectionDiagnosticDialog(project, diag).show()
     }
 }

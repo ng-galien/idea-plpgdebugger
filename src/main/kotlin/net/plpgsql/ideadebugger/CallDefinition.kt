@@ -16,7 +16,6 @@ package net.plpgsql.ideadebugger
 
 import com.intellij.database.dialects.postgres.model.PgRoutine
 import com.intellij.database.psi.DbRoutine
-import com.intellij.openapi.application.runReadAction
 import com.intellij.psi.PsiElement
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.sql.dialects.postgres.psi.PgParameterDefinitionImpl
@@ -25,6 +24,23 @@ import com.intellij.sql.psi.SqlIdentifier
 import com.intellij.sql.psi.SqlReferenceExpression
 import com.jetbrains.rd.util.first
 import net.plpgsql.ideadebugger.command.PlExecutor
+
+private val namedCallArgument =
+    Regex(
+        """^\s*("(?:[^"]|"")*"|[A-Za-z_][A-Za-z0-9_$]*)\s*(?::=|=>)\s*(.+)$""",
+        RegexOption.DOT_MATCHES_ALL,
+    )
+
+internal fun parseNamedCallArgument(argument: String): Pair<String, String>? =
+    namedCallArgument.matchEntire(argument)?.let {
+        val rawName = it.groupValues[1]
+        val name = if (rawName.startsWith('"') && rawName.endsWith('"')) {
+            rawName.removeSurrounding("\"").replace("\"\"", "\"")
+        } else {
+            rawName
+        }
+        name to it.groupValues[2].trim()
+    }
 
 /**
  * Encapsulate routine call information
@@ -53,7 +69,7 @@ class CallDefinition(
      */
     fun identify() {
         psi?.let {
-            runReadAction {
+            withReadAction {
                 PsiTreeUtil.collectElements(psi) { it.reference != null }.firstOrNull()?.references?.forEach { ref ->
                     ref.resolve()?.let {
                         if (it is DbRoutine) {
@@ -97,7 +113,7 @@ class CallDefinition(
      * Extract information from the original statement
      */
     fun parseFunctionCall() {
-        runReadAction {
+        withReadAction {
             val funcEl = PsiTreeUtil.findChildOfType(psi, SqlReferenceExpression::class.java)
             val func = funcEl?.let {
                 PsiTreeUtil.findChildrenOfType(funcEl, SqlIdentifier::class.java).map {
@@ -113,7 +129,7 @@ class CallDefinition(
             }
 
             if (routine == null) {
-                return@runReadAction
+                return@withReadAction
             }
 
             when (debugMode) {
@@ -173,8 +189,8 @@ class CallDefinition(
                     //Map call values
                     val namedValues = args.values.mapIndexedNotNull { index, s ->
                         s?.let {
-                            if (s.contains(":=")) s.split(":=")[1].trim() to s.split(":=")[2].trim()
-                            else arg[index].name to s.trim()
+                            parseNamedCallArgument(s)
+                                ?: arg.getOrNull(index)?.let { definition -> definition.name to s.trim() }
                         }
                     }
                     //Build the test query like SELECT [(cast([value] AS [type]) = [value])] [ AND ...]

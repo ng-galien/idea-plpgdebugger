@@ -19,6 +19,7 @@ import com.intellij.database.util.GuardedRef
 import com.intellij.execution.ui.ConsoleViewContentType
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.runInEdt
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.ui.Messages
 import com.intellij.xdebugger.XDebugSession
 import net.plpgsql.ideadebugger.*
@@ -45,8 +46,11 @@ const val INVALID_SESSION = 0
  */
 class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Disposable {
 
+    private val logger = logger<PlExecutor>()
+    @Volatile
     var entryPoint = EMPTY_ENTRY_POINT
     private var ready = true
+    @Volatile
     var waitingForCompletion = false
     private var lastMessage: Message? = null
     private var lastError: Message? = null
@@ -54,6 +58,7 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
 
     private var internalConnection: DatabaseConnection = guardedRef.get()
     var xSession: XDebugSession? = null
+    @Volatile
     private var plSession = INVALID_SESSION
     private val settings = getSettings()
     var waiting = AtomicBoolean(false)
@@ -141,12 +146,14 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
             return 0
         }
         waiting.set(true)
-        val res = executeQuery<PlApiInt>(
-            query = ApiQuery.WAIT_FOR_TARGET,
-            args = listOf("$plSession")
-        ).firstOrNull()?.value ?: 0
-        waiting.set(false)
-        return res
+        return try {
+            executeQuery<PlApiInt>(
+                query = ApiQuery.WAIT_FOR_TARGET,
+                args = listOf("$plSession")
+            ).firstOrNull()?.value ?: 0
+        } finally {
+            waiting.set(false)
+        }
     }
 
     fun abort() {
@@ -170,20 +177,22 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
             return null
         }
         waiting.set(true)
-        val res = when (step) {
-            ApiQuery.STEP_OVER,
-            ApiQuery.STEP_INTO,
-            ApiQuery.STEP_CONTINUE -> executeQuery<PlApiStep>(
-                query = step,
-                args = listOf("$plSession")
-            ).firstOrNull()
-            else -> {
-                setError("Invalid step command: $step")
-                null
+        return try {
+            when (step) {
+                ApiQuery.STEP_OVER,
+                ApiQuery.STEP_INTO,
+                ApiQuery.STEP_CONTINUE -> executeQuery<PlApiStep>(
+                    query = step,
+                    args = listOf("$plSession")
+                ).firstOrNull()
+                else -> {
+                    setError("Invalid step command: $step")
+                    null
+                }
             }
+        } finally {
+            waiting.set(false)
         }
-        waiting.set(false)
-        return res
     }
 
     /**
@@ -560,9 +569,17 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
      */
     fun cancelStatement() {
         console("cancelConnection")
-        if (!internalConnection.remoteConnection.isClosed) {
-            console("cancelAll")
-            internalConnection.remoteConnection.cancelAll()
+        runCatching {
+            val remoteConnection = internalConnection.remoteConnection
+            if (!remoteConnection.isClosed) {
+                console("cancelAll")
+                remoteConnection.cancelAll()
+            }
+        }.onFailure {
+            logger.info(
+                "Skipping auxiliary JDBC cancellation because the remote driver is unavailable: " +
+                    (it.message ?: it.javaClass.simpleName)
+            )
         }
     }
 
@@ -571,9 +588,17 @@ class PlExecutor(private val guardedRef: GuardedRef<DatabaseConnection>): Dispos
      */
     private fun closeConnection() {
         console("cancelConnection")
-        if (!internalConnection.remoteConnection.isClosed) {
-            console("close")
-            internalConnection.remoteConnection.close()
+        runCatching {
+            val remoteConnection = internalConnection.remoteConnection
+            if (!remoteConnection.isClosed) {
+                console("close")
+                remoteConnection.close()
+            }
+        }.onFailure {
+            logger.info(
+                "Skipping auxiliary JDBC close because the remote driver is unavailable: " +
+                    (it.message ?: it.javaClass.simpleName)
+            )
         }
     }
 

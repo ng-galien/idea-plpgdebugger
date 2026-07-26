@@ -1,9 +1,7 @@
 # GitHub Actions Workflow is created for testing and preparing the plugin release in the following steps:
 # - Validate Gradle Wrapper.
-# - Run 'test' and 'verifyPlugin' tasks.
-# - Run Qodana inspections.
-# - Run the 'buildPlugin' task and prepare artifact for further tests.
-# - Run the 'runPluginVerifier' task.
+# - Build the plugin and prepare the distribution artifact.
+# - Run tests, coverage, and Plugin Verifier.
 # - Create a draft release.
 #
 # The workflow is triggered on push and pull_request events.
@@ -14,9 +12,9 @@
 
 name: Build
 on:
-  # Trigger the workflow on pushes to 'main' branch, but ignore changelog files and workflow files
+  # Trigger the workflow on pushes to the current IntelliJ platform branch.
   push:
-    branches: [ main ]
+    branches: [ 262 ]
     paths-ignore:
       - '**/CHANGELOG.md'
       - '.github/workflows/**'
@@ -122,9 +120,34 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Download DataGrip test matrix
+        shell: bash
+        run: |
+          for VERSION in 2026.1.4 2026.2.1; do
+            ARCHIVE="${RUNNER_TEMP}/datagrip-${VERSION}.tar.gz"
+            INSTALL_DIR="${RUNNER_TEMP}/datagrip-${VERSION}"
+            curl --fail --location --retry 3 \
+              "https://download.jetbrains.com/datagrip/datagrip-${VERSION}.tar.gz" \
+              --output "${ARCHIVE}"
+            curl --fail --location --retry 3 \
+              "https://download.jetbrains.com/datagrip/datagrip-${VERSION}.tar.gz.sha256" \
+              --output "${ARCHIVE}.sha256"
+            (
+              cd "${RUNNER_TEMP}"
+              sha256sum --check "$(basename "${ARCHIVE}.sha256")"
+            )
+            mkdir -p "${INSTALL_DIR}"
+            tar --extract --gzip --file "${ARCHIVE}" --directory "${INSTALL_DIR}" --strip-components=1
+          done
+          echo "DATAGRIP_261_PATH=${RUNNER_TEMP}/datagrip-2026.1.4" >> "${GITHUB_ENV}"
+          echo "DATAGRIP_262_PATH=${RUNNER_TEMP}/datagrip-2026.2.1" >> "${GITHUB_ENV}"
+
       # Run tests
       - name: Run Tests
-        run: ./gradlew check
+        run: |
+          ./gradlew check testDataGrip261 testDataGrip262 \
+            -PdataGrip261Path="${DATAGRIP_261_PATH}" \
+            -PdataGrip262Path="${DATAGRIP_262_PATH}"
 
       # Collect Tests Result of failed tests
       - name: Collect Tests Result
@@ -139,45 +162,6 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: ${{ github.workspace }}/build/reports/kover/report.xml
-
-  # Run Qodana inspections and provide report
-  inspectCode:
-    if: false
-    name: Inspect code
-    needs: [ build ]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      checks: write
-      pull-requests: write
-    steps:
-
-      # Free GitHub Actions Environment Disk Space
-      - name: Maximize Build Space
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          large-packages: false
-
-      # Check out the current repository
-      - name: Fetch Sources
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}  # to check out the actual pull request commit, not the merge commit
-          fetch-depth: 0  # a full history is required for pull request analysis
-
-      # Set up Java environment for the next steps
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: zulu
-          java-version: 21
-
-      # Run Qodana inspections
-      - name: Qodana - Code Inspection
-        uses: JetBrains/qodana-action@v2024.2
-        with:
-          cache-default-branch-only: true
 
   # Run plugin structure verification along with IntelliJ Plugin Verifier
   verify:
@@ -208,6 +192,28 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Download DataGrip verification matrix
+        shell: bash
+        run: |
+          for VERSION in 2026.1.4 2026.2.1; do
+            ARCHIVE="${RUNNER_TEMP}/datagrip-${VERSION}.tar.gz"
+            INSTALL_DIR="${RUNNER_TEMP}/datagrip-${VERSION}"
+            curl --fail --location --retry 3 \
+              "https://download.jetbrains.com/datagrip/datagrip-${VERSION}.tar.gz" \
+              --output "${ARCHIVE}"
+            curl --fail --location --retry 3 \
+              "https://download.jetbrains.com/datagrip/datagrip-${VERSION}.tar.gz.sha256" \
+              --output "${ARCHIVE}.sha256"
+            (
+              cd "${RUNNER_TEMP}"
+              sha256sum --check "$(basename "${ARCHIVE}.sha256")"
+            )
+            mkdir -p "${INSTALL_DIR}"
+            tar --extract --gzip --file "${ARCHIVE}" --directory "${INSTALL_DIR}" --strip-components=1
+          done
+          echo "DATAGRIP_261_PATH=${RUNNER_TEMP}/datagrip-2026.1.4" >> "${GITHUB_ENV}"
+          echo "DATAGRIP_262_PATH=${RUNNER_TEMP}/datagrip-2026.2.1" >> "${GITHUB_ENV}"
+
       # Cache Plugin Verifier IDEs
       - name: Setup Plugin Verifier IDEs Cache
         uses: actions/cache@v4
@@ -217,7 +223,11 @@ jobs:
 
       # Run Verify Plugin task and IntelliJ Plugin Verifier tool
       - name: Run Plugin Verification tasks
-        run: ./gradlew verifyPlugin -Dplugin.verifier.home.dir=${{ needs.build.outputs.pluginVerifierHomeDir }}
+        run: |
+          ./gradlew verifyPlugin \
+            -PdataGrip261Path="${DATAGRIP_261_PATH}" \
+            -PdataGrip262Path="${DATAGRIP_262_PATH}" \
+            -Dplugin.verifier.home.dir=${{ needs.build.outputs.pluginVerifierHomeDir }}
 
       # Collect Plugin Verifier Result
       - name: Collect Plugin Verifier Result
@@ -231,7 +241,7 @@ jobs:
   # If accepted and published, release workflow would be triggered
   releaseDraft:
     name: Release draft
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main')
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/262')
     needs: [ build, test, verify ]
     runs-on: ubuntu-latest
     permissions:
@@ -249,7 +259,7 @@ jobs:
         run: |
           gh api repos/{owner}/{repo}/releases \
             --jq '.[] | select(.draft == true) | .id' \
-            | xargs -I '{}' gh api -X DELETE repos/{owner}/{repo}/releases/{}
+            | xargs --no-run-if-empty -I '{}' gh api -X DELETE repos/{owner}/{repo}/releases/{}
 
       # Create a new release draft which is not publicly visible and requires manual acceptance
       - name: Create Release Draft
@@ -258,6 +268,7 @@ jobs:
         run: |
           gh release create "v${{ needs.build.outputs.version }}" \
             --draft \
+            --target "${{ github.sha }}" \
             --title "v${{ needs.build.outputs.version }}" \
             --notes "$(cat << 'EOM'
           ${{ needs.build.outputs.changelog }}

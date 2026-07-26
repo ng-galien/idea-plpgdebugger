@@ -1,17 +1,19 @@
-# Intellij PL/pg SQL debugger
+# IntelliJ PL/pgSQL Debugger
 
-![Build](https://github.com/ng-galien/idea-plpgdebugger/workflows/Build/badge.svg)
+[![Build](https://github.com/ng-galien/idea-plpgdebugger/actions/workflows/build.yml/badge.svg?branch=262)](https://github.com/ng-galien/idea-plpgdebugger/actions/workflows/build.yml)
 [![Version](https://img.shields.io/jetbrains/plugin/v/18419-postgresql-debugger.svg)](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger)
 [![Downloads](https://img.shields.io/jetbrains/plugin/d/18419-postgresql-debugger.svg)](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger)
 
 <!-- Plugin description -->
-Debug PL/pg stored procedures, functions, triggers and views from Intellij IDEs (Ultimate only)
+Debug PostgreSQL PL/pgSQL procedures, functions, and triggers from IntelliJ IDEA Ultimate and DataGrip.
+
+Compatible with IntelliJ Platform builds 261 through 262 (2026.1 through 2026.2).
 
 ## Features
 
-- Debug queries from editor by selecting a [function call](#debug-a-routine-from-the-editor)
+- Debug queries from the editor by selecting a [function call](#debug-a-routine-from-the-editor)
 - Debug routines and triggers from [database explorer](#debug-a-routine-from-the-database-explorer)
-- Full support for variables inspection with [Docker custom debugger](https://github.com/ng-galien/pldebugger/tree/print-vars/docker)
+- Full variable inspection with the [enhanced debugger](https://github.com/ng-galien/pldebugger/tree/print-vars/docker)
 
 Visit the plugin [page](https://plugins.jetbrains.com/plugin/18419-postgresql-debugger) at JetBrains.  
 Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea-plpgdebugger/issues/new/choose)
@@ -21,73 +23,46 @@ Report a bug or a problem => [Create an issue](https://github.com/ng-galien/idea
 
 ### Install the debugger on the server
 
-You can use the plugin with the standard pldbgapi extension, but you will not be able to inspect every variable type.  
-To get the full experience, you can use an [enhanced version](https://github.com/ng-galien/pldebugger) with the plugin.  
+You can use the plugin with the standard `pldbgapi` extension, but you will not be able to inspect every variable type.
+To get the full experience, you can use an [enhanced version](https://github.com/ng-galien/pldebugger) with the plugin.
 
 You can compile the extension from the source code or use one of the [Docker images](https://hub.docker.com/repository/docker/galien0xffffff/postgres-debugger/general) available.
 
-> The Docker image is based on the official PostgreSQL image and includes the debugger extension, from version 11 to 16 for amd64 and arm64.
+> The images are based on the official PostgreSQL images and include the debugger extension. See the available tags on Docker Hub for supported PostgreSQL versions and architectures.
 > To build your own image, you can use the [Dockerfile](https://github.com/ng-galien/pldebugger/tree/print-vars/docker) provided.
 
 ```shell
 docker run -p 5515:5432 --name PG15-debug -e POSTGRES_PASSWORD=postgres -d galien0xffffff/postgres-debugger:15
 ```
 
-Or install the [debugger](https://www.pgadmin.org/docs/pgadmin4/development/debugger.html) binaries on  your machine.
+Or install the [debugger](https://www.pgadmin.org/docs/pgadmin4/development/debugger.html) binaries on your machine.
 
-## Server Configuration
+## Server configuration
 
-To ensure the debugger shared libraries are correctly configured on your PostgreSQL server, follow these steps:
+The PostgreSQL server must preload the debugger library, and each database to debug must have the `pldbgapi` extension installed.
 
-1. **Check if the shared library is loaded**:
-   Run the following SQL command to verify if the `pldbgapi` extension is loaded:
+1. Add `$libdir/plugin_debugger` to `shared_preload_libraries` in `postgresql.conf`. Preserve any libraries already configured:
 
-   ```sql
-   SELECT * FROM pg_extension WHERE extname = 'pldbgapi';
+   ```conf
+   shared_preload_libraries = '$libdir/plugin_debugger'
    ```
 
-   If the extension is not listed, you need to install it.
+   Restart PostgreSQL after changing this setting.
 
-2. **Verify the shared library path**:
-   Ensure that the `shared_preload_libraries` parameter in your `postgresql.conf` file includes `pldbgapi`. You can check this by running:
+2. Install the extension in the `public` schema of every database you want to debug:
+
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS pldbgapi WITH SCHEMA public;
+   ```
+
+3. Verify both settings:
 
    ```sql
    SHOW shared_preload_libraries;
+   SELECT extname, extnamespace::regnamespace
+   FROM pg_extension
+   WHERE extname = 'pldbgapi';
    ```
-
-   If `pldbgapi` is not included, add it to the `postgresql.conf` file:
-
-   ```conf
-   shared_preload_libraries = 'pldbgapi'
-   ```
-
-   After making changes, restart the PostgreSQL server.
-
-3. **Check the installation of the debugger extension**:
-   Run the following command to ensure the debugger extension is installed in the correct schema:
-
-   ```sql
-    SELECT * FROM pg_extension;
-   ```
-
-   Look for `pldbgapi` in the list of installed extensions. If it is not present, install it using:
-
-   ```sql
-   CREATE EXTENSION IF NOT EXISTS pldbgapi;
-   ```
-
-By following these steps, you can confirm that the debugger shared libraries are properly configured on your PostgreSQL server.
-
-### Activate the debugger on the database
-
-Run the following command on the database where you want to debug routines
-
-```sql
---Take care to install the extension on the public schema
-CREATE EXTENSION IF NOT EXISTS pldbgapi;
-```
-
-
 
 ### Debug a routine from the editor
 
@@ -110,11 +85,13 @@ SELECT function_name(args);
 ### Variable inspection
 
 In the variables tab you can inspect:
+
 - Primitive types
 - Arrays
 - JSON
 
 With the docker image you can also inspect:
+
 - Composite types
 - Record types
 
@@ -140,16 +117,16 @@ If you debug a routine from the database explorer, the process remains active un
 
 ## Limitation of the standard pldbgapi
 
-The standard pldbgapi does not send back composite variable, but you can put it in arrays to inspect them.
+The standard `pldbgapi` does not return composite variables, but you can place them in arrays to inspect them.
 
 ## Installation
 
 ### Debugger binaries
 
-You must first install the debugger extension and activate the shared library onto the server.  
+You must first install the debugger extension and activate the shared library on the server.
 
 ```shell
-export TAG=11 # or 11, 12, 13, 14, 15
+export TAG=16 # Choose the PostgreSQL major version matching your server
 export PG_LIB=postgresql-server-dev-${TAG}
 export PG_BRANCH=REL_${TAG}_STABLE
 export PLUGIN_BRANCH=print-vars
@@ -169,20 +146,50 @@ cd pldebugger
 make clean && make USE_PGXS=1 && make USE_PGXS=1 install
 ```
 
-Follow these [instructions for PgAdmin](https://www.pgadmin.org/docs/pgadmin4/development/debugger.html) for a standard installation.
+Follow these [instructions for pgAdmin](https://www.pgadmin.org/docs/pgadmin4/development/debugger.html) for a standard installation.
 
 
-### Intellij IDE
+### IntelliJ IDEs
 
 - Using IDE built-in plugin system:
 
-  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd> > <kbd>Search for "idea-plpgdebugger"</kbd> >
+  <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>Marketplace</kbd> > <kbd>Search for "PostgreSQL Debugger"</kbd> >
   <kbd>Install Plugin</kbd>
 
 - Manually:
 
   Download the [latest release](https://github.com/ng-galien/idea-plpgdebugger/releases/latest) and install it manually using
   <kbd>Settings/Preferences</kbd> > <kbd>Plugins</kbd> > <kbd>⚙️</kbd> > <kbd>Install plugin from disk...</kbd>
+
+## Development
+
+The build requires JDK 21. Use the Gradle wrapper included in the repository:
+
+```shell
+./gradlew check
+./gradlew buildPlugin
+./gradlew verifyPlugin
+```
+
+The PSI and DatabaseTools regression tests run against the latest supported
+DataGrip patch releases (2026.1.4 and 2026.2.1). Pass the two installed IDE
+paths to both the test matrix and Plugin Verifier:
+
+```shell
+./gradlew testDataGrip \
+  -PdataGrip261Path="/path/to/DataGrip-2026.1.4" \
+  -PdataGrip262Path="/path/to/DataGrip-2026.2.1"
+./gradlew verifyPlugin \
+  -PdataGrip261Path="/path/to/DataGrip-2026.1.4" \
+  -PdataGrip262Path="/path/to/DataGrip-2026.2.1"
+```
+
+CI downloads these exact releases from JetBrains and validates their checksums.
+Explicit paths also avoid a temporary `DB`/`DG` product-code mismatch in the
+JetBrains release resolver. The main compilation target can be replaced with
+`-PlocalIdePath="/path/to/IntelliJ IDEA 2026.1"`. The packaged plugin is created under `build/distributions`.
+
+The current release line targets IntelliJ Platform builds `261` through `262.*`. A push to the `262` branch runs the build, tests on DataGrip 2026.1 and 2026.2, and Plugin Verifier against both releases before creating a draft GitHub release. Publishing that draft triggers signing and publication to JetBrains Marketplace.
 
 ---
 Plugin based on the [IntelliJ Platform Plugin Template][template].

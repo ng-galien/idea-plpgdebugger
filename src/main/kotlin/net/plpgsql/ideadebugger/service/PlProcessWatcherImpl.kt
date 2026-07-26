@@ -18,6 +18,7 @@ import com.intellij.openapi.components.Service
 import net.plpgsql.ideadebugger.DebugMode
 import net.plpgsql.ideadebugger.console
 import net.plpgsql.ideadebugger.run.PlProcess
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * This class implements the PlProcessWatcher interface. It provides methods to track the state of PL processes.
@@ -25,37 +26,63 @@ import net.plpgsql.ideadebugger.run.PlProcess
 @Service
 class PlProcessWatcherImpl: PlProcessWatcher {
 
-    private var currentProcess: PlProcess? = null
-    private var mode: DebugMode = DebugMode.NONE
-    private var oid: Long = 0L
+    private data class State(
+        val phase: Phase,
+        val process: PlProcess?,
+        val mode: DebugMode,
+        val oid: Long,
+    )
+
+    private val state = AtomicReference(IDLE)
 
     override fun getDebugMode(): DebugMode {
-        return mode
+        return state.get().mode
     }
 
     override fun getFunctionOid(): Long {
-        return oid
+        return state.get().oid
     }
 
     override fun isDebugging(): Boolean {
-        return mode != DebugMode.NONE
+        return state.get().phase == Phase.RUNNING
+    }
+
+    override fun isInitializing(): Boolean {
+        return state.get().phase == Phase.INITIALIZING
+    }
+
+    override fun tryReserveInitialization(): Boolean {
+        return state.compareAndSet(IDLE, INITIALIZING)
+    }
+
+    override fun releaseInitialization() {
+        state.compareAndSet(INITIALIZING, IDLE)
     }
 
     override fun processStarted(process: PlProcess, debugMode: DebugMode, functionOid: Long) {
         console("Watcher: started")
-        currentProcess = process
-        mode = debugMode
-        oid = functionOid
+        state.set(State(Phase.RUNNING, process, debugMode, functionOid))
     }
 
     override fun processFinished(process: PlProcess) {
         console("Watcher: finished")
-        currentProcess = null
-        mode = DebugMode.NONE
-        oid = 0L
+        state.updateAndGet { current ->
+            if (current.process === process) IDLE else current
+        }
     }
 
     override fun getProcess(): PlProcess? {
-        return currentProcess
+        return state.get().process
+    }
+
+    private companion object {
+        enum class Phase {
+            IDLE,
+            INITIALIZING,
+            RUNNING,
+        }
+
+        val IDLE = State(Phase.IDLE, null, DebugMode.NONE, 0L)
+        val INITIALIZING = State(Phase.INITIALIZING, null, DebugMode.NONE, 0L)
     }
 }
