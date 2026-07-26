@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [262.0.1] - 2026-07-26
+
 ### Bugfixes
 
 - Avoid the IntelliJ 2026.2 modal-task deadlock while acquiring the auxiliary database connection.
@@ -303,7 +305,8 @@
 - View variables
 - Explore arrays and composite type
 
-[Unreleased]: https://github.com/ng-galien/idea-plpgdebugger/compare/v262.0.0...HEAD
+[Unreleased]: https://github.com/ng-galien/idea-plpgdebugger/compare/v262.0.1...HEAD
+[262.0.1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v262.0.0...v262.0.1
 [262.0.0]: https://github.com/ng-galien/idea-plpgdebugger/compare/v252.0.0...v262.0.0
 [252.0.0]: https://github.com/ng-galien/idea-plpgdebugger/compare/v241.0.1...v252.0.0
 [241.0.1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v233.0.1...v241.0.1
