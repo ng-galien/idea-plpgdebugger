@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+## [262.0.2] - 2026-07-28
+
+### Bugfixes
+
+- Restore reliable creation, persistence, removal, and server installation of PL/pgSQL line breakpoints on IntelliJ Platform 2026.2.
+
+### Maintenance
+
+- Limit the hotfix release line to IntelliJ IDEA and DataGrip 2026.2.
+- Compile, test, and run Plugin Verifier exclusively against the IntelliJ Platform 262 line.
+
 ## [262.0.1] - 2026-07-26
 
 ### Bugfixes
@@ -305,7 +316,8 @@
 - View variables
 - Explore arrays and composite type
 
-[Unreleased]: https://github.com/ng-galien/idea-plpgdebugger/compare/v262.0.1...HEAD
+[Unreleased]: https://github.com/ng-galien/idea-plpgdebugger/compare/v262.0.2...HEAD
+[262.0.2]: https://github.com/ng-galien/idea-plpgdebugger/compare/v262.0.1...v262.0.2
 [262.0.1]: https://github.com/ng-galien/idea-plpgdebugger/compare/v262.0.0...v262.0.1
 [262.0.0]: https://github.com/ng-galien/idea-plpgdebugger/compare/v252.0.0...v262.0.0
 [252.0.0]: https://github.com/ng-galien/idea-plpgdebugger/compare/v241.0.1...v252.0.0

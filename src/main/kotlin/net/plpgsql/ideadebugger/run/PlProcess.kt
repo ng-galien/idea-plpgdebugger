@@ -49,6 +49,12 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 
+internal fun breakpointPath(fileUrl: String): String =
+    fileUrl.removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX).trimStart('/')
+
+internal fun serverBreakpointLine(editorLine: Int, sourceStart: Int): Int =
+    editorLine - sourceStart
+
 /**
  * SQL runner for the debugger session
  */
@@ -374,13 +380,18 @@ class PlProcess(
      * @param breakpoint The PlLineBreakpointProperties representing the breakpoint to be added.
      */
     fun addBreakpoint(file: PlFunctionSource, breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
-        logger.debug("addBreakpoint: file=${file.name}, line=${breakpoint.line}")
-        if (executor.updateBreakPoint(
-                ApiQuery.SET_BREAKPOINT,
-                file.oid,
-                breakpoint.line - file.start
-            )
-        ) {
+        val serverLine = serverBreakpointLine(breakpoint.line, file.start)
+        val installed = executor.updateBreakPoint(
+            ApiQuery.SET_BREAKPOINT,
+            file.oid,
+            serverLine
+        )
+        logger.info(
+            "PL/pg breakpoint installation " +
+                "(file=${file.name}, oid=${file.oid}, editorLine=${breakpoint.line}, " +
+                "serverLine=$serverLine, installed=$installed)"
+        )
+        if (installed) {
             session.setBreakpointVerified(breakpoint)
         }
     }
@@ -396,7 +407,7 @@ class PlProcess(
         executor.updateBreakPoint(
             ApiQuery.DROP_BREAKPOINT,
             file.oid,
-            breakpoint.line - file.start
+            serverBreakpointLine(breakpoint.line, file.start)
         )
     }
 
@@ -467,11 +478,15 @@ class PlProcess(
         XBreakpointListener<XLineBreakpoint<PlLineBreakpointProperties>> {
 
         override fun registerBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>) {
+            logger.info(
+                "Registering PL/pg breakpoint " +
+                    "(type=${breakpoint.type.id}, url=${breakpoint.fileUrl}, line=${breakpoint.line})"
+            )
             if (::executor.isInitialized) {
                 executor.setInfo("registerBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
             }
             val (path, file) = withReadAction {
-                val path = breakpoint.fileUrl.removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX)
+                val path = breakpointPath(breakpoint.fileUrl)
                 path to PlVirtualFileSystem.Util.getInstance().findFileByPath(path)
             }
             breakpoints.computeIfAbsent(path) { CopyOnWriteArrayList() }.add(breakpoint)
@@ -481,11 +496,15 @@ class PlProcess(
         }
 
         override fun unregisterBreakpoint(breakpoint: XLineBreakpoint<PlLineBreakpointProperties>, temporary: Boolean) {
+            logger.info(
+                "Unregistering PL/pg breakpoint " +
+                    "(type=${breakpoint.type.id}, url=${breakpoint.fileUrl}, line=${breakpoint.line})"
+            )
             if (::executor.isInitialized) {
                 executor.setInfo("unregisterBreakpoint: ${breakpoint.fileUrl} => ${breakpoint.line}")
             }
             val (path, file) = withReadAction {
-                val path = breakpoint.fileUrl.removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX)
+                val path = breakpointPath(breakpoint.fileUrl)
                 path to PlVirtualFileSystem.Util.getInstance().findFileByPath(path)
             }
             breakpoints[path]?.removeIf {

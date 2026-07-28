@@ -15,9 +15,13 @@
 package net.plpgsql.ideadebugger.breakpoint
 
 import com.intellij.database.debugger.SqlLineBreakpointProperties
-import com.intellij.openapi.vfs.VirtualFile
 
 /**
  * PL/pgSQL line breakpoint properties.
+ *
+ * The file URL and line are owned by XLineBreakpoint itself. Keeping them here
+ * as IDE model objects is redundant and prevents the properties from remaining
+ * a simple transportable state object in IntelliJ's frontend/backend debugger
+ * architecture.
  */
-class PlLineBreakpointProperties(val file: VirtualFile, val line: Int) : SqlLineBreakpointProperties()
+class PlLineBreakpointProperties : SqlLineBreakpointProperties()
