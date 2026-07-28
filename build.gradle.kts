@@ -103,40 +103,15 @@ intellijPlatform {
 
     pluginVerification {
         ides {
-            val dataGrip261Path = providers.gradleProperty("dataGrip261Path").orNull
             val dataGrip262Path = providers.gradleProperty("dataGrip262Path").orNull
-            if (dataGrip261Path != null && dataGrip262Path != null) {
-                local(file(dataGrip261Path))
+            if (dataGrip262Path != null) {
                 local(file(dataGrip262Path))
             } else {
                 // Keep automatic resolution as a fallback. DataGrip 2026 releases currently
                 // require explicit local paths because JetBrains uses different DB/DG product codes.
-                create(IntelliJPlatformType.DataGrip, providers.gradleProperty("dataGrip261Version").get())
                 create(IntelliJPlatformType.DataGrip, providers.gradleProperty("dataGrip262Version").get())
             }
         }
-    }
-}
-
-intellijPlatformTesting.testIde.register("testDataGrip261") {
-    val testIdePath = providers.gradleProperty("dataGrip261Path").orNull
-    if (testIdePath != null) {
-        localPath = file(testIdePath)
-    } else {
-        type = IntelliJPlatformType.DataGrip
-        version = providers.gradleProperty("dataGrip261Version")
-    }
-    testFramework(TestFrameworkType.Platform, providers.gradleProperty("testFramework261Version"))
-    plugins {
-        bundledPlugin("com.intellij.database")
-    }
-    task {
-        // Avoid loading a system JNA library in the IntelliJ test process.
-        systemProperty("jna.nosys", "true")
-        // DataGrip does not bundle the IntelliJ JUnit runner classes required by BasePlatformTestCase.
-        testClassesDirs = sourceSets.test.get().output.classesDirs
-        classpath += files(intellijPlatform.platformPath.resolve("lib/idea_rt.jar"))
-        classpath += sourceSets.test.get().output
     }
 }
 
@@ -164,8 +139,8 @@ intellijPlatformTesting.testIde.register("testDataGrip262") {
 
 tasks.register("testDataGrip") {
     group = "verification"
-    description = "Runs the plugin tests against the supported DataGrip 261 and 262 releases."
-    dependsOn("testDataGrip261", "testDataGrip262")
+    description = "Runs the plugin tests against the supported DataGrip 262 release."
+    dependsOn("testDataGrip262")
 }
 
 // Configure Gradle Changelog Plugin - read more: https://github.com/JetBrains/gradle-changelog-plugin
@@ -180,7 +155,7 @@ kover {
         instrumentation {
             // DataGrip matrix tests are release gates but are intentionally excluded
             // from the unit-test coverage report.
-            disabledForTestTasks.addAll("testDataGrip261", "testDataGrip262")
+            disabledForTestTasks.add("testDataGrip262")
         }
     }
     reports {

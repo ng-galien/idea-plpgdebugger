@@ -21,6 +21,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.xdebugger.breakpoints.XLineBreakpoint
 import com.intellij.xdebugger.evaluation.XDebuggerEditorsProvider
 import net.plpgsql.ideadebugger.vfs.PlFunctionSource
+import net.plpgsql.ideadebugger.vfs.PlVirtualFileSystem
 import javax.swing.Icon
 
 /**
@@ -34,18 +35,34 @@ class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>(
      * Create a new PL/pgSQL line breakpoint properties.
      */
     override fun createBreakpointProperties(file: VirtualFile, line: Int): PlLineBreakpointProperties {
-        return PlLineBreakpointProperties(file, line)
+        return PlLineBreakpointProperties()
     }
 
     /**
      * Check if a breakpoint can be put at a specific location.
      */
     override fun canPutAt(file: VirtualFile, line: Int, project: Project): Boolean {
-        if (file !is PlFunctionSource) {
+        if (!file.url.startsWith(PlVirtualFileSystem.PROTOCOL_PREFIX)) {
             return false
         }
-        return (file.codeRange.first < line) && (file.codeRange.second > line)
+
+        // IntelliJ 2026.2 may pass a DatabaseTools wrapper instead of the
+        // PlFunctionSource displayed by the editor.
+        val source = file as? PlFunctionSource
+            ?: file.url
+                .removePrefix(PlVirtualFileSystem.PROTOCOL_PREFIX)
+                .trimStart('/')
+                .let(PlVirtualFileSystem.Util.getInstance()::findFileByPath)
+        return source != null &&
+            source.codeRange.first < line &&
+            source.codeRange.second > line
     }
+
+    /**
+     * Prefer the dedicated PL/pgSQL breakpoint over generic database breakpoint
+     * types that also accept SQL virtual files.
+     */
+    override fun getPriority(): Int = 100
 
     /**
      * Get the editors provider.
@@ -65,6 +82,3 @@ class PlLineBreakpointType : SqlLineBreakpointType<PlLineBreakpointProperties>(
     }
 
 }
-
-
-

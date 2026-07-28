@@ -123,30 +123,27 @@ jobs:
       - name: Download DataGrip test matrix
         shell: bash
         run: |
-          for VERSION in 2026.1.4 2026.2.1; do
-            ARCHIVE="${RUNNER_TEMP}/datagrip-${VERSION}.tar.gz"
-            INSTALL_DIR="${RUNNER_TEMP}/datagrip-${VERSION}"
-            curl --fail --location --retry 3 \
-              "https://download.jetbrains.com/datagrip/datagrip-${VERSION}.tar.gz" \
-              --output "${ARCHIVE}"
-            curl --fail --location --retry 3 \
-              "https://download.jetbrains.com/datagrip/datagrip-${VERSION}.tar.gz.sha256" \
-              --output "${ARCHIVE}.sha256"
-            (
-              cd "${RUNNER_TEMP}"
-              sha256sum --check "$(basename "${ARCHIVE}.sha256")"
-            )
-            mkdir -p "${INSTALL_DIR}"
-            tar --extract --gzip --file "${ARCHIVE}" --directory "${INSTALL_DIR}" --strip-components=1
-          done
-          echo "DATAGRIP_261_PATH=${RUNNER_TEMP}/datagrip-2026.1.4" >> "${GITHUB_ENV}"
+          VERSION=2026.2.1
+          ARCHIVE="${RUNNER_TEMP}/datagrip-${VERSION}.tar.gz"
+          INSTALL_DIR="${RUNNER_TEMP}/datagrip-${VERSION}"
+          curl --fail --location --retry 3 \
+            "https://download.jetbrains.com/datagrip/datagrip-${VERSION}.tar.gz" \
+            --output "${ARCHIVE}"
+          curl --fail --location --retry 3 \
+            "https://download.jetbrains.com/datagrip/datagrip-${VERSION}.tar.gz.sha256" \
+            --output "${ARCHIVE}.sha256"
+          (
+            cd "${RUNNER_TEMP}"
+            sha256sum --check "$(basename "${ARCHIVE}.sha256")"
+          )
+          mkdir -p "${INSTALL_DIR}"
+          tar --extract --gzip --file "${ARCHIVE}" --directory "${INSTALL_DIR}" --strip-components=1
           echo "DATAGRIP_262_PATH=${RUNNER_TEMP}/datagrip-2026.2.1" >> "${GITHUB_ENV}"
 
       # Run tests
       - name: Run Tests
         run: |
-          ./gradlew check testDataGrip261 testDataGrip262 \
-            -PdataGrip261Path="${DATAGRIP_261_PATH}" \
+          ./gradlew check testDataGrip262 \
             -PdataGrip262Path="${DATAGRIP_262_PATH}"
 
       # Collect Tests Result of failed tests
@@ -195,23 +192,21 @@ jobs:
       - name: Download DataGrip verification matrix
         shell: bash
         run: |
-          for VERSION in 2026.1.4 2026.2.1; do
-            ARCHIVE="${RUNNER_TEMP}/datagrip-${VERSION}.tar.gz"
-            INSTALL_DIR="${RUNNER_TEMP}/datagrip-${VERSION}"
-            curl --fail --location --retry 3 \
-              "https://download.jetbrains.com/datagrip/datagrip-${VERSION}.tar.gz" \
-              --output "${ARCHIVE}"
-            curl --fail --location --retry 3 \
-              "https://download.jetbrains.com/datagrip/datagrip-${VERSION}.tar.gz.sha256" \
-              --output "${ARCHIVE}.sha256"
-            (
-              cd "${RUNNER_TEMP}"
-              sha256sum --check "$(basename "${ARCHIVE}.sha256")"
-            )
-            mkdir -p "${INSTALL_DIR}"
-            tar --extract --gzip --file "${ARCHIVE}" --directory "${INSTALL_DIR}" --strip-components=1
-          done
-          echo "DATAGRIP_261_PATH=${RUNNER_TEMP}/datagrip-2026.1.4" >> "${GITHUB_ENV}"
+          VERSION=2026.2.1
+          ARCHIVE="${RUNNER_TEMP}/datagrip-${VERSION}.tar.gz"
+          INSTALL_DIR="${RUNNER_TEMP}/datagrip-${VERSION}"
+          curl --fail --location --retry 3 \
+            "https://download.jetbrains.com/datagrip/datagrip-${VERSION}.tar.gz" \
+            --output "${ARCHIVE}"
+          curl --fail --location --retry 3 \
+            "https://download.jetbrains.com/datagrip/datagrip-${VERSION}.tar.gz.sha256" \
+            --output "${ARCHIVE}.sha256"
+          (
+            cd "${RUNNER_TEMP}"
+            sha256sum --check "$(basename "${ARCHIVE}.sha256")"
+          )
+          mkdir -p "${INSTALL_DIR}"
+          tar --extract --gzip --file "${ARCHIVE}" --directory "${INSTALL_DIR}" --strip-components=1
           echo "DATAGRIP_262_PATH=${RUNNER_TEMP}/datagrip-2026.2.1" >> "${GITHUB_ENV}"
 
       # Cache Plugin Verifier IDEs
@@ -225,7 +220,6 @@ jobs:
       - name: Run Plugin Verification tasks
         run: |
           ./gradlew verifyPlugin \
-            -PdataGrip261Path="${DATAGRIP_261_PATH}" \
             -PdataGrip262Path="${DATAGRIP_262_PATH}" \
             -Dplugin.verifier.home.dir=${{ needs.build.outputs.pluginVerifierHomeDir }}
 

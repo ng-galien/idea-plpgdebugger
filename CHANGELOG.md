@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+### Bugfixes
+
+- Restore reliable creation, persistence, removal, and server installation of PL/pgSQL line breakpoints on IntelliJ Platform 2026.2.
+
+### Maintenance
+
+- Limit the hotfix release line to IntelliJ IDEA and DataGrip 2026.2.
+- Compile, test, and run Plugin Verifier exclusively against the IntelliJ Platform 262 line.
+
 ## [262.0.1] - 2026-07-26
 
 ### Bugfixes

@@ -7,7 +7,7 @@
 <!-- Plugin description -->
 Debug PostgreSQL PL/pgSQL procedures, functions, and triggers from IntelliJ IDEA Ultimate and DataGrip.
 
-Compatible with IntelliJ Platform builds 261 through 262 (2026.1 through 2026.2).
+Compatible with IntelliJ Platform build 262 (2026.2).
 
 ## Features
 
@@ -172,24 +172,22 @@ The build requires JDK 21. Use the Gradle wrapper included in the repository:
 ```
 
 The PSI and DatabaseTools regression tests run against the latest supported
-DataGrip patch releases (2026.1.4 and 2026.2.1). Pass the two installed IDE
-paths to both the test matrix and Plugin Verifier:
+DataGrip patch release (2026.2.1). Pass the installed IDE path to both the
+test task and Plugin Verifier:
 
 ```shell
 ./gradlew testDataGrip \
-  -PdataGrip261Path="/path/to/DataGrip-2026.1.4" \
   -PdataGrip262Path="/path/to/DataGrip-2026.2.1"
 ./gradlew verifyPlugin \
-  -PdataGrip261Path="/path/to/DataGrip-2026.1.4" \
   -PdataGrip262Path="/path/to/DataGrip-2026.2.1"
 ```
 
 CI downloads these exact releases from JetBrains and validates their checksums.
 Explicit paths also avoid a temporary `DB`/`DG` product-code mismatch in the
 JetBrains release resolver. The main compilation target can be replaced with
-`-PlocalIdePath="/path/to/IntelliJ IDEA 2026.1"`. The packaged plugin is created under `build/distributions`.
+`-PlocalIdePath="/path/to/IntelliJ IDEA 2026.2"`. The packaged plugin is created under `build/distributions`.
 
-The current release line targets IntelliJ Platform builds `261` through `262.*`. A push to the `262` branch runs the build, tests on DataGrip 2026.1 and 2026.2, and Plugin Verifier against both releases before creating a draft GitHub release. Publishing that draft triggers signing and publication to JetBrains Marketplace.
+The current release line targets IntelliJ Platform builds `262` through `262.*`. A push to the `262` branch runs the build, tests on DataGrip 2026.2, and Plugin Verifier against that release before creating a draft GitHub release. Publishing that draft triggers signing and publication to JetBrains Marketplace.
 
 ---
 Plugin based on the [IntelliJ Platform Plugin Template][template].
