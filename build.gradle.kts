@@ -32,7 +32,7 @@ dependencies {
         if (localIdePath != null) {
             local(localIdePath)
         } else {
-            intellijIdeaUltimate(version = providers.gradleProperty("platformVersion"))
+            intellijIdea(version = providers.gradleProperty("platformVersion"))
         }
         bundledPlugins(providers.gradleProperty("platformBundledPlugins").map { it.split(',') })
         plugins(providers.gradleProperty("platformPlugins").map { it.split(',') })

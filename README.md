@@ -166,9 +166,9 @@ Follow these [instructions for pgAdmin](https://www.pgadmin.org/docs/pgadmin4/de
 The build requires JDK 21. Use the Gradle wrapper included in the repository:
 
 ```shell
-./gradlew check
-./gradlew buildPlugin
-./gradlew verifyPlugin
+./gradlew check testDataGrip262 buildPlugin verifyPlugin \
+  -PlocalIdePath="/path/to/DataGrip-2026.2.1" \
+  -PdataGrip262Path="/path/to/DataGrip-2026.2.1"
 ```
 
 The PSI and DatabaseTools regression tests run against the latest supported
@@ -184,8 +184,9 @@ test task and Plugin Verifier:
 
 CI downloads these exact releases from JetBrains and validates their checksums.
 Explicit paths also avoid a temporary `DB`/`DG` product-code mismatch in the
-JetBrains release resolver. The main compilation target can be replaced with
-`-PlocalIdePath="/path/to/IntelliJ IDEA 2026.2"`. The packaged plugin is created under `build/distributions`.
+JetBrains release resolver. Without `localIdePath`, the main compilation target
+is the unified IntelliJ Platform 2026.2 distribution. The packaged plugin is
+created under `build/distributions`.
 
 The current release line targets IntelliJ Platform builds `262` through `262.*`. A push to the `262` branch runs the build, tests on DataGrip 2026.2, and Plugin Verifier against that release before creating a draft GitHub release. Publishing that draft triggers signing and publication to JetBrains Marketplace.
 

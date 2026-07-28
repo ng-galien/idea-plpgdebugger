@@ -144,6 +144,7 @@ jobs:
       - name: Run Tests
         run: |
           ./gradlew check testDataGrip262 \
+            -PlocalIdePath="${DATAGRIP_262_PATH}" \
             -PdataGrip262Path="${DATAGRIP_262_PATH}"
 
       # Collect Tests Result of failed tests
@@ -220,6 +221,7 @@ jobs:
       - name: Run Plugin Verification tasks
         run: |
           ./gradlew verifyPlugin \
+            -PlocalIdePath="${DATAGRIP_262_PATH}" \
             -PdataGrip262Path="${DATAGRIP_262_PATH}" \
             -Dplugin.verifier.home.dir=${{ needs.build.outputs.pluginVerifierHomeDir }}
 
